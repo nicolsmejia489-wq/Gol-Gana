@@ -25,9 +25,8 @@ st.markdown("""
 def inicializar_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # ESTA ES LA LÍNEA QUE DEBES AÑADIR TEMPORALMENTE:
-    cursor.execute("DROP TABLE IF EXISTS equipos")
-    cursor.execute('''CREATE TABLE IF NOT EXISTS equipos (
+    # LÍNEA TEMPORAL para borrar bd: cursor.execute("DROP TABLE IF EXISTS equipos")
+        cursor.execute('''CREATE TABLE IF NOT EXISTS equipos (
         nombre TEXT PRIMARY KEY, celular TEXT, prefijo TEXT, pin TEXT, estado TEXT DEFAULT 'pendiente'
     )''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS historial (
@@ -151,4 +150,5 @@ elif rol == "dt":
         if st.button("Analizar con IA"):
             st.warning("IA Procesando... (Implementando lógica de EasyOCR personalizada)")
             # Aquí se integra el lector que ya teníamos
+
 
