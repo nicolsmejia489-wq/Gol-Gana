@@ -105,8 +105,8 @@ if rol == "espectador":
 
         # 1. Diccionario Extendido de Países y Prefijos
         paises_data = {
-            "Argentina": "+54", "Bolivia": "+591", "Brasil": "+55", "Canadá": "+1",
-            "Chile": "+56", "Colombia": "+57", "Costa Rica": "+506", "Cuba": "+53",
+            "Colombia": "+57", "Bolivia": "+591", "Brasil": "+55", "Canadá": "+1",
+            "Chile": "+56", "Argentina": "+54", "Costa Rica": "+506", "Cuba": "+53",
             "Ecuador": "+593", "El Salvador": "+503", "España": "+34", "Estados Unidos": "+1",
             "Guatemala": "+502", "Honduras": "+504", "México": "+52", "Nicaragua": "+505",
             "Panamá": "+507", "Paraguay": "+595", "Perú": "+51", "Puerto Rico": "+1",
@@ -121,12 +121,12 @@ if rol == "espectador":
         if not st.session_state.confirmado:
             # --- FASE 1: LLENAR DATOS ---
             with st.form("registro_gol_gana"):
-                nombre_e = st.text_input("Nombre del Equipo", placeholder="Ej: Atlas MX")
+                nombre_e = st.text_input("Nombre del Equipo", placeholder="Ej: Once Caldas")
                 seleccion = st.selectbox("País y Prefijo", opciones_paises)
                 whatsapp = st.text_input("Número de WhatsApp", placeholder="Sin el prefijo")
                 nuevo_pin = st.text_input("Crea tu PIN (4 números)", max_chars=4, type="password")
                 
-                enviado = st.form_submit_button("Revisar Datos")
+                enviado = st.form_submit_button("Inscribir equipo")
                 
                 if enviado:
                     if nombre_e and whatsapp and len(nuevo_pin) == 4:
@@ -145,7 +145,7 @@ if rol == "espectador":
         else:
             # --- FASE 2: CONFIRMACIÓN ---
             d = st.session_state.datos_temp
-            st.warning("⚠️ Revisa que tus datos sean correctos:")
+            st.warning("El PIN elegido lo debes recordar para accceder como DT y subir los resultados de tu equipo⚠️ Revisa que tus datos sean correctos:")
             
             col_a, col_b = st.columns(2)
             with col_a:
@@ -204,4 +204,5 @@ elif rol == "dt":
         if st.button("Analizar con IA"):
             st.warning("IA Procesando... (Implementando lógica de EasyOCR personalizada)")
             # Aquí se integra el lector que ya teníamos
+
 
