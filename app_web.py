@@ -50,63 +50,62 @@ if st.session_state.rol == "espectador" and not st.session_state.confirmado:
                     else:
                         st.error("PIN no válido o equipo pendiente.")
 
-# --- VISTA: ESPECTADOR ---
+# --- VISTA ESPECTADOR ---
 if st.session_state.rol == "espectador":
-    tab1, tab2 = st.tabs(["📊 Tabla de Posiciones", "📝 Inscripción"])
+    tab1, tab2 = st.tabs(["📊 Tabla", "📝 Inscripción"])
 
     with tab1:
-        st.subheader("Clasificación Oficial")
-        
-        # 1. Obtener equipos aprobados
         cur = conn.cursor()
         cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE estado='aprobado'")
-        equipos_db = cur.fetchall()
-        
-        if not equipos_db:
-            st.info("Esperando aprobación de equipos para generar la tabla.")
+        oficiales = cur.fetchall()
+        if oficiales:
+            for nom, pref, cel in oficiales:
+                st.info(f"⚽ {nom} | [WhatsApp](https://wa.me/{pref.replace('+','')}{cel})")
         else:
-            # 2. Inicializar estadísticas para cada equipo
-            # POS, EQUIPO, PJ, PTS, GF, GC, DG
-            stats = []
-            for nom, pref, cel in equipos_db:
-                # Aquí simulamos los datos. Cuando la IA funcione, leeremos la tabla 'historial'
-                # Por ahora, todos empiezan en 0
-                stats.append({
-                    "Equipo": nom,
-                    "PJ": 0, "PTS": 0, "GF": 0, "GC": 0, "DG": 0,
-                    "WA": f"https://wa.me/{pref.replace('+','')}{cel}"
-                })
-            
-            # 3. Convertir a DataFrame para manejar los datos fácil
-            df = pd.DataFrame(stats)
-            
-            # Ordenar por Puntos, luego Diferencia de Goles
-            df = df.sort_values(by=["PTS", "DG"], ascending=False)
-            df.insert(0, "POS", range(1, len(df) + 1)) # Añadir columna de posición
-
-            # 4. Mostrar la Tabla (Formato Profesional)
-            # Usamos columnas para que se vea bien en móvil
-            cols = st.columns([1, 3, 1, 1, 1, 1, 1])
-            headers = ["POS", "EQUIPO", "PJ", "PTS", "GF", "GC", "DG"]
-            for i, h in enumerate(headers):
-                cols[i].write(f"**{h}**")
-            
-            st.divider()
-
-            for _, fila in df.iterrows():
-                c = st.columns([1, 3, 1, 1, 1, 1, 1])
-                c[0].write(str(fila["POS"]))
-                c[1].write(fila["Equipo"])
-                c[2].write(str(fila["PJ"]))
-                c[3].write(f"**{fila['PTS']}**")
-                c[4].write(str(fila["GF"]))
-                c[5].write(str(fila["GC"]))
-                c[6].write(str(fila["DG"]))
-                st.divider()
+            st.write("No hay equipos aprobados.")
 
     with tab2:
-        # Aquí se mantiene tu código de inscripción que ya funciona perfecto...
-        st.write("(El formulario de inscripción sigue aquí)")
+        paises = {"Colombia": "+57", "México": "+52", "Ecuador": "+593", "Venezuela": "+58", "Argentina": "+54", "EEUU": "+1", "España": "+34"}
+        
+        if not st.session_state.confirmado:
+            # FASE 1: DATOS
+            with st.form("reg_form"):
+                st.subheader("Registra tu equipo")
+                n = st.text_input("Nombre del Equipo")
+                p = st.selectbox("País", list(paises.keys()))
+                w = st.text_input("WhatsApp (sin prefijo)")
+                pin_n = st.text_input("PIN (4 números)", max_chars=4, type="password")
+                
+                if st.form_submit_button("Revisar"):
+                    cur.execute("SELECT nombre FROM equipos WHERE pin=?", (pin_n,))
+                    if pin_n == "2025" or cur.fetchone():
+                        st.error("PIN ocupado.")
+                    elif n and w and len(pin_n)==4:
+                        st.session_state.datos_temp = {"nombre":n, "pref":paises[p], "wa":w, "pin":pin_n, "pais_nom":p}
+                        st.session_state.confirmado = True
+                        st.rerun()
+                    else:
+                        st.error("Llena todos los campos.")
+        else:
+            # FASE 2: CONFIRMACIÓN (FUERA DEL FORM PARA EVITAR ERRORES)
+            d = st.session_state.datos_temp
+            st.warning("⚠️ ¿Son correctos estos datos?")
+            st.write(f"**Equipo:** {d['nombre']}")
+            st.write(f"**WhatsApp:** {d['pref']} {d['wa']}")
+            st.write(f"**PIN:** {d['pin']}")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("🚀 CONFIRMAR E INSCRIBIR"):
+                conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)",
+                             (d['nombre'], d['wa'], d['pref'], d['pin']))
+                conn.commit()
+                st.session_state.confirmado = False
+                st.session_state.datos_temp = None
+                st.success("¡Enviado al Admin!")
+                st.rerun()
+            if c2.button("✏️ EDITAR"):
+                st.session_state.confirmado = False
+                st.rerun()
 
 # --- VISTA ADMIN ---
 elif st.session_state.rol == "admin":
@@ -136,4 +135,3 @@ elif st.session_state.rol == "admin":
 elif st.session_state.rol == "dt":
     st.header(f"🎮 Panel DT: {st.session_state.equipo_usuario}")
     st.write("Aquí podrás subir tus fotos de resultados próximamente.")
-
