@@ -52,59 +52,82 @@ if st.session_state.rol == "espectador" and not st.session_state.confirmado:
 
 # --- VISTA ESPECTADOR ---
 
-if st.session_state.rol == "espectador":
-    tab1, tab2 = st.tabs(["📊 Tabla de Posiciones", "📝 Inscripción"])
-
-    with tab1:
-        st.subheader("Clasificación Oficial")
+with tab1:
+        st.subheader("🏆 Posiciones")
         
-        # 1. Obtener equipos aprobados
         cur = conn.cursor()
-        cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE estado='aprobado'")
+        cur.execute("SELECT nombre FROM equipos WHERE estado='aprobado'")
         equipos_db = cur.fetchall()
         
         if not equipos_db:
-            st.info("Esperando aprobación de equipos para generar la tabla.")
+            st.info("Aún no hay equipos oficiales.")
         else:
-            # 2. Inicializar estadísticas para cada equipo
-            # POS, EQUIPO, PJ, PTS, GF, GC, DG
+            # 1. Preparar datos
             stats = []
-            for nom, pref, cel in equipos_db:
-                # Aquí simulamos los datos. Cuando la IA funcione, leeremos la tabla 'historial'
-                # Por ahora, todos empiezan en 0
+            for (nom,) in equipos_db:
+                # Inicializamos en cero (esto se llenará con la IA luego)
                 stats.append({
-                    "Equipo": nom,
-                    "PJ": 0, "PTS": 0, "GF": 0, "GC": 0, "DG": 0,
-                    "WA": f"https://wa.me/{pref.replace('+','')}{cel}"
+                    "EQ": nom, "J": 0, "Pts": 0, "GF": 0, "GC": 0, "DG": 0
                 })
             
-            # 3. Convertir a DataFrame para manejar los datos fácil
-            df = pd.DataFrame(stats)
+            df = pd.DataFrame(stats).sort_values(by=["Pts", "DG"], ascending=False)
             
-            # Ordenar por Puntos, luego Diferencia de Goles
-            df = df.sort_values(by=["PTS", "DG"], ascending=False)
-            df.insert(0, "POS", range(1, len(df) + 1)) # Añadir columna de posición
-
-            # 4. Mostrar la Tabla (Formato Profesional)
-            # Usamos columnas para que se vea bien en móvil
-            cols = st.columns([1, 3, 1, 1, 1, 1, 1])
-            headers = ["POS", "EQUIPO", "PJ", "PTS", "GF", "GC", "DG"]
-            for i, h in enumerate(headers):
-                cols[i].write(f"**{h}**")
+            # 2. Crear la tabla en formato HTML (Mucho más compacto para móviles)
+            # Esto evita que las columnas se desparramen
+            tabla_html = """
+            <style>
+                .tabla-movil {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 13px; /* Letra más pequeña para móvil */
+                    font-family: sans-serif;
+                }
+                .tabla-movil th {
+                    background-color: #f0f2f6;
+                    border-bottom: 2px solid #ccc;
+                    padding: 8px 4px;
+                    text-align: left;
+                }
+                .tabla-movil td {
+                    border-bottom: 1px solid #eee;
+                    padding: 10px 4px;
+                }
+                .pos { font-weight: bold; color: #1f77b4; width: 20px; }
+                .equipo { font-weight: bold; }
+                .pts { background-color: #e1f5fe; font-weight: bold; text-align: center; }
+                .num { text-align: center; }
+            </style>
+            <table class="tabla-movil">
+                <tr>
+                    <th class="pos">#</th>
+                    <th>EQ</th>
+                    <th class="num">J</th>
+                    <th class="pts">Pts</th>
+                    <th class="num">GF</th>
+                    <th class="num">GC</th>
+                    <th class="num">DG</th>
+                </tr>
+            """
             
-            st.divider()
-
-            for _, fila in df.iterrows():
-                c = st.columns([1, 3, 1, 1, 1, 1, 1])
-                c[0].write(str(fila["POS"]))
-                c[1].write(fila["Equipo"])
-                c[2].write(str(fila["PJ"]))
-                c[3].write(f"**{fila['PTS']}**")
-                c[4].write(str(fila["GF"]))
-                c[5].write(str(fila["GC"]))
-                c[6].write(str(fila["DG"]))
-                st.divider()
-
+            for i, fila in enumerate(df.values):
+                # fila[0]=Equipo, 1=J, 2=Pts, 3=GF, 4=GC, 5=DG
+                tabla_html += f"""
+                <tr>
+                    <td class="pos">{i+1}</td>
+                    <td class="equipo">{fila[0]}</td>
+                    <td class="num">{fila[1]}</td>
+                    <td class="pts">{fila[2]}</td>
+                    <td class="num">{fila[3]}</td>
+                    <td class="num">{fila[4]}</td>
+                    <td class="num">{fila[5]}</td>
+                </tr>
+                """
+            
+            tabla_html += "</table>"
+            
+            # 3. Mostrar la tabla
+            st.markdown(tabla_html, unsafe_allow_html=True)
+            st.caption("J: Jugados | Pts: Puntos | DG: Diferencia Goles")
     # --- FORMULARIO ---
     with tab2:
         paises = {"Colombia": "+57", "México": "+52", "Ecuador": "+593", "Venezuela": "+58", "Argentina": "+54", "EEUU": "+1", "España": "+34"}
@@ -177,4 +200,5 @@ elif st.session_state.rol == "admin":
 elif st.session_state.rol == "dt":
     st.header(f"🎮 Panel DT: {st.session_state.equipo_usuario}")
     st.write("Aquí podrás subir tus fotos de resultados próximamente.")
+
 
