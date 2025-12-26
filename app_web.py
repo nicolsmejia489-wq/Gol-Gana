@@ -36,13 +36,15 @@ if 'rol' not in st.session_state: st.session_state.rol = "espectador"
 if 'equipo_usuario' not in st.session_state: st.session_state.equipo_usuario = None
 if 'datos_temp' not in st.session_state: st.session_state.datos_temp = None
 
-# --- BOTÓN ATRÁS / CERRAR SESIÓN ---
-if st.button("⬅️ Volver al Inicio / Cerrar Sesión"):
-    st.session_state.confirmado = False
-    st.session_state.rol = "espectador"
-    st.session_state.equipo_usuario = None
-    st.session_state.datos_temp = None
-    st.rerun()
+
+# --- BOTÓN ATRÁS / CERRAR SESIÓN UNIVERSAL ---
+if st.session_state.rol != "espectador" or st.session_state.confirmado:
+    if st.button("⬅️ Volver a la Tabla Principal"):
+        st.session_state.confirmado = False
+        st.session_state.rol = "espectador"
+        st.session_state.equipo_usuario = None
+        st.session_state.datos_temp = None
+        st.rerun()
 
 st.title("⚽ Gol-Gana")
 
@@ -176,4 +178,5 @@ elif st.session_state.rol == "dt":
         st.button("Procesar con IA (Próximamente)")
 
 conn.close()
+
 
