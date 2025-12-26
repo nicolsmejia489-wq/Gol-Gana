@@ -1,23 +1,19 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from PIL import Image
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Gol-Gana", layout="centered", page_icon="⚽")
+DB_NAME = "gol_gana.db"
+ADMIN_PIN = "2025"
 
-# --- ESTILOS CSS PARA MÓVIL ---
+# --- ESTILOS ---
 st.markdown("""
     <style>
     .stApp { max-width: 600px; margin: 0 auto; }
     .stButton>button { width: 100%; border-radius: 10px; }
-    .block-container { padding-top: 1rem; }
     </style>
     """, unsafe_allow_html=True)
-
-# --- CONSTANTES Y DB ---
-DB_NAME = "gol_gana.db"
-ADMIN_PIN = "2025"
 
 def inicializar_db():
     conn = sqlite3.connect(DB_NAME)
@@ -33,52 +29,54 @@ def inicializar_db():
 
 conn = inicializar_db()
 
-# --- GESTIÓN DE ESTADO (STATE) ---
+# --- GESTIÓN DE SESIÓN ---
 if 'confirmado' not in st.session_state: st.session_state.confirmado = False
-if 'datos_temp' not in st.session_state: st.session_state.datos_temp = None
+if 'rol' not in st.session_state: st.session_state.rol = "espectador"
+if 'equipo_usuario' not in st.session_state: st.session_state.equipo_usuario = None
 
-# --- BOTÓN "ATRÁS" UNIVERSAL ---
-# Se coloca al principio para que siempre esté arriba
-if st.button("⬅️ Volver al Inicio / Atrás"):
+# --- BOTÓN ATRÁS / CERRAR SESIÓN ---
+if st.button("⬅️ Volver al Inicio / Cerrar Sesión"):
     st.session_state.confirmado = False
-    st.session_state.datos_temp = None
-    # Forzamos limpieza de PIN si quieres que cierre sesión también:
-    # st.rerun() 
+    st.session_state.rol = "espectador"
+    st.session_state.equipo_usuario = None
     st.rerun()
 
 st.title("⚽ Gol-Gana")
 
-# --- LOGIN Y ROLES ---
-user_pin = st.text_input("🔑 PIN de Acceso", type="password", placeholder="Ingresa tu PIN")
-
-rol = "espectador"
-equipo_usuario = None
-
-if user_pin == ADMIN_PIN:
-    rol = "admin"
-elif user_pin != "":
-    cur = conn.cursor()
-    cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (user_pin,))
-    res = cur.fetchone()
-    if res:
-        rol = "dt"
-        equipo_usuario = res[0]
+# --- LOGIN SEPARADO (Solo se evalúa al presionar el botón) ---
+if st.session_state.rol == "espectador":
+    with st.expander("🔑 Acceso para DTs y Admin"):
+        with st.form("login_form"):
+            pin_input = st.text_input("Introduce tu PIN", type="password")
+            if st.form_submit_button("Entrar"):
+                if pin_input == ADMIN_PIN:
+                    st.session_state.rol = "admin"
+                    st.rerun()
+                elif pin_input != "":
+                    cur = conn.cursor()
+                    cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (pin_input,))
+                    res = cur.fetchone()
+                    if res:
+                        st.session_state.rol = "dt"
+                        st.session_state.equipo_usuario = res[0]
+                        st.rerun()
+                    else:
+                        st.error("PIN incorrecto o equipo no aprobado.")
 
 # --- VISTA: ESPECTADOR ---
-if rol == "espectador":
+if st.session_state.rol == "espectador":
     tab1, tab2 = st.tabs(["📊 Clasificación", "📝 Inscribirse"])
 
     with tab1:
+        # (Lógica de tabla igual a la anterior)
         cur = conn.cursor()
         cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE estado = 'aprobado'")
         equipos_db = cur.fetchall()
-        
         if not equipos_db:
-            st.info("Aún no hay equipos aprobados en el torneo.")
+            st.info("Aún no hay equipos aprobados.")
         else:
             stats = {e[0]: {'PJ':0, 'Pts':0, 'DG':0, 'GF':0, 'GC':0, 'WA': f"https://wa.me/{e[1].replace('+','')}{e[2]}"} for e in equipos_db}
             df_p = pd.read_sql_query("SELECT * FROM historial", conn)
-            
             for _, fila in df_p.iterrows():
                 l, gl, gv, v = fila['local'], fila['goles_l'], fila['goles_v'], fila['visitante']
                 if l in stats and v in stats:
@@ -88,7 +86,7 @@ if rol == "espectador":
                     if gl > gv: stats[l]['Pts'] += 3
                     elif gv > gl: stats[v]['Pts'] += 3
                     else: stats[l]['Pts'] += 1; stats[v]['Pts'] += 1
-
+            
             df_final = pd.DataFrame.from_dict(stats, orient='index').reset_index()
             df_final.columns = ['Equipo', 'PJ', 'Pts', 'DG', 'GF', 'GC', 'WA_Link']
             df_final['DG'] = df_final['GF'] - df_final['GC']
@@ -104,77 +102,45 @@ if rol == "espectador":
                     st.divider()
 
     with tab2:
-        paises_data = {
-            "Argentina": "+54", "Bolivia": "+591", "Brasil": "+55", "Canadá": "+1",
-            "Chile": "+56", "Colombia": "+57", "Costa Rica": "+506", "Cuba": "+53",
-            "Ecuador": "+593", "El Salvador": "+503", "España": "+34", "Estados Unidos": "+1",
-            "Guatemala": "+502", "Honduras": "+504", "México": "+52", "Nicaragua": "+505",
-            "Panamá": "+507", "Paraguay": "+595", "Perú": "+51", "Puerto Rico": "+1",
-            "Rep. Dominicana": "+1", "Uruguay": "+598", "Venezuela": "+58"
-        }
+        # --- FORMULARIO DE INSCRIPCIÓN (Ahora seguro) ---
+        paises_data = {"Colombia": "+57", "México": "+52", "Venezuela": "+58", "Argentina": "+54", "España": "+34"} # Simplificado para el ejemplo
         opciones_paises = [f"{pais} ({pref})" for pais, pref in paises_data.items()]
 
         if not st.session_state.confirmado:
             with st.form("registro_equipo"):
-                st.subheader("📩 Nueva Inscripción")
                 nombre_e = st.text_input("Nombre del Equipo")
-                seleccion = st.selectbox("País y Prefijo", opciones_paises)
-                whatsapp = st.text_input("WhatsApp (Solo números)")
+                seleccion = st.selectbox("País", opciones_paises)
+                whatsapp = st.text_input("WhatsApp")
                 nuevo_pin = st.text_input("Crea tu PIN (4 dígitos)", max_chars=4, type="password")
                 
                 if st.form_submit_button("Revisar Datos"):
                     cur = conn.cursor()
                     cur.execute("SELECT nombre FROM equipos WHERE pin = ?", (nuevo_pin,))
-                    if not nombre_e or not whatsapp or len(nuevo_pin) < 4:
-                        st.error("Completa todos los campos.")
-                    elif nuevo_pin == ADMIN_PIN or cur.fetchone():
-                        st.error("❌ PIN no disponible. Elige otro.")
+                    if nuevo_pin == ADMIN_PIN or cur.fetchone():
+                        st.error("Ese PIN no está disponible. Usa otro.")
+                    elif not nombre_e or not whatsapp or len(nuevo_pin) < 4:
+                        st.error("Datos incompletos.")
                     else:
-                        st.session_state.datos_temp = {
-                            "nombre": nombre_e, "wa": whatsapp, "pin": nuevo_pin,
-                            "prefijo": seleccion.split('(')[-1].replace(')', ''),
-                            "pais": seleccion.split(' (')[0]
-                        }
+                        st.session_state.datos_temp = {"nombre": nombre_e, "wa": whatsapp, "pin": nuevo_pin, "prefijo": seleccion.split('(')[-1].replace(')', '')}
                         st.session_state.confirmado = True
                         st.rerun()
         else:
-            d = st.session_state.datos_temp
-            st.warning("Confirmar datos:")
-            st.write(f"**Equipo:** {d['nombre']}")
-            st.write(f"**WhatsApp:** {d['prefijo']} {d['wa']}")
-            st.write(f"**PIN:** `{d['pin']}`")
-            
-            if st.button("🚀 Enviar Inscripción"):
-                conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)",
-                             (d['nombre'], d['wa'], d['prefijo'], d['pin']))
+            st.write(f"Confirmar: {st.session_state.datos_temp['nombre']}")
+            if st.button("🚀 Enviar"):
+                d = st.session_state.datos_temp
+                conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)", (d['nombre'], d['wa'], d['prefijo'], d['pin']))
                 conn.commit()
-                st.success("¡Enviado! Reiniciando...")
                 st.session_state.confirmado = False
+                st.success("¡Enviado!")
                 st.rerun()
 
-# --- VISTA: ADMIN ---
-elif rol == "admin":
-    st.header("🛠️ Admin")
-    pendientes = pd.read_sql_query("SELECT nombre, celular, prefijo FROM equipos WHERE estado = 'pendiente'", conn)
-    if not pendientes.empty:
-        st.dataframe(pendientes)
-        equipo = st.selectbox("Aprobar:", [""] + list(pendientes['nombre']))
-        if st.button("✅ Confirmar Aprobación"):
-            conn.execute("UPDATE equipos SET estado = 'aprobado' WHERE nombre = ?", (equipo,))
-            conn.commit()
-            st.rerun()
-    else:
-        st.info("No hay equipos pendientes.")
-    
-    if st.button("🚨 RESET TOTAL TORNEO"):
-        conn.execute("DELETE FROM historial"); conn.execute("DELETE FROM equipos")
-        conn.commit(); st.rerun()
+# --- VISTAS ADMIN Y DT (Solo se activan si el rol cambia por el botón de login) ---
+elif st.session_state.rol == "admin":
+    st.header("🛠️ Panel Admin")
+    if st.button("🚨 RESET TOTAL"):
+        conn.execute("DELETE FROM equipos"); conn.execute("DELETE FROM historial"); conn.commit()
+        st.rerun()
 
-# --- VISTA: DT ---
-elif rol == "dt":
-    st.header(f"🎮 Panel DT: {equipo_usuario}")
-    st.write("Sube tu marcador:")
-    archivo = st.file_uploader("Captura del partido", type=['jpg', 'png'])
-    if archivo:
-        st.image(archivo)
-        st.button("Analizar Imagen")
+elif st.session_state.rol == "dt":
+    st.header(f"🎮 Panel DT: {st.session_state.equipo_usuario}")
+    st.file_uploader("Sube tu marcador")
