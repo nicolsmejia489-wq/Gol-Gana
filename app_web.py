@@ -101,23 +101,78 @@ if rol == "espectador":
                     st.divider()
 
     with tab2:
-        st.subheader("Formulario de Inscripción")
-        with st.form("registro"):
-            nombre_e = st.text_input("Nombre del Equipo")
-            prefijos = {"Colombia": "+57", "México": "+52", "Venezuela": "+58", "Argentina": "+54", "España": "+34", "Otros": "+1"}
-            pais = st.selectbox("País", list(prefijos.keys()))
-            whatsapp = st.text_input("Número de WhatsApp (Sin prefijo)")
-            nuevo_pin = st.text_input("Crea tu PIN (4 números)", max_chars=4)
+        st.subheader("📩 Registro de Equipo")
+
+        # 1. Diccionario Extendido de Países y Prefijos
+        paises_data = {
+            "Argentina": "+54", "Bolivia": "+591", "Brasil": "+55", "Canadá": "+1",
+            "Chile": "+56", "Colombia": "+57", "Costa Rica": "+506", "Cuba": "+53",
+            "Ecuador": "+593", "El Salvador": "+503", "España": "+34", "Estados Unidos": "+1",
+            "Guatemala": "+502", "Honduras": "+504", "México": "+52", "Nicaragua": "+505",
+            "Panamá": "+507", "Paraguay": "+595", "Perú": "+51", "Puerto Rico": "+1",
+            "Rep. Dominicana": "+1", "Uruguay": "+598", "Venezuela": "+58"
+        }
+        opciones_paises = [f"{pais} ({pref})" for pais, pref in paises_data.items()]
+
+        # Inicializar estado de confirmación si no existe
+        if 'confirmado' not in st.session_state:
+            st.session_state.confirmado = False
+
+        if not st.session_state.confirmado:
+            # --- FASE 1: LLENAR DATOS ---
+            with st.form("registro_gol_gana"):
+                nombre_e = st.text_input("Nombre del Equipo", placeholder="Ej: Atlas MX")
+                seleccion = st.selectbox("País y Prefijo", opciones_paises)
+                whatsapp = st.text_input("Número de WhatsApp", placeholder="Sin el prefijo")
+                nuevo_pin = st.text_input("Crea tu PIN (4 números)", max_chars=4, type="password")
+                
+                enviado = st.form_submit_button("Revisar Datos")
+                
+                if enviado:
+                    if nombre_e and whatsapp and len(nuevo_pin) == 4:
+                        # Guardamos temporalmente en la sesión
+                        st.session_state.datos_temp = {
+                            "nombre": nombre_e,
+                            "pais_full": seleccion,
+                            "prefijo": seleccion.split('(')[-1].replace(')', ''),
+                            "wa": whatsapp,
+                            "pin": nuevo_pin
+                        }
+                        st.session_state.confirmado = True
+                        st.rerun()
+                    else:
+                        st.error("Por favor, llena todos los campos correctamente (El PIN debe ser de 4 dígitos).")
+        else:
+            # --- FASE 2: CONFIRMACIÓN ---
+            d = st.session_state.datos_temp
+            st.warning("⚠️ Revisa que tus datos sean correctos:")
             
-            if st.form_submit_button("Enviar"):
-                if nombre_e and whatsapp and nuevo_pin:
-                    try:
-                        conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?, ?, ?, ?)",
-                                     (nombre_e, whatsapp, prefijos[pais], nuevo_pin))
-                        conn.commit()
-                        st.success("✅ Solicitud enviada. Espera la aprobación del Admin.")
-                    except:
-                        st.error("Error: El nombre o PIN ya existen.")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.write(f"**Equipo:** {d['nombre']}")
+                st.write(f"**WhatsApp:** {d['prefijo']} {d['wa']}")
+            with col_b:
+                st.write(f"**PIN elegido:** `{d['pin']}`")
+                st.write(f"**País:** {d['pais_full'].split(' (')[0]}")
+
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Confirmar e Inscribir"):
+                try:
+                    conn.execute(
+                        "INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?, ?, ?, ?)",
+                        (d['nombre'], d['wa'], d['prefijo'], d['pin'])
+                    )
+                    conn.commit()
+                    st.success("¡Solicitud enviada con éxito! El admin te aprobará pronto.")
+                    # Limpiamos el estado
+                    st.session_state.confirmado = False
+                    st.session_state.datos_temp = None
+                except Exception as e:
+                    st.error(f"Error: El nombre o PIN ya están en uso. {e}")
+
+            if c2.button("✏️ Editar Datos"):
+                st.session_state.confirmado = False
+                st.rerun()
 
 # --- VISTA ADMIN ---
 elif rol == "admin":
@@ -149,3 +204,4 @@ elif rol == "dt":
         if st.button("Analizar con IA"):
             st.warning("IA Procesando... (Implementando lógica de EasyOCR personalizada)")
             # Aquí se integra el lector que ya teníamos
+
