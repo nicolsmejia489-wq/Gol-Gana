@@ -117,34 +117,54 @@ if st.session_state.rol == "espectador":
                 st.session_state.confirmado = False
                 st.rerun()
 
-# --- VISTA: ADMIN (¡YA NO ESTÁ EN BLANCO!) ---
-elif st.session_state.rol == "admin":
+# --- VISTA: ADMIN () ---elif st.session_state.rol == "admin":
     st.header("🛠️ Panel de Administración")
     
-    # 1. Aprobación de Equipos
-    st.subheader("📋 Solicitudes Pendientes")
-    pendientes = pd.read_sql_query("SELECT nombre, celular, prefijo FROM equipos WHERE estado = 'pendiente'", conn)
+    # 1. Gestión de Equipos Pendientes
+    st.subheader("📋 Solicitudes de Inscripción")
     
-    if pendientes.empty:
-        st.write("No hay solicitudes nuevas.")
+    # Consultamos los pendientes
+    cur = conn.cursor()
+    cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE estado = 'pendiente'")
+    pendientes = cur.fetchall()
+    
+    if not pendientes:
+        st.info("No hay solicitudes pendientes por el momento.")
     else:
-        st.table(pendientes)
-        equipo_a_aprobar = st.selectbox("Selecciona equipo para aprobar", [""] + list(pendientes['nombre']))
-        if st.button("Aprobar Equipo Seleccionado"):
-            if equipo_a_aprobar:
-                conn.execute("UPDATE equipos SET estado = 'aprobado' WHERE nombre = ?", (equipo_a_aprobar,))
-                conn.commit()
-                st.success(f"¡{equipo_a_aprobar} ahora es oficial!")
-                st.rerun()
+        # Creamos una cabecera visual para nuestra "tabla" manual
+        cols_header = st.columns([2, 2, 1])
+        cols_header[0].write("**Equipo**")
+        cols_header[1].write("**WhatsApp**")
+        cols_header[2].write("**Acción**")
+        st.divider()
 
-    # 2. Reseteo
-    st.divider()
-    if st.button("🚨 RESET TOTAL DEL TORNEO"):
-        conn.execute("DELETE FROM equipos")
-        conn.execute("DELETE FROM historial")
-        conn.commit()
-        st.warning("Torneo reiniciado por completo.")
-        st.rerun()
+        # Generamos una fila por cada equipo con su propio botón
+        for equipo in pendientes:
+            nombre_e, pref, cel = equipo
+            with st.container():
+                c1, c2, c3 = st.columns([2, 2, 1])
+                
+                c1.write(nombre_e)
+                c2.write(f"{pref} {cel}")
+                
+                # Botón Verde de Aceptar para cada equipo
+                # Usamos el nombre del equipo como llave única para el botón
+                if c3.button("✅ Aceptar", key=f"btn_{nombre_e}"):
+                    conn.execute("UPDATE equipos SET estado = 'aprobado' WHERE nombre = ?", (nombre_e,))
+                    conn.commit()
+                    st.success(f"¡{nombre_e} aprobado!")
+                    st.rerun()
+                st.divider()
+
+    # 2. Reseteo del Torneo (al final)
+    st.subheader("⚠️ Zona de Peligro")
+    with st.expander("Opciones de borrado"):
+        if st.button("🚨 BORRAR TODOS LOS DATOS"):
+            conn.execute("DELETE FROM equipos")
+            conn.execute("DELETE FROM historial")
+            conn.commit()
+            st.warning("Base de datos limpiada.")
+            st.rerun()
 
 # --- VISTA: DT ---
 elif st.session_state.rol == "dt":
@@ -156,3 +176,4 @@ elif st.session_state.rol == "dt":
         st.button("Procesar con IA (Próximamente)")
 
 conn.close()
+
