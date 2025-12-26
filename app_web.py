@@ -51,19 +51,61 @@ if st.session_state.rol == "espectador" and not st.session_state.confirmado:
                         st.error("PIN no válido o equipo pendiente.")
 
 # --- VISTA ESPECTADOR ---
+
 if st.session_state.rol == "espectador":
-    tab1, tab2 = st.tabs(["📊 Tabla", "📝 Inscripción"])
+    tab1, tab2 = st.tabs(["📊 Tabla de Posiciones", "📝 Inscripción"])
 
     with tab1:
+        st.subheader("Clasificación Oficial")
+        
+        # 1. Obtener equipos aprobados
         cur = conn.cursor()
         cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE estado='aprobado'")
-        oficiales = cur.fetchall()
-        if oficiales:
-            for nom, pref, cel in oficiales:
-                st.info(f"⚽ {nom} | [WhatsApp](https://wa.me/{pref.replace('+','')}{cel})")
+        equipos_db = cur.fetchall()
+        
+        if not equipos_db:
+            st.info("Esperando aprobación de equipos para generar la tabla.")
         else:
-            st.write("No hay equipos aprobados.")
+            # 2. Inicializar estadísticas para cada equipo
+            # POS, EQUIPO, PJ, PTS, GF, GC, DG
+            stats = []
+            for nom, pref, cel in equipos_db:
+                # Aquí simulamos los datos. Cuando la IA funcione, leeremos la tabla 'historial'
+                # Por ahora, todos empiezan en 0
+                stats.append({
+                    "Equipo": nom,
+                    "PJ": 0, "PTS": 0, "GF": 0, "GC": 0, "DG": 0,
+                    "WA": f"https://wa.me/{pref.replace('+','')}{cel}"
+                })
+            
+            # 3. Convertir a DataFrame para manejar los datos fácil
+            df = pd.DataFrame(stats)
+            
+            # Ordenar por Puntos, luego Diferencia de Goles
+            df = df.sort_values(by=["PTS", "DG"], ascending=False)
+            df.insert(0, "POS", range(1, len(df) + 1)) # Añadir columna de posición
 
+            # 4. Mostrar la Tabla (Formato Profesional)
+            # Usamos columnas para que se vea bien en móvil
+            cols = st.columns([1, 3, 1, 1, 1, 1, 1])
+            headers = ["POS", "EQUIPO", "PJ", "PTS", "GF", "GC", "DG"]
+            for i, h in enumerate(headers):
+                cols[i].write(f"**{h}**")
+            
+            st.divider()
+
+            for _, fila in df.iterrows():
+                c = st.columns([1, 3, 1, 1, 1, 1, 1])
+                c[0].write(str(fila["POS"]))
+                c[1].write(fila["Equipo"])
+                c[2].write(str(fila["PJ"]))
+                c[3].write(f"**{fila['PTS']}**")
+                c[4].write(str(fila["GF"]))
+                c[5].write(str(fila["GC"]))
+                c[6].write(str(fila["DG"]))
+                st.divider()
+
+    # --- FORMULARIO ---
     with tab2:
         paises = {"Colombia": "+57", "México": "+52", "Ecuador": "+593", "Venezuela": "+58", "Argentina": "+54", "EEUU": "+1", "España": "+34"}
         
@@ -135,3 +177,4 @@ elif st.session_state.rol == "admin":
 elif st.session_state.rol == "dt":
     st.header(f"🎮 Panel DT: {st.session_state.equipo_usuario}")
     st.write("Aquí podrás subir tus fotos de resultados próximamente.")
+
