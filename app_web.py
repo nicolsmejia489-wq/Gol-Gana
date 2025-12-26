@@ -2,19 +2,12 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Gol-Gana", layout="centered", page_icon="⚽")
+
+# --- BASE DE DATOS ---
 DB_NAME = "gol_gana.db"
 ADMIN_PIN = "2025"
-
-# --- ESTILOS ---
-st.markdown("""
-    <style>
-    .stApp { max-width: 600px; margin: 0 auto; }
-    .stButton>button { width: 100%; border-radius: 10px; }
-    .status-badge { padding: 5px; border-radius: 5px; background-color: #f0f2f6; }
-    </style>
-    """, unsafe_allow_html=True)
 
 def inicializar_db():
     conn = sqlite3.connect(DB_NAME)
@@ -30,18 +23,23 @@ def inicializar_db():
 
 conn = inicializar_db()
 
+# --- ESTILOS CSS ---
+st.markdown("""
+    <style>
+    .stApp { max-width: 600px; margin: 0 auto; }
+    .stButton>button { width: 100%; border-radius: 10px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- GESTIÓN DE SESIÓN ---
 if 'confirmado' not in st.session_state: st.session_state.confirmado = False
 if 'rol' not in st.session_state: st.session_state.rol = "espectador"
 if 'equipo_usuario' not in st.session_state: st.session_state.equipo_usuario = None
 if 'datos_temp' not in st.session_state: st.session_state.datos_temp = None
 
-
-
-st.title("⚽ Gol-Gana")
-
-
 # --- BOTÓN ATRÁS / CERRAR SESIÓN UNIVERSAL ---
+# Solo aparece si no estás en la vista de espectador base
 if st.session_state.rol != "espectador" or st.session_state.confirmado:
     if st.button("⬅️ Volver a la Tabla Principal"):
         st.session_state.confirmado = False
@@ -50,9 +48,9 @@ if st.session_state.rol != "espectador" or st.session_state.confirmado:
         st.session_state.datos_temp = None
         st.rerun()
 
+st.title("⚽ Gol-Gana")
 
-
-# --- LOGIN ---
+# --- LOGIN SEPARADO (PROTECCIÓN ADMIN) ---
 if st.session_state.rol == "espectador":
     with st.expander("🔑 Acceso para DTs y Admin"):
         with st.form("login_form"):
@@ -83,105 +81,121 @@ if st.session_state.rol == "espectador":
         if not equipos_db:
             st.info("Aún no hay equipos oficiales. ¡Sé el primero en inscribirte!")
         else:
-            # Cálculo de tabla (simplificado por ahora)
-            stats = {e[0]: {'PJ':0, 'Pts':0, 'WA': f"https://wa.me/{e[1].replace('+','')}{e[2]}"} for e in equipos_db}
-            for e_nombre, info in stats.items():
+            st.subheader("Tabla de Posiciones")
+            # Por ahora mostramos los inscritos, luego sumaremos la lógica de puntos
+            for nombre_e, pref, cel in equipos_db:
                 with st.container(border=True):
                     c1, c2 = st.columns([3, 1])
-                    c1.markdown(f"**{e_nombre}**")
-                    c2.markdown(f"[💬 WA]({info['WA']})")
+                    c1.markdown(f"**{nombre_e}**")
+                    wa_link = f"https://wa.me/{pref.replace('+','')}{cel}"
+                    c2.markdown(f"[💬 WA]({wa_link})")
 
     with tab2:
-        paises_data = {"Colombia": "+57", "México": "+52", "Venezuela": "+58", "Argentina": "+54", "Perú": "+51", "EEUU": "+1"}
+        paises_data = {
+            "Argentina": "+54", "Bolivia": "+591", "Brasil": "+55", "Canadá": "+1",
+            "Chile": "+56", "Colombia": "+57", "Costa Rica": "+506", "Cuba": "+53",
+            "Ecuador": "+593", "El Salvador": "+503", "España": "+34", "Estados Unidos": "+1",
+            "Guatemala": "+502", "Honduras": "+504", "México": "+52", "Nicaragua": "+505",
+            "Panamá": "+507", "Paraguay": "+595", "Perú": "+51", "Puerto Rico": "+1",
+            "Rep. Dominicana": "+1", "Uruguay": "+598", "Venezuela": "+58"
+        }
         opciones_paises = [f"{pais} ({pref})" for pais, pref in paises_data.items()]
 
         if not st.session_state.confirmado:
-            with st.form("registro"):
+            # FASE 1: FORMULARIO
+            with st.form("registro_equipo"):
+                st.subheader("📩 Nueva Inscripción")
                 nombre_e = st.text_input("Nombre del Equipo", value=st.session_state.datos_temp['nombre'] if st.session_state.datos_temp else "")
-                seleccion = st.selectbox("País", opciones_paises)
-                whatsapp = st.text_input("WhatsApp", value=st.session_state.datos_temp['wa'] if st.session_state.datos_temp else "")
+                seleccion = st.selectbox("País y Prefijo", opciones_paises)
+                whatsapp = st.text_input("WhatsApp (Sin prefijo)", value=st.session_state.datos_temp['wa'] if st.session_state.datos_temp else "")
                 nuevo_pin = st.text_input("Crea tu PIN (4 dígitos)", max_chars=4, type="password")
+                
                 if st.form_submit_button("Revisar Datos"):
-                    # Validaciones
-                    if len(nuevo_pin) < 4: st.error("El PIN debe ser de 4 dígitos.")
+                    cur = conn.cursor()
+                    cur.execute("SELECT nombre FROM equipos WHERE pin = ?", (nuevo_pin,))
+                    pin_db = cur.fetchone()
+                    
+                    if nuevo_pin == ADMIN_PIN or pin_db:
+                        st.error("❌ Este PIN no está disponible. Elige otro.")
+                    elif not nombre_e or not whatsapp or len(nuevo_pin) < 4:
+                        st.error("⚠️ Completa todos los campos (PIN de 4 dígitos).")
                     else:
-                        st.session_state.datos_temp = {"nombre": nombre_e, "wa": whatsapp, "pin": nuevo_pin, "prefijo": seleccion.split('(')[-1].replace(')', ''), "pais": seleccion.split(' (')[0]}
+                        st.session_state.datos_temp = {
+                            "nombre": nombre_e, "wa": whatsapp, "pin": nuevo_pin,
+                            "prefijo": seleccion.split('(')[-1].replace(')', ''),
+                            "pais": seleccion.split(' (')[0]
+                        }
                         st.session_state.confirmado = True
                         st.rerun()
         else:
+            # FASE 2: CONFIRMACIÓN
             d = st.session_state.datos_temp
-            st.info("Confirma tus datos:")
-            st.write(f"**Equipo:** {d['nombre']} | **WA:** {d['prefijo']} {d['wa']}")
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Enviar"):
-                conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)", (d['nombre'], d['wa'], d['prefijo'], d['pin']))
-                conn.commit()
-                st.session_state.confirmado = False
-                st.success("¡Registrado!")
-                st.rerun()
-            if c2.button("✏️ Editar"):
+            st.success("✅ Revisa tus datos")
+            with st.container(border=True):
+                st.write(f"**Equipo:** {d['nombre']}")
+                st.write(f"**WhatsApp:** {d['prefijo']} {d['wa']}")
+                st.write(f"**PIN:** `{d['pin']}`")
+                st.write(f"**País:** {d['pais']}")
+
+            col_enviar, col_editar = st.columns(2)
+            if col_enviar.button("🚀 Confirmar e Inscribir"):
+                try:
+                    conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)", 
+                                 (d['nombre'], d['wa'], d['prefijo'], d['pin']))
+                    conn.commit()
+                    st.balloons()
+                    st.success("¡Inscripción enviada!")
+                    st.session_state.confirmado = False
+                    st.session_state.datos_temp = None
+                    st.rerun()
+                except:
+                    st.error("El nombre del equipo ya existe.")
+
+            if col_editar.button("✏️ Editar Datos"):
                 st.session_state.confirmado = False
                 st.rerun()
 
-# --- VISTA: ADMIN () ---elif st.session_state.rol == "admin":
+# --- VISTA: ADMIN ---
+elif st.session_state.rol == "admin":
     st.header("🛠️ Panel de Administración")
+    st.subheader("📋 Solicitudes Pendientes")
     
-    # 1. Gestión de Equipos Pendientes
-    st.subheader("📋 Solicitudes de Inscripción")
-    
-    # Consultamos los pendientes
     cur = conn.cursor()
     cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE estado = 'pendiente'")
     pendientes = cur.fetchall()
     
     if not pendientes:
-        st.info("No hay solicitudes pendientes por el momento.")
+        st.info("No hay solicitudes nuevas.")
     else:
-        # Creamos una cabecera visual para nuestra "tabla" manual
-        cols_header = st.columns([2, 2, 1])
-        cols_header[0].write("**Equipo**")
-        cols_header[1].write("**WhatsApp**")
-        cols_header[2].write("**Acción**")
+        # Cabecera de tabla manual
+        c_h1, c_h2, c_h3 = st.columns([2, 2, 1.2])
+        c_h1.write("**Equipo**")
+        c_h2.write("**WhatsApp**")
+        c_h3.write("**Acción**")
         st.divider()
 
-        # Generamos una fila por cada equipo con su propio botón
-        for equipo in pendientes:
-            nombre_e, pref, cel = equipo
-            with st.container():
-                c1, c2, c3 = st.columns([2, 2, 1])
-                
-                c1.write(nombre_e)
-                c2.write(f"{pref} {cel}")
-                
-                # Botón Verde de Aceptar para cada equipo
-                # Usamos el nombre del equipo como llave única para el botón
-                if c3.button("✅ Aceptar", key=f"btn_{nombre_e}"):
-                    conn.execute("UPDATE equipos SET estado = 'aprobado' WHERE nombre = ?", (nombre_e,))
-                    conn.commit()
-                    st.success(f"¡{nombre_e} aprobado!")
-                    st.rerun()
-                st.divider()
+        for nombre_e, pref, cel in pendientes:
+            c1, c2, c3 = st.columns([2, 2, 1.2])
+            c1.write(nombre_e)
+            c2.write(f"{pref} {cel}")
+            if c3.button("✅ Aceptar", key=f"adm_{nombre_e}"):
+                conn.execute("UPDATE equipos SET estado = 'aprobado' WHERE nombre = ?", (nombre_e,))
+                conn.commit()
+                st.rerun()
+            st.divider()
 
-    # 2. Reseteo del Torneo (al final)
-    st.subheader("⚠️ Zona de Peligro")
-    with st.expander("Opciones de borrado"):
-        if st.button("🚨 BORRAR TODOS LOS DATOS"):
-            conn.execute("DELETE FROM equipos")
-            conn.execute("DELETE FROM historial")
-            conn.commit()
-            st.warning("Base de datos limpiada.")
-            st.rerun()
+    st.subheader("⚙️ Configuración")
+    if st.button("🚨 RESET TOTAL TORNEO"):
+        conn.execute("DELETE FROM equipos"); conn.execute("DELETE FROM historial"); conn.commit()
+        st.rerun()
 
 # --- VISTA: DT ---
 elif st.session_state.rol == "dt":
     st.header(f"🎮 Panel DT: {st.session_state.equipo_usuario}")
-    st.write("Sube el marcador de tu último partido:")
+    st.write("Sube tu marcador:")
     archivo = st.file_uploader("Captura de pantalla", type=['jpg', 'png'])
     if archivo:
-        st.image(archivo, caption="Imagen cargada")
-        st.button("Procesar con IA (Próximamente)")
+        st.image(archivo)
+        st.button("Procesar Imagen con IA")
 
 conn.close()
-
-
-
