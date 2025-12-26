@@ -51,8 +51,11 @@ if st.session_state.rol == "espectador" and not st.session_state.confirmado:
                         st.error("PIN no válido o equipo pendiente.")
 
 # --- VISTA ESPECTADOR ---
+# --- VISTA: ESPECTADOR ---
+if st.session_state.rol == "espectador":
+    tab1, tab2 = st.tabs(["📊 Tabla de Posiciones", "📝 Inscripción"])
 
-with tab1:
+    with tab1:
         st.subheader("🏆 Posiciones")
         
         cur = conn.cursor()
@@ -65,33 +68,16 @@ with tab1:
             # 1. Preparar datos
             stats = []
             for (nom,) in equipos_db:
-                # Inicializamos en cero (esto se llenará con la IA luego)
-                stats.append({
-                    "EQ": nom, "J": 0, "Pts": 0, "GF": 0, "GC": 0, "DG": 0
-                })
+                stats.append({"EQ": nom, "J": 0, "Pts": 0, "GF": 0, "GC": 0, "DG": 0})
             
-            df = pd.DataFrame(stats).sort_values(by=["Pts", "DG"], ascending=False)
+            df = pd.DataFrame(stats)
             
-            # 2. Crear la tabla en formato HTML (Mucho más compacto para móviles)
-            # Esto evita que las columnas se desparramen
+            # 2. Crear la tabla en formato HTML (Compacto para móvil)
             tabla_html = """
             <style>
-                .tabla-movil {
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 13px; /* Letra más pequeña para móvil */
-                    font-family: sans-serif;
-                }
-                .tabla-movil th {
-                    background-color: #f0f2f6;
-                    border-bottom: 2px solid #ccc;
-                    padding: 8px 4px;
-                    text-align: left;
-                }
-                .tabla-movil td {
-                    border-bottom: 1px solid #eee;
-                    padding: 10px 4px;
-                }
+                .tabla-movil { width: 100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif; }
+                .tabla-movil th { background-color: #f0f2f6; border-bottom: 2px solid #ccc; padding: 8px 4px; text-align: left; }
+                .tabla-movil td { border-bottom: 1px solid #eee; padding: 10px 4px; }
                 .pos { font-weight: bold; color: #1f77b4; width: 20px; }
                 .equipo { font-weight: bold; }
                 .pts { background-color: #e1f5fe; font-weight: bold; text-align: center; }
@@ -108,32 +94,18 @@ with tab1:
                     <th class="num">DG</th>
                 </tr>
             """
-            
             for i, fila in enumerate(df.values):
-                # fila[0]=Equipo, 1=J, 2=Pts, 3=GF, 4=GC, 5=DG
-                tabla_html += f"""
-                <tr>
-                    <td class="pos">{i+1}</td>
-                    <td class="equipo">{fila[0]}</td>
-                    <td class="num">{fila[1]}</td>
-                    <td class="pts">{fila[2]}</td>
-                    <td class="num">{fila[3]}</td>
-                    <td class="num">{fila[4]}</td>
-                    <td class="num">{fila[5]}</td>
-                </tr>
-                """
-            
+                tabla_html += f"<tr><td class='pos'>{i+1}</td><td class='equipo'>{fila[0]}</td><td class='num'>{fila[1]}</td><td class='pts'>{fila[2]}</td><td class='num'>{fila[3]}</td><td class='num'>{fila[4]}</td><td class='num'>{fila[5]}</td></tr>"
             tabla_html += "</table>"
             
-            # 3. Mostrar la tabla
             st.markdown(tabla_html, unsafe_allow_html=True)
             st.caption("J: Jugados | Pts: Puntos | DG: Diferencia Goles")
-    # --- FORMULARIO ---
+
     with tab2:
+        # Aquí recuperamos tu lógica de inscripción intacta
         paises = {"Colombia": "+57", "México": "+52", "Ecuador": "+593", "Venezuela": "+58", "Argentina": "+54", "EEUU": "+1", "España": "+34"}
         
         if not st.session_state.confirmado:
-            # FASE 1: DATOS
             with st.form("reg_form"):
                 st.subheader("Registra tu equipo")
                 n = st.text_input("Nombre del Equipo")
@@ -150,28 +122,23 @@ with tab1:
                         st.session_state.confirmado = True
                         st.rerun()
                     else:
-                        st.error("Llena todos los campos.")
+                        st.error("Llena todos los campos correctamente.")
         else:
-            # FASE 2: CONFIRMACIÓN (FUERA DEL FORM PARA EVITAR ERRORES)
             d = st.session_state.datos_temp
             st.warning("⚠️ ¿Son correctos estos datos?")
-            st.write(f"**Equipo:** {d['nombre']}")
-            st.write(f"**WhatsApp:** {d['pref']} {d['wa']}")
-            st.write(f"**PIN:** {d['pin']}")
+            st.write(f"**Equipo:** {d['nombre']} | **WA:** {d['pref']} {d['wa']}")
             
             c1, c2 = st.columns(2)
-            if c1.button("🚀 CONFIRMAR E INSCRIBIR"):
-                conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)",
-                             (d['nombre'], d['wa'], d['pref'], d['pin']))
+            if c1.button("🚀 CONFIRMAR"):
+                conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)", (d['nombre'], d['wa'], d['pref'], d['pin']))
                 conn.commit()
                 st.session_state.confirmado = False
                 st.session_state.datos_temp = None
-                st.success("¡Enviado al Admin!")
+                st.success("¡Enviado!")
                 st.rerun()
             if c2.button("✏️ EDITAR"):
                 st.session_state.confirmado = False
                 st.rerun()
-
 # --- VISTA ADMIN ---
 elif st.session_state.rol == "admin":
     st.header("🛠️ Panel Admin")
@@ -200,5 +167,6 @@ elif st.session_state.rol == "admin":
 elif st.session_state.rol == "dt":
     st.header(f"🎮 Panel DT: {st.session_state.equipo_usuario}")
     st.write("Aquí podrás subir tus fotos de resultados próximamente.")
+
 
 
