@@ -138,7 +138,7 @@ if st.session_state.rol == "espectador":
             if c2.button("✏️ EDITAR"):
                 st.session_state.confirmado = False
                 st.rerun()
-# --- VISTA ADMIN ---
+                
 # --- VISTA ADMIN ---
 elif rol == "admin":
     st.header("👑 Panel Admin")
@@ -184,6 +184,7 @@ elif rol == "admin":
 elif st.session_state.rol == "dt":
     st.header(f"🎮 Panel DT: {st.session_state.equipo_usuario}")
     st.write("Aquí podrás subir tus fotos de resultados próximamente.")
+
 
 
 
