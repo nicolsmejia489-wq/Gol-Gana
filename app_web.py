@@ -7,6 +7,16 @@ from PIL import Image
 DB_NAME = "gol_gana.db"
 ADMIN_PIN = "2025" 
 
+
+# --- BOTÓN ATRÁS UNIVERSAL ---
+if st.session_state.rol != "espectador" or st.session_state.confirmado:
+    if st.button("⬅️ Volver / Cancelar"):
+        st.session_state.confirmado = False
+        st.session_state.rol = "espectador"
+        st.session_state.datos_temp = None
+        st.rerun()
+
+
 st.set_page_config(page_title="Gol-Gana", layout="centered")
 
 # CSS para optimización móvil y estética
@@ -39,13 +49,6 @@ conn = inicializar_db()
 st.title("⚽ Gol-Gana")
 user_pin = st.text_input("🔑 PIN de Acceso", type="password", help="DTs y Admin ingresen su PIN aquí")
 
-# --- BOTÓN ATRÁS UNIVERSAL ---
-if st.session_state.rol != "espectador" or st.session_state.confirmado:
-    if st.button("⬅️ Volver / Cancelar"):
-        st.session_state.confirmado = False
-        st.session_state.rol = "espectador"
-        st.session_state.datos_temp = None
-        st.rerun()
 
 
 
@@ -186,4 +189,5 @@ elif rol == "dt":
         st.image(archivo, caption="Imagen cargada")
         if st.button("Procesar Resultado"):
             st.info("Función de IA EasyOCR se activará en el siguiente paso.")
+
 
