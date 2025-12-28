@@ -36,7 +36,7 @@ def inicializar_db():
 conn = inicializar_db()
 
 # --- 3. CABECERA Y ACCESO (SIEMPRE VISIBLE) ---
-st.title("⚽ Gol-Gana")
+st.title("⚽ Gol Gana")
 user_pin = st.text_input("🔑 PIN de Acceso", type="password", help="DTs y Admin ingresen su PIN aquí")
 
 # Lógica de Roles
