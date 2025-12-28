@@ -29,7 +29,7 @@ if st.session_state.rol != "espectador" or st.session_state.confirmado:
         st.session_state.datos_temp = None
         st.rerun()
 
-st.title("⚽ Gol-Gana")
+st.title("⚽ Gol Gana")
 
 # --- BLOQUE DE LOGIN ---
 if st.session_state.rol == "espectador" and not st.session_state.confirmado:
@@ -51,7 +51,6 @@ if st.session_state.rol == "espectador" and not st.session_state.confirmado:
                         st.error("PIN no válido o equipo pendiente.")
 
 # --- VISTA ESPECTADOR ---
-# --- VISTA: ESPECTADOR ---
 if st.session_state.rol == "espectador":
     tab1, tab2 = st.tabs(["📊 Tabla de Posiciones", "📝 Inscripción"])
 
@@ -111,9 +110,9 @@ if st.session_state.rol == "espectador":
                 n = st.text_input("Nombre del Equipo")
                 p = st.selectbox("País", list(paises.keys()))
                 w = st.text_input("WhatsApp (sin prefijo)")
-                pin_n = st.text_input("PIN (4 números)", max_chars=4, type="password")
+                pin_n = st.text_input("PIN (4 caracteres para acceder como DT)", max_chars=4, type="password")
                 
-                if st.form_submit_button("Revisar"):
+                if st.form_submit_button("Inscribir mi equipo"):
                     cur.execute("SELECT nombre FROM equipos WHERE pin=?", (pin_n,))
                     if pin_n == "2025" or cur.fetchone():
                         st.error("PIN ocupado.")
@@ -140,33 +139,52 @@ if st.session_state.rol == "espectador":
                 st.session_state.confirmado = False
                 st.rerun()
 # --- VISTA ADMIN ---
-elif st.session_state.rol == "admin":
-    st.header("🛠️ Panel Admin")
-    cur = conn.cursor()
-    cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE estado='pendiente'")
-    pendientes = cur.fetchall()
+# --- VISTA ADMIN ---
+elif rol == "admin":
+    st.header("👑 Panel Admin")
     
-    if not pendientes:
-        st.info("No hay solicitudes.")
-    else:
-        for nom, pref, cel in pendientes:
-            with st.container(border=True):
-                col1, col2 = st.columns([3,1])
-                col1.write(f"**{nom}** ({pref} {cel})")
-                if col2.button("✅ Aceptar", key=f"ok_{nom}"):
-                    conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (nom,))
+    # 1. Consultar equipos pendientes
+    pendientes = pd.read_sql_query("SELECT nombre, celular, prefijo FROM equipos WHERE estado = 'pendiente'", conn)
+    
+    if not pendientes.empty:
+        st.subheader("Solicitudes nuevas")
+        st.write("Toca el número para contactar al DT antes de aprobar:")
+        
+        # 2. Crear filas interactivas para cada solicitud
+        for _, r in pendientes.iterrows():
+            with st.container():
+                col_info, col_wa, col_accion = st.columns([2, 1, 1])
+                
+                # Nombre del equipo
+                col_info.write(f"**{r['nombre']}**")
+                
+                # Link de WhatsApp con el número y prefijo
+                link_wa = f"https://wa.me/{r['prefijo'].replace('+', '')}{r['celular']}"
+                col_wa.markdown(f"[💬 Chatear]({link_wa})", unsafe_allow_html=True)
+                
+                # Botón rápido para aprobar en la misma fila
+                if col_accion.button("✅ Aprobar", key=f"btn_{r['nombre']}"):
+                    conn.execute("UPDATE equipos SET estado = 'aprobado' WHERE nombre = ?", (r['nombre'],))
                     conn.commit()
+                    st.success(f"¡{r['nombre']} aprobado!")
                     st.rerun()
+                st.divider()
+    else:
+        st.info("No hay equipos pendientes de aprobación.")
 
-    st.divider()
-    if st.button("🚨 RESET TORNEO"):
-        conn.execute("DELETE FROM equipos"); conn.commit()
-        st.rerun()
+    # Sección de Reset (opcional mantenerla aquí o en sidebar)
+    with st.expander("Danger Zone"):
+        if st.button("🚨 RESET TOTAL DEL TORNEO"):
+            conn.execute("DELETE FROM historial")
+            conn.execute("DELETE FROM equipos")
+            conn.commit()
+            st.rerun()
 
 # --- VISTA DT ---
 elif st.session_state.rol == "dt":
     st.header(f"🎮 Panel DT: {st.session_state.equipo_usuario}")
     st.write("Aquí podrás subir tus fotos de resultados próximamente.")
+
 
 
 
