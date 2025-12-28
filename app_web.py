@@ -41,7 +41,7 @@ def limpiar_acceso():
     st.rerun()
 
 # --- 4. CABECERA Y BOTONES FIJOS ---
-st.title("⚽ Gol-Gana")
+st.title("⚽ Gol Gana")
 
 # Fila de botones de navegación (Siempre visibles)
 col_nav1, col_nav2 = st.columns(2)
