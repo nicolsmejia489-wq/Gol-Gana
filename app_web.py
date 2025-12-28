@@ -7,8 +7,6 @@ from PIL import Image
 DB_NAME = "gol_gana.db"
 ADMIN_PIN = "2025" 
 
-
-
 st.set_page_config(page_title="Gol-Gana", layout="centered")
 
 # CSS para optimización móvil y estética
@@ -40,9 +38,6 @@ conn = inicializar_db()
 # --- 3. CABECERA Y ACCESO (SIEMPRE VISIBLE) ---
 st.title("⚽ Gol-Gana")
 user_pin = st.text_input("🔑 PIN de Acceso", type="password", help="DTs y Admin ingresen su PIN aquí")
-
-
-
 
 # Lógica de Roles
 rol = "espectador"
@@ -181,6 +176,3 @@ elif rol == "dt":
         st.image(archivo, caption="Imagen cargada")
         if st.button("Procesar Resultado"):
             st.info("Función de IA EasyOCR se activará en el siguiente paso.")
-
-
-
