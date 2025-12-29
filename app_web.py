@@ -8,13 +8,15 @@ ADMIN_PIN = "2025"
 
 st.set_page_config(page_title="Gol-Gana", layout="centered")
 
-# Estilos CSS para optimización móvil
+# CSS para optimización móvil y tablas limpias
 st.markdown("""
     <style>
     .stApp { max-width: 600px; margin: 0 auto; }
     .stButton > button { width: 100%; border-radius: 10px; }
-    .whatsapp-link { color: #25D366; text-decoration: none; font-weight: bold; font-size: 0.9rem; }
-    .success-box { padding: 10px; border-radius: 5px; background-color: #d4edda; color: #155724; margin-bottom: 10px; }
+    /* Estilo para cabecera de tabla manual */
+    .header-tabla { font-weight: bold; background-color: #f0f2f6; padding: 5px; border-radius: 5px; font-size: 0.8rem; text-align: center; }
+    .fila-tabla { padding: 8px 0; border-bottom: 1px solid #eee; text-align: center; font-size: 0.85rem; }
+    .eq-name { text-align: left; font-weight: bold; color: #1f77b4; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -44,8 +46,8 @@ def limpiar_acceso():
     st.session_state.registro_exitoso = False
     st.rerun()
 
-# --- 4. CABECERA Y BOTONES DE NAVEGACIÓN ---
-st.title("⚽ Gol-Gana")
+# --- 4. CABECERA Y NAVEGACIÓN SIEMPRE VISIBLE ---
+st.title("⚽ Gol Gana")
 
 col_nav1, col_nav2 = st.columns(2)
 with col_nav1:
@@ -78,13 +80,16 @@ if rol == "espectador":
 
     with tab1:
         cur = conn.cursor()
-        cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE estado = 'aprobado'")
+        cur.execute("SELECT nombre FROM equipos WHERE estado = 'aprobado'")
         equipos_db = cur.fetchall()
         
         if not equipos_db:
             st.info("Aún no hay equipos aprobados.")
         else:
-            stats = {e[0]: {'PJ':0, 'Pts':0, 'DG':0, 'GF':0, 'GC':0, 'WA': f"https://wa.me/{e[1].replace('+','')}{e[2]}"} for e in equipos_db}
+            # Diccionario de estadísticas completo
+            stats = {e[0]: {'PJ':0, 'Pts':0, 'GF':0, 'GC':0, 'DG':0} for e in equipos_db}
+            
+            # Cargar partidos
             df_p = pd.read_sql_query("SELECT * FROM historial", conn)
             for _, fila in df_p.iterrows():
                 l, gl, gv, v = fila['local'], fila['goles_l'], fila['goles_v'], fila['visitante']
@@ -96,24 +101,38 @@ if rol == "espectador":
                     elif gv > gl: stats[v]['Pts'] += 3
                     else: stats[l]['Pts'] += 1; stats[v]['Pts'] += 1
 
+            # Procesar DataFrame
             df_final = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-            df_final.columns = ['Equipo', 'PJ', 'Pts', 'DG', 'GF', 'GC', 'WA_Link']
+            df_final.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC', 'DG']
             df_final['DG'] = df_final['GF'] - df_final['GC']
-            df_final = df_final.sort_values(by=['Pts', 'DG'], ascending=False)
-            df_final.insert(0, 'Pos', range(1, len(df_final) + 1))
+            df_final = df_final.sort_values(by=['PTS', 'DG', 'GF'], ascending=False)
+            df_final.insert(0, 'POS', range(1, len(df_final) + 1))
 
+            # --- RENDERIZADO DE TABLA PARA MÓVIL ---
+            # Cabecera
+            c_pos, c_eq, c_pts, c_pj, c_gf, c_gc, c_dg = st.columns([0.8, 2.5, 1, 1, 0.8, 0.8, 0.8])
+            c_pos.markdown('<div class="header-tabla">POS</div>', unsafe_allow_html=True)
+            c_eq.markdown('<div class="header-tabla">EQ</div>', unsafe_allow_html=True)
+            c_pts.markdown('<div class="header-tabla">PTS</div>', unsafe_allow_html=True)
+            c_pj.markdown('<div class="header-tabla">PJ</div>', unsafe_allow_html=True)
+            c_gf.markdown('<div class="header-tabla">GF</div>', unsafe_allow_html=True)
+            c_gc.markdown('<div class="header-tabla">GC</div>', unsafe_allow_html=True)
+            c_dg.markdown('<div class="header-tabla">DG</div>', unsafe_allow_html=True)
+
+            # Filas de datos (Sin enlaces de contacto para el espectador)
             for _, row in df_final.iterrows():
-                with st.container():
-                    c1, c2, c3 = st.columns([1, 4, 2])
-                    c1.subheader(f"#{row['Pos']}")
-                    c2.markdown(f"**[{row['Equipo']}]({row['WA_Link']})**", unsafe_allow_html=True)
-                    c3.write(f"{row['Pts']} Pts")
-                    st.caption(f"PJ: {row['PJ']} | DG: {row['DG']}")
-                    st.divider()
+                r_pos, r_eq, r_pts, r_pj, r_gf, r_gc, r_dg = st.columns([0.8, 2.5, 1, 1, 0.8, 0.8, 0.8])
+                r_pos.markdown(f'<div class="fila-tabla">{row["POS"]}</div>', unsafe_allow_html=True)
+                r_eq.markdown(f'<div class="fila-tabla eq-name">{row["EQ"]}</div>', unsafe_allow_html=True)
+                r_pts.markdown(f'<div class="fila-tabla"><b>{row["PTS"]}</b></div>', unsafe_allow_html=True)
+                r_pj.markdown(f'<div class="fila-tabla">{row["PJ"]}</div>', unsafe_allow_html=True)
+                r_gf.markdown(f'<div class="fila-tabla">{row["GF"]}</div>', unsafe_allow_html=True)
+                r_gc.markdown(f'<div class="fila-tabla">{row["GC"]}</div>', unsafe_allow_html=True)
+                r_dg.markdown(f'<div class="fila-tabla">{row["DG"]}</div>', unsafe_allow_html=True)
 
     with tab2:
         if st.session_state.registro_exitoso:
-            st.success("✅ ¡Inscripción enviada correctamente! El Admin te aprobará pronto.")
+            st.success("✅ ¡Inscripción enviada! El Admin te aprobará pronto.")
             if st.button("Inscribir otro equipo"):
                 st.session_state.registro_exitoso = False
                 st.rerun()
@@ -154,7 +173,7 @@ if rol == "espectador":
                         st.session_state.confirmado = False
                         st.rerun()
                     except sqlite3.IntegrityError:
-                        st.error("❌ El nombre de equipo o el PIN ya están en uso. Intenta con otros.")
+                        st.error("❌ El nombre de equipo o el PIN ya están en uso.")
                 if col2.button("✏️ Editar"):
                     st.session_state.confirmado = False
                     st.rerun()
@@ -170,12 +189,9 @@ elif rol == "admin":
             with st.container():
                 c1, c2, c3 = st.columns([1.5, 1.5, 1])
                 c1.write(f"**{r['nombre']}**")
-                
-                # Link de WhatsApp mostrando el número completo
                 numero_completo = f"{r['prefijo']} {r['celular']}"
                 link_wa = f"https://wa.me/{r['prefijo'].replace('+','')}{r['celular']}"
                 c2.markdown(f"[💬 {numero_completo}]({link_wa})", unsafe_allow_html=True)
-                
                 if c3.button("✅ Ok", key=f"ok_{r['nombre']}"):
                     conn.execute("UPDATE equipos SET estado = 'aprobado' WHERE nombre = ?", (r['nombre'],))
                     conn.commit()
