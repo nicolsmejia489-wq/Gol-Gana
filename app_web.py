@@ -166,8 +166,8 @@ if fase_actual == "inscripcion":
         else:
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
-                paises = {"Colombia": "+57", "México": "+52", "España": "+34"}
-                pais_sel = st.selectbox("País", [f"{k} ({v})" for k,v in paises.items()])
+                paises = {"Colombia": "+57", "México": "+52", "España": "+34", "Argentina": "+54", "EEUU": "+1", "Chile": "+56", "Ecuador": "+593", "Perú": "+51", "Venezuela": "+58"}
+                pais_sel = st.selectbox("País", [f"{p} ({pref})" for p, pref in paises.items()])
                 tel = st.text_input("WhatsApp").strip()
                 pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
                 if st.form_submit_button("Siguiente"):
@@ -230,3 +230,4 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
