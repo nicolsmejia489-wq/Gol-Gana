@@ -25,7 +25,7 @@ st.markdown("""
 # --- 2. GESTIÓN DE BASE DE DATOS ---
 @contextmanager
 def get_db_connection():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=10)
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=15) # Aumentado timeout
     try:
         yield conn
     finally:
@@ -53,13 +53,10 @@ def generar_calendario():
         cur = conn.cursor()
         cur.execute("SELECT nombre FROM equipos WHERE estado = 'aprobado'")
         equipos = [row[0] for row in cur.fetchall()]
-        
-        # Completar con WO
         while len(equipos) < 32:
             nombre_wo = f"(WO) {len(equipos)+1}"
             conn.execute("INSERT OR IGNORE INTO equipos (nombre, estado) VALUES (?, 'aprobado')", (nombre_wo,))
             equipos.append(nombre_wo)
-        
         random.shuffle(equipos)
         partidos_gen = set()
         n = len(equipos)
@@ -70,7 +67,6 @@ def generar_calendario():
                 if p not in partidos_gen:
                     partidos_gen.add(p)
                     conn.execute("INSERT INTO partidos (local, visitante) VALUES (?, ?)", (p[0], p[1]))
-        
         conn.execute("UPDATE config SET valor = 'clasificacion' WHERE llave = 'fase'")
         conn.commit()
 
@@ -91,13 +87,11 @@ with col_nav2:
 pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
 st.session_state.pin_usuario = pin_input
 
-# Obtener Fase Actual
 with get_db_connection() as conn:
     cur = conn.cursor()
     cur.execute("SELECT valor FROM config WHERE llave = 'fase'")
     fase_actual = cur.fetchone()[0]
 
-# Identificar Rol
 rol = "espectador"
 equipo_usuario = None
 if st.session_state.pin_usuario == ADMIN_PIN:
@@ -117,7 +111,7 @@ if fase_actual == "inscripcion":
 else:
     tabs = st.tabs(["📊 Clasificación", "📅 Calendario", "⚽ Mis Partidos"]) if rol == "dt" else st.tabs(["📊 Clasificación", "📅 Calendario"])
 
-# TAB: CLASIFICACIÓN (RESTAURADA)
+# TAB: CLASIFICACIÓN
 with tabs[0]:
     with get_db_connection() as conn:
         df_eq = pd.read_sql_query("SELECT nombre FROM equipos WHERE estado = 'aprobado'", conn)
@@ -126,8 +120,6 @@ with tabs[0]:
         else:
             todos_eq = df_eq['nombre'].tolist()
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0, 'DG':0} for e in todos_eq}
-            
-            # Sumar resultados de partidos jugados
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             for _, f in df_p.iterrows():
                 l, v, gl, gv = f['local'], f['visitante'], f['goles_l'], f['goles_v']
@@ -138,20 +130,17 @@ with tabs[0]:
                     if gl > gv: stats[l]['PTS'] += 3
                     elif gv > gl: stats[v]['PTS'] += 3
                     else: stats[l]['PTS'] += 1; stats[v]['PTS'] += 1
-
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
             df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC', 'DG']
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
-
-            # HTML de la tabla
             html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
             for _, r in df_f.iterrows():
                 html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
-# TAB: REGISTRO (CON VALIDACIÓN PREVENTIVA)
+# TAB: REGISTRO (CORREGIDO)
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
@@ -164,14 +153,22 @@ if fase_actual == "inscripcion":
             st.warning("⚠️ **Revisa tus datos:**")
             st.write(f"**Equipo:** {d['n']}\n\n**WhatsApp:** {d['pref']} {d['wa']}\n\n**PIN:** {d['pin']}")
             c1, c2 = st.columns(2)
+            
             if c1.button("✅ Confirmar"):
+                exito_guardado = False
                 with get_db_connection() as conn:
                     try:
                         conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)", (d['n'], d['wa'], d['pref'], d['pin']))
                         conn.commit()
-                        st.session_state.reg_estado = "exito"; st.rerun()
-                    except:
-                        st.error("Error al guardar. Intenta de nuevo."); st.session_state.reg_estado = "formulario"
+                        exito_guardado = True
+                    except sqlite3.Error as e:
+                        st.error(f"Error de base de datos: {e}")
+                
+                # Rerun fuera del bloque try-except de sqlite para evitar conflictos con Streamlit
+                if exito_guardado:
+                    st.session_state.reg_estado = "exito"
+                    st.rerun()
+                    
             if c2.button("✏️ Editar"):
                 st.session_state.reg_estado = "formulario"; st.rerun()
         
@@ -182,7 +179,6 @@ if fase_actual == "inscripcion":
                 pais_sel = st.selectbox("País", [f"{p} ({pref})" for p, pref in paises.items()])
                 tel = st.text_input("WhatsApp (Solo números)").strip()
                 pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
-                
                 if st.form_submit_button("Siguiente"):
                     if not nom or not tel or len(pin_r) < 4:
                         st.error("⚠️ Datos incompletos.")
@@ -196,31 +192,25 @@ if fase_actual == "inscripcion":
                                 st.session_state.datos_temp = {"n": nom, "wa": tel, "pin": pin_r, "pref": pais_sel.split('(')[-1].replace(')', '')}
                                 st.session_state.reg_estado = "confirmar"; st.rerun()
 
-# --- 6. PANEL ADMIN (RESTAURADO) ---
+# PANEL ADMIN
 if rol == "admin":
     st.divider()
     st.header("👑 Panel Admin")
-    
     if fase_actual == "inscripcion":
         with get_db_connection() as conn:
             pendientes = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
             aprobados = pd.read_sql_query("SELECT * FROM equipos WHERE estado='aprobado'", conn)
-            
             st.write(f"**Aprobados:** {len(aprobados)} / 32")
-            
             if not pendientes.empty:
-                st.subheader("Solicitudes de Ingreso:")
                 for _, r in pendientes.iterrows():
                     col1, col2 = st.columns([3, 1])
                     col1.write(f"🔹 {r['nombre']} ({r['prefijo']}{r['celular']})")
                     if col2.button("Aprobar", key=f"ap_{r['nombre']}"):
                         conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
                         conn.commit(); st.rerun()
-            
             if st.button("🚀 CERRAR INSCRIPCIONES E INICIAR TORNEO"):
                 generar_calendario(); st.rerun()
     
-    # BOTÓN DE REINICIO (Siempre disponible para el Admin)
     st.subheader("⚠️ Zona de Peligro")
     if st.button("🚨 REINICIAR TODO EL TORNEO"):
         with get_db_connection() as conn:
@@ -228,11 +218,8 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'")
             conn.commit()
-        st.session_state.pin_usuario = ""
-        st.success("Sistema reseteado.")
-        st.rerun()
+        st.session_state.pin_usuario = ""; st.rerun()
 
-# Lógica de Calendario y Mis Partidos para fase clasificacion
 elif fase_actual == "clasificacion":
     with tabs[1]:
         st.subheader("📅 Partidos Programados")
@@ -241,7 +228,6 @@ elif fase_actual == "clasificacion":
             for _, p in df_p.iterrows():
                 res = f"{p['goles_l']} - {p['goles_v']}" if p['goles_l'] is not None else "vs"
                 st.write(f"**{p['local']}** {res} **{p['visitante']}**")
-
     if rol == "dt":
         with tabs[2]:
             st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
@@ -251,12 +237,9 @@ elif fase_actual == "clasificacion":
                     rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
                     with st.container():
                         st.markdown(f"<div class='match-box'><b>Rival: {rival}</b>", unsafe_allow_html=True)
-                        # Link WhatsApp Rival
                         cur = conn.cursor()
                         cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
                         r_info = cur.fetchone()
-                        if r_info:
-                            st.markdown(f"<a href='https://wa.me/{r_info[0].replace('+','')}{r_info[1]}' class='wa-btn'>💬 WhatsApp Rival</a>", unsafe_allow_html=True)
+                        if r_info: st.markdown(f"<a href='https://wa.me/{r_info[0].replace('+','')}{r_info[1]}' class='wa-btn'>💬 WhatsApp Rival</a>", unsafe_allow_html=True)
                         st.button("📸 Subir Resultado", key=f"cam_{p['id']}")
                         st.markdown("</div>", unsafe_allow_html=True)
-
