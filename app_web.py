@@ -25,7 +25,7 @@ st.markdown("""
 # --- 2. GESTIÓN DE BASE DE DATOS ---
 @contextmanager
 def get_db_connection():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=15) # Aumentado timeout
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=15)
     try:
         yield conn
     finally:
@@ -140,7 +140,7 @@ with tabs[0]:
                 html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
-# TAB: REGISTRO (CORREGIDO)
+# TAB: REGISTRO
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
@@ -153,22 +153,17 @@ if fase_actual == "inscripcion":
             st.warning("⚠️ **Revisa tus datos:**")
             st.write(f"**Equipo:** {d['n']}\n\n**WhatsApp:** {d['pref']} {d['wa']}\n\n**PIN:** {d['pin']}")
             c1, c2 = st.columns(2)
-            
             if c1.button("✅ Confirmar"):
-                exito_guardado = False
+                exito = False
                 with get_db_connection() as conn:
                     try:
                         conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)", (d['n'], d['wa'], d['pref'], d['pin']))
                         conn.commit()
-                        exito_guardado = True
-                    except sqlite3.Error as e:
-                        st.error(f"Error de base de datos: {e}")
-                
-                # Rerun fuera del bloque try-except de sqlite para evitar conflictos con Streamlit
-                if exito_guardado:
-                    st.session_state.reg_estado = "exito"
-                    st.rerun()
-                    
+                        exito = True
+                    except sqlite3.Error:
+                        st.error("Error al guardar. Intenta de nuevo.")
+                if exito:
+                    st.session_state.reg_estado = "exito"; st.rerun()
             if c2.button("✏️ Editar"):
                 st.session_state.reg_estado = "formulario"; st.rerun()
         
@@ -201,13 +196,12 @@ if rol == "admin":
             pendientes = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
             aprobados = pd.read_sql_query("SELECT * FROM equipos WHERE estado='aprobado'", conn)
             st.write(f"**Aprobados:** {len(aprobados)} / 32")
-            if not pendientes.empty:
-                for _, r in pendientes.iterrows():
-                    col1, col2 = st.columns([3, 1])
-                    col1.write(f"🔹 {r['nombre']} ({r['prefijo']}{r['celular']})")
-                    if col2.button("Aprobar", key=f"ap_{r['nombre']}"):
-                        conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
-                        conn.commit(); st.rerun()
+            for _, r in pendientes.iterrows():
+                col1, col2 = st.columns([3, 1])
+                col1.write(f"🔹 {r['nombre']} ({r['prefijo']}{r['celular']})")
+                if col2.button("Aprobar", key=f"ap_{r['nombre']}"):
+                    conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
+                    conn.commit(); st.rerun()
             if st.button("🚀 CERRAR INSCRIPCIONES E INICIAR TORNEO"):
                 generar_calendario(); st.rerun()
     
@@ -228,6 +222,7 @@ elif fase_actual == "clasificacion":
             for _, p in df_p.iterrows():
                 res = f"{p['goles_l']} - {p['goles_v']}" if p['goles_l'] is not None else "vs"
                 st.write(f"**{p['local']}** {res} **{p['visitante']}**")
+
     if rol == "dt":
         with tabs[2]:
             st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
@@ -237,9 +232,23 @@ elif fase_actual == "clasificacion":
                     rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
                     with st.container():
                         st.markdown(f"<div class='match-box'><b>Rival: {rival}</b>", unsafe_allow_html=True)
+                        
+                        # --- FIX PARA NULOS Y WHATSAPP ---
                         cur = conn.cursor()
                         cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
                         r_info = cur.fetchone()
-                        if r_info: st.markdown(f"<a href='https://wa.me/{r_info[0].replace('+','')}{r_info[1]}' class='wa-btn'>💬 WhatsApp Rival</a>", unsafe_allow_html=True)
+                        
+                        # Validamos que r_info exista y que sus campos no sean nulos
+                        if r_info and r_info[0] and r_info[1]:
+                            prefijo_limpio = str(r_info[0]).replace('+', '').strip()
+                            celular_limpio = str(r_info[1]).strip()
+                            # Solo mostramos el botón si el celular parece válido (solo números)
+                            if celular_limpio.isdigit():
+                                st.markdown(f"<a href='https://wa.me/{prefijo_limpio}{celular_limpio}' class='wa-btn'>💬 WhatsApp Rival</a>", unsafe_allow_html=True)
+                            else:
+                                st.caption("📞 Número de rival no válido")
+                        else:
+                            st.caption("🚫 Sin datos de contacto (Equipo WO)")
+                        
                         st.button("📸 Subir Resultado", key=f"cam_{p['id']}")
                         st.markdown("</div>", unsafe_allow_html=True)
