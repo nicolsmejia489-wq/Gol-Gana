@@ -1,6 +1,5 @@
 import streamlit as st
 import sqlite3
-import pd as pd
 import pandas as pd
 import random
 from contextlib import contextmanager
@@ -260,3 +259,4 @@ elif fase_actual == "clasificacion":
                             st.markdown(f"<a href='https://wa.me/{r_info[0].replace('+','')}{r_info[1]}' class='wa-btn'>💬 WhatsApp Rival</a>", unsafe_allow_html=True)
                         st.button("📸 Subir Resultado", key=f"cam_{p['id']}")
                         st.markdown("</div>", unsafe_allow_html=True)
+
