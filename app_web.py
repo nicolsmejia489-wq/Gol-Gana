@@ -37,7 +37,7 @@ st.markdown("""
     }
     .mobile-table td { 
         padding: 8px; text-align: center; border: 1px solid #eee; 
-        color: white !important;
+        color: black !important;
     }
     .team-cell { text-align: left !important; font-weight: bold; color: #1f77b4 !important; }
 
@@ -276,6 +276,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
