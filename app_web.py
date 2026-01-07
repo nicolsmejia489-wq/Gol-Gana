@@ -9,27 +9,6 @@ DB_NAME = "gol_gana.db"
 ADMIN_PIN = "2025" 
 
 st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
-
-Entiendo perfectamente. Lo que está pasando es que al forzar el modo claro con el comando !important, Streamlit está aplicando el color negro tanto al fondo del botón como al texto, dejándolos ilegibles.
-
-Cambiar los botones a gris es un ajuste estético sencillo y no afectará en absoluto la lógica, los registros ni el sistema de jornadas. Al contrario, ayudará a que la interfaz se vea más limpia y profesional.
-
-Aquí tienes el código con los botones ajustados a un gris moderno y el texto corregido para que siempre sea visible:
-
-Python
-
-import streamlit as st
-import sqlite3
-import pandas as pd
-import random
-from contextlib import contextmanager
-
-# --- 1. CONFIGURACIÓN Y TEMA CLARO CON BOTONES GRISES ---
-DB_NAME = "gol_gana.db"
-ADMIN_PIN = "2025" 
-
-st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
-
 st.markdown("""
     <style>
     /* Fondo general */
@@ -291,6 +270,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
