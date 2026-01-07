@@ -10,58 +10,73 @@ ADMIN_PIN = "2025"
 
 st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
 
-# CSS para forzar Modo Claro en cualquier dispositivo
+Entiendo perfectamente. Lo que está pasando es que al forzar el modo claro con el comando !important, Streamlit está aplicando el color negro tanto al fondo del botón como al texto, dejándolos ilegibles.
+
+Cambiar los botones a gris es un ajuste estético sencillo y no afectará en absoluto la lógica, los registros ni el sistema de jornadas. Al contrario, ayudará a que la interfaz se vea más limpia y profesional.
+
+Aquí tienes el código con los botones ajustados a un gris moderno y el texto corregido para que siempre sea visible:
+
+Python
+
+import streamlit as st
+import sqlite3
+import pandas as pd
+import random
+from contextlib import contextmanager
+
+# --- 1. CONFIGURACIÓN Y TEMA CLARO CON BOTONES GRISES ---
+DB_NAME = "gol_gana.db"
+ADMIN_PIN = "2025" 
+
+st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
+
 st.markdown("""
     <style>
-    /* Forzar fondo blanco en toda la app */
-    .stApp { 
-        background-color: white !important; 
-    }
+    /* Fondo general */
+    .stApp { background-color: white !important; }
     
-    /* Forzar color de texto negro en etiquetas, botones y entradas */
-    .stApp, .stMarkdown, p, h1, h2, h3, label { 
-        color: black !important; 
+    /* Forzar textos generales en negro */
+    .stApp, .stMarkdown, p, h1, h2, h3, label { color: black !important; }
+
+    /* ESTILO DE BOTONES (Volver, Refrescar, Siguiente, Subir) */
+    div.stButton > button {
+        background-color: #f0f2f6 !important; /* Gris claro */
+        color: #31333f !important;           /* Texto oscuro */
+        border: 1px solid #dcdfe4 !important;
+        border-radius: 8px !important;
+        transition: 0.3s;
+    }
+    div.stButton > button:hover {
+        background-color: #e2e5e9 !important; /* Gris un poco más oscuro al pasar el mouse */
+        border-color: #c0c4cc !important;
     }
 
     /* Tabla de Clasificación */
     .mobile-table { 
         width: 100%; border-collapse: collapse; font-size: 12px; 
-        background-color: white !important; 
-        color: black !important;
+        background-color: white !important; color: black !important;
         border: 1px solid #ddd;
     }
     .mobile-table th { 
-        background: #f0f2f6 !important; 
-        color: black !important; 
+        background: #f0f2f6 !important; color: black !important; 
         padding: 8px; border: 1px solid #ddd;
     }
-    .mobile-table td { 
-        padding: 8px; text-align: center; border: 1px solid #eee; 
-        color: black !important;
-    }
+    .mobile-table td { padding: 8px; text-align: center; border: 1px solid #eee; color: black !important; }
     .team-cell { text-align: left !important; font-weight: bold; color: #1f77b4 !important; }
 
     /* Tarjetas de Partidos */
     .match-box { 
         border: 1px solid #ccc; padding: 15px; border-radius: 10px; 
-        margin-bottom: 15px; background: #f9f9f9 !important; 
+        margin-bottom: 15px; background: #ffffff !important; 
         color: black !important;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }
-    .match-box b { color: black !important; }
 
-    /* Botón WhatsApp */
+    /* Botón WhatsApp (Este lo mantenemos verde por ser icónico) */
     .wa-btn { 
         display: inline-block; background-color: #25D366; color: white !important; 
         padding: 8px 15px; border-radius: 5px; text-decoration: none; 
         font-weight: bold; font-size: 14px; margin-top: 5px;
-    }
-
-    /* Forzar visibilidad de inputs (PIN, formularios) */
-    input {
-        background-color: white !important;
-        color: black !important;
-        border: 1px solid #ccc !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -276,6 +291,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
