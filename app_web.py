@@ -4,27 +4,72 @@ import pandas as pd
 import random
 from contextlib import contextmanager
 
-# --- 1. CONFIGURACIÓN Y ESTILOS ---
+# --- 1. CONFIGURACIÓN Y TEMA FIJO CLARO ---
 DB_NAME = "gol_gana.db"
 ADMIN_PIN = "2025" 
 
 st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
 
+# CSS para forzar Modo Claro en cualquier dispositivo
 st.markdown("""
     <style>
-    .stApp { max-width: 600px; margin: 0 auto; }
-    .mobile-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .mobile-table th { background: #f0f2f6; padding: 5px; border-bottom: 2px solid #ddd; }
-    .mobile-table td { padding: 8px 2px; text-align: center; border-bottom: 1px solid #eee; }
-    .team-cell { text-align: left !important; font-weight: bold; color: #1f77b4; }
-    .match-box { border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-bottom: 10px; background: #fff; }
-    .wa-btn { display: inline-block; background-color: #25D366; color: white !important; padding: 5px 10px; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 12px; }
+    /* Forzar fondo blanco en toda la app */
+    .stApp { 
+        background-color: white !important; 
+    }
+    
+    /* Forzar color de texto negro en etiquetas, botones y entradas */
+    .stApp, .stMarkdown, p, h1, h2, h3, label { 
+        color: black !important; 
+    }
+
+    /* Tabla de Clasificación */
+    .mobile-table { 
+        width: 100%; border-collapse: collapse; font-size: 12px; 
+        background-color: white !important; 
+        color: black !important;
+        border: 1px solid #ddd;
+    }
+    .mobile-table th { 
+        background: #f0f2f6 !important; 
+        color: black !important; 
+        padding: 8px; border: 1px solid #ddd;
+    }
+    .mobile-table td { 
+        padding: 8px; text-align: center; border: 1px solid #eee; 
+        color: black !important;
+    }
+    .team-cell { text-align: left !important; font-weight: bold; color: #1f77b4 !important; }
+
+    /* Tarjetas de Partidos */
+    .match-box { 
+        border: 1px solid #ccc; padding: 15px; border-radius: 10px; 
+        margin-bottom: 15px; background: #f9f9f9 !important; 
+        color: black !important;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    }
+    .match-box b { color: black !important; }
+
+    /* Botón WhatsApp */
+    .wa-btn { 
+        display: inline-block; background-color: #25D366; color: white !important; 
+        padding: 8px 15px; border-radius: 5px; text-decoration: none; 
+        font-weight: bold; font-size: 14px; margin-top: 5px;
+    }
+
+    /* Forzar visibilidad de inputs (PIN, formularios) */
+    input {
+        background-color: white !important;
+        color: black !important;
+        border: 1px solid #ccc !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
+# --- 2. GESTIÓN DE BASE DE DATOS (Mantenida igual) ---
 @contextmanager
 def get_db_connection():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=15)
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=20)
     try: yield conn
     finally: conn.close()
 
@@ -45,7 +90,7 @@ def inicializar_db():
 
 inicializar_db()
 
-# --- 2. LÓGICA DE JORNADAS ---
+# --- 3. LÓGICA DE JORNADAS (Mantenida igual) ---
 def generar_calendario():
     with get_db_connection() as conn:
         cur = conn.cursor()
@@ -67,18 +112,18 @@ def generar_calendario():
         conn.execute("UPDATE config SET valor = 'clasificacion' WHERE llave = 'fase'")
         conn.commit()
 
-# --- 3. NAVEGACIÓN ---
+# --- 4. FLUJO DE NAVEGACIÓN ---
 if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
 if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
 st.title("⚽ Gol-Gana")
-c_nav1, c_nav2 = st.columns(2)
-with c_nav1:
+col1, col2 = st.columns(2)
+with col1:
     if st.button("🔙 Inicio"):
         st.session_state.reg_estado = "formulario"
         st.session_state.pin_usuario = ""
         st.rerun()
-with c_nav2:
+with col2:
     if st.button("🔄 Refrescar"): st.rerun()
 
 pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
@@ -98,20 +143,24 @@ elif st.session_state.pin_usuario:
         cur = conn.cursor()
         cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
         res = cur.fetchone()
-        if res: rol = "dt"; equipo_usuario = res[0]
+        if res:
+            rol = "dt"; equipo_usuario = res[0]
 
-# --- 4. TABS ---
+# --- 5. TABS ---
 if fase_actual == "inscripcion":
     tabs = st.tabs(["📊 Clasificación", "📝 Inscribirse"])
 else:
-    if rol == "dt": tabs = st.tabs(["📊 Clasificación", "📅 Calendario", "⚽ Mis Partidos"])
-    else: tabs = st.tabs(["📊 Clasificación", "📅 Calendario"])
+    if rol == "dt":
+        tabs = st.tabs(["📊 Clasificación", "📅 Calendario", "⚽ Mis Partidos"])
+    else:
+        tabs = st.tabs(["📊 Clasificación", "📅 Calendario"])
 
-# TAB: CLASIFICACIÓN
+# CLASIFICACIÓN
 with tabs[0]:
     with get_db_connection() as conn:
         df_eq = pd.read_sql_query("SELECT nombre FROM equipos WHERE estado = 'aprobado'", conn)
-        if df_eq.empty: st.info("No hay equipos todavía.")
+        if df_eq.empty:
+            st.info("No hay equipos todavía.")
         else:
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
@@ -129,105 +178,74 @@ with tabs[0]:
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
-            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
+            html = '<table class="mobile-table"><thead><tr><th>POS</th><th>EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
             for _, r in df_f.iterrows():
                 html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
-# TAB: REGISTRO (CON FIX DEFINITIVO)
+# CALENDARIO
+if fase_actual == "clasificacion":
+    with tabs[1]:
+        st.subheader("📅 Calendario")
+        with get_db_connection() as conn:
+            df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
+        j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
+        for i, j_tab in enumerate(j_tabs):
+            with j_tab:
+                df_j = df_p[df_p['jornada'] == (i + 1)]
+                for _, p in df_j.iterrows():
+                    res = f"{p['goles_l']} - {p['goles_v']}" if p['goles_l'] is not None else "vs"
+                    st.markdown(f"<div class='match-box' style='text-align:center'><b>{p['local']}</b> {res} <b>{p['visitante']}</b></div>", unsafe_allow_html=True)
+
+# INSCRIPCIÓN
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
-            st.success("✅ ¡Inscripción recibida!")
-            if st.button("Nuevo Registro"): st.session_state.reg_estado = "formulario"; st.rerun()
-        
+            st.success("✅ ¡Inscrito con éxito!")
+            if st.button("Nuevo Registro"): 
+                st.session_state.reg_estado = "formulario"
+                st.rerun()
         elif st.session_state.reg_estado == "confirmar":
             d = st.session_state.datos_temp
-            st.warning("⚠️ **Confirma tus datos:**")
-            st.write(f"**Equipo:** {d['n']}\n\n**WA:** {d['pref']} {d['wa']}\n\n**PIN:** {d['pin']}")
+            st.write(f"**Equipo:** {d['n']}\n\n**WA:** {d['pref']} {d['wa']}")
             c1, c2 = st.columns(2)
-            
             if c1.button("✅ Confirmar"):
-                registro_ok = False
+                exito_db = False
                 with get_db_connection() as conn:
                     try:
                         conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)", (d['n'], d['wa'], d['pref'], d['pin']))
                         conn.commit()
-                        registro_ok = True
-                    except sqlite3.Error as e:
-                        st.error(f"Error real de base de datos: {e}")
-                
-                if registro_ok: # Rerun FUERA del try-except
+                        exito_db = True
+                    except: st.error("Error al guardar.")
+                if exito_db:
                     st.session_state.reg_estado = "exito"
                     st.rerun()
-
-            if c2.button("✏️ Editar"): st.session_state.reg_estado = "formulario"; st.rerun()
-        
+            if c2.button("✏️ Editar"): 
+                st.session_state.reg_estado = "formulario"
+                st.rerun()
         else:
-            with st.form("reg_preventivo"):
-                nom = st.text_input("Nombre Equipo").strip()
-                paises = {"Colombia": "+57", "México": "+52", "España": "+34", "Argentina": "+54", "EEUU": "+1", "Chile": "+56", "Ecuador": "+593", "Perú": "+51", "Venezuela": "+58"}
-                pais_sel = st.selectbox("País", [f"{p} ({pref})" for p, pref in paises.items()])
-                tel = st.text_input("WhatsApp").strip()
-                pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
+            with st.form("reg"):
+                nom = st.text_input("Nombre del Equipo")
+                tel = st.text_input("WhatsApp")
+                pin_r = st.text_input("PIN (4 dígitos)", type="password")
                 if st.form_submit_button("Siguiente"):
-                    if not nom or not tel or len(pin_r) < 4: st.error("Datos incompletos.")
+                    if not nom or not tel or len(pin_r) < 4: st.error("Datos incompletos")
                     else:
-                        with get_db_connection() as conn:
-                            cur = conn.cursor()
-                            cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR pin=? OR celular=?", (nom, pin_r, tel))
-                            if cur.fetchone(): st.error("❌ Nombre, PIN o Teléfono ya registrados.")
-                            else:
-                                st.session_state.datos_temp = {"n": nom, "wa": tel, "pin": pin_r, "pref": pais_sel.split('(')[-1].replace(')', '')}
-                                st.session_state.reg_estado = "confirmar"; st.rerun()
+                        st.session_state.datos_temp = {"n": nom, "wa": tel, "pin": pin_r, "pref": "+57"}
+                        st.session_state.reg_estado = "confirmar"
+                        st.rerun()
 
-# CALENDARIO Y MIS PARTIDOS (Mantenidos igual)
-if fase_actual == "clasificacion":
-    with tabs[1]:
-        st.subheader("📅 Calendario Oficial")
-        with get_db_connection() as conn:
-            df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
-        j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
-        for i, jt in enumerate(j_tabs):
-            with jt:
-                df_j = df_p[df_p['jornada'] == (i + 1)]
-                for _, p in df_j.iterrows():
-                    res = f"{p['goles_l']} - {p['goles_v']}" if p['goles_l'] is not None else "vs"
-                    st.write(f"**{p['local']}** {res} **{p['visitante']}**")
-
-    if rol == "dt":
-        with tabs[2]:
-            st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
-            with get_db_connection() as conn:
-                mis = pd.read_sql_query("SELECT * FROM partidos WHERE (local=? OR visitante=?) ORDER BY jornada ASC", conn, params=(equipo_usuario, equipo_usuario))
-                for _, p in mis.iterrows():
-                    rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
-                    with st.container():
-                        st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}", unsafe_allow_html=True)
-                        cur = conn.cursor()
-                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
-                        r = cur.fetchone()
-                        if r and r[0] and r[1] and str(r[1]).isdigit():
-                            st.markdown(f"<a href='https://wa.me/{str(r[0]).replace('+','')}{r[1]}' class='wa-btn'>💬 WhatsApp</a>", unsafe_allow_html=True)
-                        else: st.caption("🚫 Sin contacto (WO)")
-                        st.button("📸 Subir Resultado", key=f"cam_{p['id']}")
-                        st.markdown("</div>", unsafe_allow_html=True)
-
-# ADMIN
+# PANEL ADMIN
 if rol == "admin":
     st.divider()
     if fase_actual == "inscripcion":
-        with get_db_connection() as conn:
-            pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
-            st.write(f"Aprobados: {len(pd.read_sql_query('SELECT 1 FROM equipos WHERE estado=\'aprobado\'', conn))}/32")
-            for _, r in pend.iterrows():
-                if st.button(f"Aprobar {r['nombre']}"):
-                    conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
-                    conn.commit(); st.rerun()
-        if st.button("🚀 INICIAR TORNEO"): generar_calendario(); st.rerun()
+        if st.button("🚀 INICIAR TORNEO"): 
+            generar_calendario()
+            st.rerun()
     if st.button("🚨 REINICIAR TODO"):
         with get_db_connection() as conn:
-            conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
-            conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
+            conn.execute("DROP TABLE IF EXISTS equipos")
+            conn.execute("DROP TABLE IF EXISTS partidos")
+            conn.execute("UPDATE config SET valor='inscripcion'")
+            conn.commit()
         st.rerun()
-
