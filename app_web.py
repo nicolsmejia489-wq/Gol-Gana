@@ -20,7 +20,7 @@ st.markdown("""
     
     /* Forzar color de texto negro en etiquetas, botones y entradas */
     .stApp, .stMarkdown, p, h1, h2, h3, label { 
-        color: white !important; 
+        color: black !important; 
     }
 
     /* Tabla de Clasificación */
@@ -37,7 +37,7 @@ st.markdown("""
     }
     .mobile-table td { 
         padding: 8px; text-align: center; border: 1px solid #eee; 
-        color: black !important;
+        color: white !important;
     }
     .team-cell { text-align: left !important; font-weight: bold; color: #1f77b4 !important; }
 
@@ -276,6 +276,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
