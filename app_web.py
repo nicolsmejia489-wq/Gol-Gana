@@ -2,6 +2,19 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import random
+
+import cloudinary
+import cloudinary.uploader
+
+# Configura tus credenciales (Búscalas en tu Dashboard de Cloudinary)
+cloudinary.config( 
+  cloud_name = "dlvczeqlp", 
+  api_key = "276694391654197", 
+  api_secret = "j-_6AaUam_Acwng0GGr8tmb8Zyk",
+  secure = True
+)
+
+
 from contextlib import contextmanager
 
 # --- 1. CONFIGURACIÓN Y TEMA FIJO CLARO ---
@@ -329,6 +342,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
