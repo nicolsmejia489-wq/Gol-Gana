@@ -61,39 +61,43 @@ def inicializar_db():
         cursor.execute('''CREATE TABLE IF NOT EXISTS equipos (
             nombre TEXT PRIMARY KEY, celular TEXT, prefijo TEXT, pin TEXT, estado TEXT DEFAULT 'pendiente'
         )''')
+        # Agregamos las columnas nuevas aquí también para que si la base de datos es nueva, nazca completa
         cursor.execute('''CREATE TABLE IF NOT EXISTS partidos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, local TEXT, visitante TEXT, 
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            local TEXT, visitante TEXT, 
             goles_l INTEGER DEFAULT NULL, goles_v INTEGER DEFAULT NULL, 
-            jornada INTEGER, estado TEXT DEFAULT 'programado'
+            jornada INTEGER, estado TEXT DEFAULT 'programado',
+            url_foto_l TEXT, url_foto_v TEXT, 
+            ia_goles_l INTEGER, ia_goles_v INTEGER, 
+            conflicto INTEGER DEFAULT 0
         )''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS config (llave TEXT PRIMARY KEY, valor TEXT)''')
         cursor.execute("INSERT OR IGNORE INTO config (llave, valor) VALUES ('fase', 'inscripcion')")
         conn.commit()
 
-##
 def migrar_db():
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        # Añadimos columnas para las URLs de las fotos y el estado de conflicto
+        # Estas son las columnas que añadimos por si la base de datos ya existía de antes
         columnas = [
             ("url_foto_l", "TEXT"),
             ("url_foto_v", "TEXT"),
             ("ia_goles_l", "INTEGER"),
             ("ia_goles_v", "INTEGER"),
-            ("conflicto", "INTEGER DEFAULT 0") # 0 = OK, 1 = Conflicto
+            ("conflicto", "INTEGER DEFAULT 0")
         ]
         for nombre_col, tipo in columnas:
             try:
                 cursor.execute(f"ALTER TABLE partidos ADD COLUMN {nombre_col} {tipo}")
             except sqlite3.OperationalError:
-                pass # La columna ya existe
+                pass # Si la columna ya existe, no hace nada
         conn.commit()
 
-migrar_db()
-##
+# --- EJECUCIÓN ---
+inicializar_db() # 1. Crea lo básico
+migrar_db()      # 2. Asegura que lo nuevo esté ahí
 
 
-inicializar_db()
 
 # --- 2. LÓGICA DE JORNADAS ---
 def generar_calendario():
@@ -325,5 +329,6 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
