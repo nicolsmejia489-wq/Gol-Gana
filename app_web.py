@@ -253,81 +253,88 @@ if fase_actual == "inscripcion":
                                 st.session_state.datos_temp = {"n": nom, "wa": tel, "pin": pin_r, "pref": pais_sel.split('(')[-1].replace(')', '')}
                                 st.session_state.reg_estado = "confirmar"; st.rerun()
 
-# CALENDARIO Y MIS PARTIDOS (Mantenidos igual)
+
+
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
 elif fase_actual == "clasificacion":
+    # --- TAB: CLASIFICACIÓN (Ya está en tu código, se mantiene) ---
+    
+    # --- TAB: CALENDARIO ---
     with tabs[1]:
         st.subheader("📅 Calendario Oficial")
         with get_db_connection() as conn:
             df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
+        
         j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
         for i, jt in enumerate(j_tabs):
             with jt:
                 df_j = df_p[df_p['jornada'] == (i + 1)]
                 for _, p in df_j.iterrows():
-                    # FIX: Manejo de nulos para evitar NaN y decimales
+                    # Formateo de resultado
                     if pd.notna(p['goles_l']) and pd.notna(p['goles_v']):
-                        res = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                        res_text = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
                     else:
-                        res = "vs"
-                    st.write(f"**{p['local']}** {res} **{p['visitante']}**")
+                        res_text = "vs"
+                    
+                    # Línea del partido con icono de ojo si hay fotos
+                    c1, c2 = st.columns([0.8, 0.2])
+                    c1.write(f"**{p['local']}** {res_text} **{p['visitante']}**")
+                    
+                    # Si hay alguna foto subida, mostrar icono 👁️
+                    if p['url_foto_l'] or p['url_foto_v']:
+                        if c2.button("👁️", key=f"view_{p['id']}"):
+                            if p['url_foto_l']: st.image(p['url_foto_l'], caption=f"Evidencia {p['local']}")
+                            if p['url_foto_v']: st.image(p['url_foto_v'], caption=f"Evidencia {p['visitante']}")
 
+    # --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
     if rol == "dt":
         with tabs[2]:
             st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
             with get_db_connection() as conn:
                 mis = pd.read_sql_query("SELECT * FROM partidos WHERE (local=? OR visitante=?) ORDER BY jornada ASC", conn, params=(equipo_usuario, equipo_usuario))
+                
                 for _, p in mis.iterrows():
                     rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
+                    
                     with st.container():
-                        st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}", unsafe_allow_html=True)
+                        st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}</div>", unsafe_allow_html=True)
+                        
+                        # Botón WhatsApp
                         cur = conn.cursor()
                         cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
                         r = cur.fetchone()
-                        if r and r[0] and r[1] and str(r[1]).isdigit():
-                            st.markdown(f"<a href='https://wa.me/{str(r[0]).replace('+','')}{r[1]}' class='wa-btn'>💬 WhatsApp</a>", unsafe_allow_html=True)
-                        else: st.caption("🚫 Sin contacto (WO)")
-                      
-                
-# Creamos un "expander" para que no ocupe espacio si no se va a usar
-                    with st.expander(f"📤 Reportar Resultado - Jornada {p['jornada']}"):
-                    st.write("Elige cómo quieres subir la evidencia:")
-    
-                    # Opción 1: Cámara en vivo
-                    foto_camara = st.camera_input("Tomar Foto", key=f"cap_{p['id']}")
-    
-                    # Opción 2: Galería
-                    foto_galeria = st.file_uploader("O subir desde galería", type=['png', 'jpg', 'jpeg'], key=f"gal_{p['id']}")
-
-    # Seleccionamos la que tenga datos
-                    foto_final = foto_camara if foto_camara is not None else foto_galeria
-
-                    if foto_final:
-                    st.image(foto_final, caption="Vista previa", width=200)
-                    
-                    if st.button("🚀 Enviar a Revisión", key=f"conf_{p['id']}"):
-                    with st.spinner("Subiendo a la nube y procesando..."):
-                    try:
-                    # 1. Subir a Cloudinary
-                    res = cloudinary.uploader.upload(foto_final, folder="evidencias_torneo")
-                    url_foto = res['secure_url']
-                    
-                    # 2. Identificar si el usuario es Local o Visitante
-                    col_url = "url_foto_l" if p['local'] == equipo_usuario else "url_foto_v"
-                    
-                    with get_db_connection() as conn:
-                        # 3. Guardar URL y actualizar estado
-                        conn.execute(f"UPDATE partidos SET {col_url} = ?, estado = 'Revision' WHERE id = ?", (url_foto, p['id']))
-                        conn.commit()
-                    
-                    st.success("¡Evidencia enviada correctamente!")
-                    st.rerun()
-                    except Exception as e:
-                    st.error(f"Error al subir: {e}")
-
-
+                        if r and r[0] and r[1]:
+                            st.markdown(f"<a href='https://wa.me/{str(r[0]).replace('+','')}{r[1]}' class='wa-btn'>💬 WhatsApp Rival</a>", unsafe_allow_html=True)
                         
-  
+                        # Sistema de Carga de Resultado (Expander para no estorbar)
+                        with st.expander("📸 Reportar Marcador"):
+                            opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"opt_{p['id']}", horizontal=True)
+                            
+                            foto = None
+                            if opcion == "Cámara":
+                                foto = st.camera_input("Capturar", key=f"cam_{p['id']}")
+                            else:
+                                foto = st.file_uploader("Archivo", type=['png', 'jpg', 'jpeg'], key=f"gal_{p['id']}")
+                            
+                            if foto:
+                                st.image(foto, width=150)
+                                if st.button("🚀 Enviar Evidencia", key=f"up_{p['id']}"):
+                                    with st.spinner("Subiendo..."):
+                                        try:
+                                            # Subida a Cloudinary
+                                            res = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
+                                            url = res['secure_url']
+                                            
+                                            # Guardar según sea local o visitante
+                                            col_foto = "url_foto_l" if p['local'] == equipo_usuario else "url_foto_v"
+                                            conn.execute(f"UPDATE partidos SET {col_foto} = ?, estado = 'Revision' WHERE id = ?", (url, p['id']))
+                                            conn.commit()
+                                            st.success("¡Enviado!")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Error: {e}")
 
+  
     # --- NUEVA PESTAÑA: GESTIÓN ADMIN ---
     if rol == "admin":
         with tabs[2]:
@@ -381,6 +388,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
