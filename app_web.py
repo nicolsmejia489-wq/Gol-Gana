@@ -286,29 +286,27 @@ elif fase_actual == "clasificacion":
                         if r and r[0] and r[1] and str(r[1]).isdigit():
                             st.markdown(f"<a href='https://wa.me/{str(r[0]).replace('+','')}{r[1]}' class='wa-btn'>💬 WhatsApp</a>", unsafe_allow_html=True)
                         else: st.caption("🚫 Sin contacto (WO)")
-
-
                       
-                      # --- Reemplaza tu botón antiguo por este bloque ---
+                
 # Creamos un "expander" para que no ocupe espacio si no se va a usar
-with st.expander(f"📤 Reportar Resultado - Jornada {p['jornada']}"):
-    st.write("Elige cómo quieres subir la evidencia:")
+                    with st.expander(f"📤 Reportar Resultado - Jornada {p['jornada']}"):
+                    st.write("Elige cómo quieres subir la evidencia:")
     
-    # Opción 1: Cámara en vivo
-    foto_camara = st.camera_input("Tomar Foto", key=f"cap_{p['id']}")
+                    # Opción 1: Cámara en vivo
+                    foto_camara = st.camera_input("Tomar Foto", key=f"cap_{p['id']}")
     
-    # Opción 2: Galería
-    foto_galeria = st.file_uploader("O subir desde galería", type=['png', 'jpg', 'jpeg'], key=f"gal_{p['id']}")
+                    # Opción 2: Galería
+                    foto_galeria = st.file_uploader("O subir desde galería", type=['png', 'jpg', 'jpeg'], key=f"gal_{p['id']}")
 
     # Seleccionamos la que tenga datos
-    foto_final = foto_camara if foto_camara is not None else foto_galeria
+                    foto_final = foto_camara if foto_camara is not None else foto_galeria
 
-    if foto_final:
-        st.image(foto_final, caption="Vista previa", width=200)
-        
-        if st.button("🚀 Enviar a Revisión", key=f"conf_{p['id']}"):
-            with st.spinner("Subiendo a la nube y procesando..."):
-                try:
+                    if foto_final:
+                    st.image(foto_final, caption="Vista previa", width=200)
+                    
+                    if st.button("🚀 Enviar a Revisión", key=f"conf_{p['id']}"):
+                    with st.spinner("Subiendo a la nube y procesando..."):
+                    try:
                     # 1. Subir a Cloudinary
                     res = cloudinary.uploader.upload(foto_final, folder="evidencias_torneo")
                     url_foto = res['secure_url']
@@ -323,7 +321,7 @@ with st.expander(f"📤 Reportar Resultado - Jornada {p['jornada']}"):
                     
                     st.success("¡Evidencia enviada correctamente!")
                     st.rerun()
-                except Exception as e:
+                    except Exception as e:
                     st.error(f"Error al subir: {e}")
 
 
