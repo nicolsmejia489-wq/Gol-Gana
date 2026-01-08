@@ -138,7 +138,7 @@ def generar_calendario():
 if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
 if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
-st.title("⚽ Gol-Gana")
+st.title("⚽ Gol Gana")
 c_nav1, c_nav2 = st.columns(2)
 with c_nav1:
     if st.button("🔙 Inicio"):
@@ -342,6 +342,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
