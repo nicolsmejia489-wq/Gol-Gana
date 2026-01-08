@@ -70,6 +70,29 @@ def inicializar_db():
         cursor.execute("INSERT OR IGNORE INTO config (llave, valor) VALUES ('fase', 'inscripcion')")
         conn.commit()
 
+##
+def migrar_db():
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        # Añadimos columnas para las URLs de las fotos y el estado de conflicto
+        columnas = [
+            ("url_foto_l", "TEXT"),
+            ("url_foto_v", "TEXT"),
+            ("ia_goles_l", "INTEGER"),
+            ("ia_goles_v", "INTEGER"),
+            ("conflicto", "INTEGER DEFAULT 0") # 0 = OK, 1 = Conflicto
+        ]
+        for nombre_col, tipo in columnas:
+            try:
+                cursor.execute(f"ALTER TABLE partidos ADD COLUMN {nombre_col} {tipo}")
+            except sqlite3.OperationalError:
+                pass # La columna ya existe
+        conn.commit()
+
+migrar_db()
+##
+
+
 inicializar_db()
 
 # --- 2. LÓGICA DE JORNADAS ---
@@ -302,4 +325,5 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
