@@ -214,7 +214,7 @@ if fase_actual == "inscripcion":
                                 st.session_state.reg_estado = "confirmar"; st.rerun()
 
 # CALENDARIO Y MIS PARTIDOS (Mantenidos igual)
-if fase_actual == "clasificacion":
+elif fase_actual == "clasificacion":
     with tabs[1]:
         st.subheader("📅 Calendario Oficial")
         with get_db_connection() as conn:
@@ -224,7 +224,11 @@ if fase_actual == "clasificacion":
             with jt:
                 df_j = df_p[df_p['jornada'] == (i + 1)]
                 for _, p in df_j.iterrows():
-                    res = f"{p['goles_l']} - {p['goles_v']}" if p['goles_l'] is not None else "vs"
+                    # FIX: Manejo de nulos para evitar NaN y decimales
+                    if pd.notna(p['goles_l']) and pd.notna(p['goles_v']):
+                        res = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                    else:
+                        res = "vs"
                     st.write(f"**{p['local']}** {res} **{p['visitante']}**")
 
     if rol == "dt":
@@ -298,3 +302,4 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
