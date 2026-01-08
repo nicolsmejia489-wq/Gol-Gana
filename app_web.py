@@ -289,6 +289,46 @@ elif fase_actual == "clasificacion":
                         st.button("📸 Subir Resultado", key=f"cam_{p['id']}")
                         st.markdown("</div>", unsafe_allow_html=True)
 
+
+# --- Reemplaza tu botón antiguo por este bloque ---
+# Creamos un "expander" para que no ocupe espacio si no se va a usar
+with st.expander(f"📤 Reportar Resultado - Jornada {p['jornada']}"):
+    st.write("Elige cómo quieres subir la evidencia:")
+    
+    # Opción 1: Cámara en vivo
+    foto_camara = st.camera_input("Tomar Foto", key=f"cap_{p['id']}")
+    
+    # Opción 2: Galería
+    foto_galeria = st.file_uploader("O subir desde galería", type=['png', 'jpg', 'jpeg'], key=f"gal_{p['id']}")
+
+    # Seleccionamos la que tenga datos
+    foto_final = foto_camara if foto_camara is not None else foto_galeria
+
+    if foto_final:
+        st.image(foto_final, caption="Vista previa", width=200)
+        
+        if st.button("🚀 Enviar a Revisión", key=f"conf_{p['id']}"):
+            with st.spinner("Subiendo a la nube y procesando..."):
+                try:
+                    # 1. Subir a Cloudinary
+                    res = cloudinary.uploader.upload(foto_final, folder="evidencias_torneo")
+                    url_foto = res['secure_url']
+                    
+                    # 2. Identificar si el usuario es Local o Visitante
+                    col_url = "url_foto_l" if p['local'] == equipo_usuario else "url_foto_v"
+                    
+                    with get_db_connection() as conn:
+                        # 3. Guardar URL y actualizar estado
+                        conn.execute(f"UPDATE partidos SET {col_url} = ?, estado = 'Revision' WHERE id = ?", (url_foto, p['id']))
+                        conn.commit()
+                    
+                    st.success("¡Evidencia enviada correctamente!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al subir: {e}")
+
+  #########
+
     # --- NUEVA PESTAÑA: GESTIÓN ADMIN ---
     if rol == "admin":
         with tabs[2]:
@@ -342,6 +382,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
