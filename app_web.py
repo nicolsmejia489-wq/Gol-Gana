@@ -164,68 +164,76 @@ migrar_db()      # 2. Asegura que lo nuevo esté ahí
 
 ##### ALGORITMO IA #####
 
+def limpiar_nombre(nombre):
+    """Elimina sufijos comunes para quedarse con la raíz del nombre."""
+    palabras_basura = ["FC", "MX", "CLUB", "REAL", "DEPORTIVO", "10", "A", "B"]
+    nombre = nombre.upper()
+    for palabra in palabras_basura:
+        nombre = nombre.replace(palabra, "")
+    return nombre.strip().split()
+
 @st.cache_resource
 def obtener_lector():
-    # Inicializamos EasyOCR solo una vez para ahorrar memoria
     return easyocr.Reader(['es', 'en'], gpu=False)
 
 def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     try:
         reader = obtener_lector()
         
-        # 1. Procesar imagen (igual que antes)
-        image = Image.open(io.BytesIO(imagen_bytes.getvalue()))
-        image_np = np.array(image.convert('RGB'))
+        # --- PASO 1: MEJORA DE IMAGEN PROFESIONAL ---
+        file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
+        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         
-        # Leer todo el texto
-        resultados = reader.readtext(image_np, detail=0, paragraph=True)
-        texto_detectado = " ".join(resultados).upper()
+        # Convertir a escala de grises
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        # --- MEJORA 1: BÚSQUEDA FLEXIBLE DE NOMBRES (Fuzzy Matching) ---
-        # Usamos 'partial_ratio' para buscar si el nombre real está "contenido" en el texto detectado.
-        # Un puntaje > 80 suele ser una coincidencia muy sólida.
-        score_local = fuzz.partial_ratio(local_real.upper(), texto_detectado)
-        score_visitante = fuzz.partial_ratio(visitante_real.upper(), texto_detectado)
+        # Aumentar contraste y binarizar (hacer que lo gris sea negro y lo blanco brille)
+        # Esto es clave para leer pantallas
+        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
         
-        umbrla_coincidencia = 30 # Exigimos un 80% de similitud mínima
+        # --- PASO 2: OCR ---
+        # Leemos sobre la imagen procesada (thresh)
+        resultados = reader.readtext(thresh, detail=1) # detail=1 nos da la posición
+        
+        textos_detectados = [res[1].upper() for res in resultados]
+        toda_la_data = " ".join(textos_detectados)
+        
+        # --- PASO 3: VALIDACIÓN FLEXIBLE DE EQUIPOS ---
+        keywords_l = limpiar_nombre(local_real)
+        keywords_v = limpiar_nombre(visitante_real)
+        
+        # Buscamos si AL MENOS UNA palabra clave de cada equipo aparece
+        encontrado_l = any(fuzz.partial_ratio(kw, toda_la_data) > 85 for kw in keywords_l)
+        encontrado_v = any(fuzz.partial_ratio(kw, toda_la_data) > 85 for kw in keywords_v)
 
-        # Validamos: ¿Encontré al menos uno de los dos equipos con certeza?
-        # (A veces el OCR falla en un nombre raro, pero si el otro y el marcador están bien, es válido)
-        found_local = score_local >= umbrla_coincidencia
-        found_visitante = score_visitante >= umbrla_coincidencia
+        # Si no encuentra nombres, intentamos una segunda pasada con el texto original
+        if not (encontrado_l or encontrado_v):
+            # A veces el pre-procesamiento es muy agresivo, probamos con la original
+            resultados_raw = reader.readtext(img, detail=0)
+            toda_la_data = " ".join(resultados_raw).upper()
+            encontrado_l = any(fuzz.partial_ratio(kw, toda_la_data) > 85 for kw in keywords_l)
+            encontrado_v = any(fuzz.partial_ratio(kw, toda_la_data) > 85 for kw in keywords_v)
 
-        if not found_local and not found_visitante:
-            # Si no encuentro a ninguno, es muy arriesgado aceptar la foto.
-            # Debug: Descomenta esto si quieres ver qué leyó la IA realmente
-            # print(f"Texto leído: {texto_detectado} | Scores: L={score_local}, V={score_visitante}")
-            return None, f"⚠️ No reconozco los nombres de los equipos en la imagen (Similitud baja). Intenta enfocar mejor los nombres."
+        if not encontrado_l and not encontrado_v:
+             return None, f"⚠️ No identifico a {local_real} o {visitante_real}. Asegúrate de que el marcador sea legible."
 
-        # --- MEJORA 2: EXTRACCIÓN ROBUSTA DE NÚMEROS (Regex) ---
-        # En lugar de buscar dígitos aislados, usamos regex para encontrar cualquier secuencia de números.
-        # Esto encuentra el "2" y el "0" incluso en cadenas como "2-0" o "2v0".
-        numeros_encontrados = re.findall(r'\d+', texto_detectado)
+        # --- PASO 4: EXTRACCIÓN DE GOLES ---
+        # Buscamos patrones tipo "2-0", "2 - 0", "2 0"
+        patron_marcador = re.findall(r'(\d+)\s*[-|]\s*(\d+)', toda_la_data)
         
-        # Convertimos a enteros y filtramos resultados locos (ej. un año "2023" o un número de camiseta "99")
-        goles_posibles = []
-        for num in numeros_encontrados:
-            n = int(num)
-            if 0 <= n <= 15: # Asumimos que es raro un marcador mayor a 15 en fútbol
-                goles_posibles.append(n)
+        if patron_marcador:
+            gl, gv = patron_marcador[0]
+            return (int(gl), int(gv)), "OK"
         
-        # Necesitamos encontrar al menos dos números válidos
-        if len(goles_posibles) < 2:
-            return None, "🚫 No pude identificar claramente dos números para el marcador. Toma una mejor foto."
-        
-        # ASUNCIÓN IMPORTANTE: En los marcadores horizontales, el primer número que se lee 
-        # de izquierda a derecha suele ser el del equipo local (izquierda) y el segundo el visitante (derecha).
-        # Tomamos los dos primeros números válidos que encontramos.
-        gl = goles_posibles[0]
-        gv = goles_posibles[1]
-        
-        return (gl, gv), "OK"
+        # Si no hay guion, buscamos números sueltos pero filtramos el "90" del tiempo
+        numeros = [int(n) for n in re.findall(r'\d+', toda_la_data) if int(n) < 20]
+        if len(numeros) >= 2:
+            return (numeros[0], numeros[1]), "OK"
+
+        return None, "🚫 No detecto el puntaje (ej: 2-0). Limpia el lente o evita reflejos."
 
     except Exception as e:
-        return None, f"Error técnico en el análisis de imagen: {e}"
+        return None, f"Error en el motor de visión: {str(e)}"
 
 #####FIN IA
 # --- 2. LÓGICA DE JORNADAS ---
@@ -589,6 +597,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
