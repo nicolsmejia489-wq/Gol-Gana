@@ -29,7 +29,25 @@ ADMIN_PIN = "2025"
 
 st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
 st.markdown("""
-    <style>
+  <style>
+    /* Estrechar el contenedor de la tabla */
+    .reportview-container .main .block-container { padding-top: 1rem; }
+    
+    /* Forzar tabla compacta */
+    .admin-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    .admin-table td {
+        padding: 5px 2px;
+        vertical-align: middle;
+        border-bottom: 1px solid #eee;
+    }
+    .input-goles {
+        width: 45px !important;
+        text-align: center;
+    }
     .stApp { background-color: white !important; }
     .stApp, .stMarkdown, p, h1, h2, h3, label { color: black !important; }
 
@@ -660,6 +678,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
