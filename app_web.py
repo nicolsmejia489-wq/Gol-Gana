@@ -155,8 +155,39 @@ def migrar_db():
 inicializar_db() # 1. Crea lo básico
 migrar_db()      # 2. Asegura que lo nuevo esté ahí
 
+##### ALGORITMO IA
+def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
+    # Inicializar el lector (solo la primera vez)
+    reader = easyocr.Reader(['es', 'en'])
+    
+    # Convertir imagen para OpenCV
+    image = Image.open(imagen_bytes)
+    image_np = np.array(image)
+    
+    # La IA lee todo el texto de la imagen
+    resultados = reader.readtext(image_np)
+    texto_detectado = " ".join([res[1].upper() for res in resultados])
+    numeros = [int(s) for s in texto_detectado.split() if s.isdigit()]
+    
+    # --- VALIDACIÓN DE EQUIPOS ---
+    # Buscamos si el nombre de los equipos aparece en la foto
+    found_local = local_real.upper() in texto_detectado
+    found_visitante = visitante_real.upper() in texto_detectado
 
+    if not found_local and not found_visitante:
+        return None, "⚠️ No detecto los nombres de los clubes. Asegúrate de que se vean en pantalla."
 
+    # --- EXTRACCIÓN DE MARCADOR ---
+    # Buscamos los primeros dos números que parezcan un marcador (ej. entre 0 y 20)
+    goles = [n for n in numeros if 0 <= n <= 20]
+    
+    if len(goles) < 2:
+        return None, "🚫 No pude identificar el marcador claramente. Toma una mejor foto."
+    
+    # Asumimos que el primer número es Local y el segundo Visitante (orden estándar)
+    gl, gv = goles[0], goles[1]
+    return (gl, gv), "OK"
+#####FIN IA
 # --- 2. LÓGICA DE JORNADAS ---
 def generar_calendario():
     with get_db_connection() as conn:
@@ -379,6 +410,75 @@ elif fase_actual == "clasificacion":
                                         except Exception as e:
                                             st.error(f"Error: {e}")
 
+                                      # ... dentro del bucle de tus partidos en la pestaña DT ...
+                              if foto:
+                                st.image(foto, width=150)
+                                if st.button("🔍 Analizar y Enviar", key=f"up_{p['id']}"):
+                                    with st.spinner("La IA está analizando tu jugada..."):
+                                        # 1. Ejecutar el "Cerebro" IA
+                                        res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
+                                        
+                                        if res_ia is None:
+                                            st.error(mensaje_ia)
+                                        else:
+                                            gl_ia, gv_ia = res_ia
+                                            es_local = (p['local'] == equipo_usuario)
+                                            
+                                            # 2. Feedback visual para el DT
+                                            mis_goles = gl_ia if es_local else gv_ia
+                                            sus_goles = gv_ia if es_local else gl_ia
+                                            if mis_goles > sus_goles: msg = f"✅ Resultado {gl_ia}-{gv_ia} a tu favor."
+                                            elif mis_goles < sus_goles: msg = f"📉 Resultado {gl_ia}-{gv_ia} en tu contra."
+                                            else: msg = f"🤝 ¡Empate! {gl_ia}-{gv_ia}."
+                                            st.info(msg)
+
+                                            try:
+                                                # 3. Subida a Cloudinary
+                                                res_cloud = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
+                                                url_nueva = res_cloud['secure_url']
+                                                col_foto = "url_foto_l" if es_local else "url_foto_v"
+
+                                                with get_db_connection() as conn:
+                                                    # 4. LÓGICA DE CONFLICTO: Verificamos qué dijo el rival antes
+                                                    # Buscamos si el otro lado ya tiene datos guardados
+                                                    gl_existente = p['goles_l']
+                                                    gv_existente = p['goles_v']
+
+                                                    # Si ya hay un marcador oficial (puesto por el rival o admin)
+                                                    if gl_existente is not None:
+                                                        if int(gl_existente) != gl_ia or int(gv_existente) != gv_ia:
+                                                            # ¡HAY CONFLICTO! Borramos marcador y marcamos alerta
+                                                            conn.execute("""UPDATE partidos SET 
+                                                                         goles_l=NULL, goles_v=NULL, 
+                                                                         conflicto=1, {0}=?, 
+                                                                         ia_goles_l=?, ia_goles_v=? 
+                                                                         WHERE id=?""".format(col_foto), 
+                                                                         (url_nueva, gl_ia, gv_ia, p['id']))
+                                                            st.warning("⚠️ El resultado no coincide con el rival. Admin revisará.")
+                                                        else:
+                                                            # COINCIDEN: Mantenemos el marcador y quitamos conflicto si había
+                                                            conn.execute("UPDATE partidos SET {0}=?, conflicto=0 WHERE id=?".format(col_foto), (url_nueva, p['id']))
+                                                            st.success("¡Coincidencia total! Marcador confirmado.")
+                                                    else:
+                                                        # PRIMER REPORTE: Nadie había subido nada, grabamos marcador de una vez
+                                                        conn.execute("""UPDATE partidos SET 
+                                                                     goles_l=?, goles_v=?, 
+                                                                     {0}=?, ia_goles_l=?, 
+                                                                     ia_goles_v=?, estado='Revision' 
+                                                                     WHERE id=?""".format(col_foto), 
+                                                                     (gl_ia, gv_ia, url_nueva, gl_ia, gv_ia, p['id']))
+                                                        st.success("Resultado enviado. Esperando validación o reporte del rival.")
+                                                    
+                                                    conn.commit()
+                                                
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Error al procesar: {e}")
+
+  #########
+
+
+  
   
     # --- NUEVA PESTAÑA: GESTIÓN ADMIN ---
     if rol == "admin":
@@ -433,6 +533,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
