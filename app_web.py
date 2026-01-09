@@ -187,7 +187,7 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         score_local = fuzz.partial_ratio(local_real.upper(), texto_detectado)
         score_visitante = fuzz.partial_ratio(visitante_real.upper(), texto_detectado)
         
-        umbrla_coincidencia = 80 # Exigimos un 80% de similitud mínima
+        umbrla_coincidencia = 50 # Exigimos un 80% de similitud mínima
 
         # Validamos: ¿Encontré al menos uno de los dos equipos con certeza?
         # (A veces el OCR falla en un nombre raro, pero si el otro y el marcador están bien, es válido)
@@ -589,6 +589,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
