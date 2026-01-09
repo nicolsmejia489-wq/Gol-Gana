@@ -395,40 +395,39 @@ elif fase_actual == "clasificacion":
            
           
 
- # --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
-    if rol == "dt":
-        with tabs[2]:
-            st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
-            with get_db_connection() as conn:
-                mis = pd.read_sql_query("SELECT * FROM partidos WHERE (local=? OR visitante=?) ORDER BY jornada ASC", 
-                                       conn, params=(equipo_usuario, equipo_usuario))
+# --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
+if rol == "dt":
+    with tabs[2]:
+        st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
+        with get_db_connection() as conn:
+            # Importante: p['id'] es lo que usamos para las llaves
+            mis = pd.read_sql_query("SELECT * FROM partidos WHERE (local=? OR visitante=?) ORDER BY jornada ASC", 
+                                   conn, params=(equipo_usuario, equipo_usuario))
+            
+            for _, p in mis.iterrows():
+                rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
                 
-                for _, p in mis.iterrows():
-                    rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
+                with st.container():
+                    st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}</div>", unsafe_allow_html=True)
                     
-                    with st.container():
-                        st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}</div>", unsafe_allow_html=True)
+                    # WhatsApp (Aquí no suele haber problema de llaves porque es un link HTML)
+                    
+                    # Sistema de Carga con LLAVES ÚNICAS (agregamos 'dt_')
+                    with st.expander(f"📸 Reportar Marcador J{p['jornada']}", expanded=False):
+                        # Agregamos "dt_" al inicio de cada key para que no se duplique con el calendario
+                        opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
                         
-                        # Botón WhatsApp
-                        cur = conn.cursor()
-                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
-                        r = cur.fetchone()
-                        if r and r[0] and r[1]:
-                            st.markdown(f"<a href='https://wa.me/{str(r[0]).replace('+','')}{r[1]}' class='wa-btn'>💬 WhatsApp Rival</a>", unsafe_allow_html=True)
+                        foto = None
+                        if opcion == "Cámara":
+                            foto = st.camera_input("Capturar", key=f"dt_cam_{p['id']}")
+                        else:
+                            foto = st.file_uploader("Archivo", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
                         
-                        # Sistema de Carga de Resultado
-                        with st.expander("📸 Reportar Marcador"):
-                            opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"opt_{p['id']}", horizontal=True)
-                            
-                            if opcion == "Cámara":
-                                foto = st.camera_input("Capturar", key=f"cam_{p['id']}")
-                            else:
-                                foto = st.file_uploader("Archivo", type=['png', 'jpg', 'jpeg'], key=f"gal_{p['id']}")
-                            
-                            if foto:
-                                st.image(foto, width=150)
-                                if st.button("🔍 Analizar y Enviar", key=f"btn_ia_{p['id']}"):
-                                    with st.spinner("La IA está analizando la evidencia..."):
+                        if foto:
+                            st.image(foto, width=150)
+                            # Cambiamos la llave del botón también
+                            if st.button("🔍 Analizar y Enviar", key=f"dt_btn_ia_{p['id']}"):
+                                       with st.spinner("La IA está analizando la evidencia..."):
                                         # 1. Ejecutar el Cerebro IA
                                         res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
                                         
@@ -544,6 +543,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
