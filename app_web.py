@@ -72,7 +72,34 @@ div[data-testid="stCameraInput"] button:disabled {
     background-color: #f0f2f6 !important;
     color: #31333f !important;
 }
+/* 1. Botón de Galería (Browse Files) */
+    section[data-testid="stFileUploadDropzone"] button {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #dcdfe4 !important;
+    }
 
+    /* 2. Títulos de los Expander y etiquetas */
+    .st-emotion-cache-p4m0d4, .st-ae, label, .stMarkdown p {
+        color: black !important;
+    }
+
+    /* 3. Fondo del Expander cuando se abre */
+    .st-emotion-cache-1h9usn1, .st-emotion-cache-6q9sum {
+        background-color: #ffffff !important;
+        border: 1px solid #eee !important;
+    }
+
+    /* 4. Texto dentro del Expander */
+    .st-emotion-cache-1h9usn1 p, .st-emotion-cache-1h9usn1 span {
+        color: black !important;
+    }
+
+    /* Ajuste para el radio button (Cámara/Galería) */
+    div[data-testid="stWidgetLabel"] p {
+        color: black !important;
+        font-weight: bold !important;
+    }
     
     </style>
     """, unsafe_allow_html=True)
@@ -406,6 +433,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
