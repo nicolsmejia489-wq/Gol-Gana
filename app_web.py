@@ -375,9 +375,15 @@ if rol == "dt":
                 rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
                 
                 with st.container():
-                    st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}</div>", unsafe_allow_html=True)
-                    
-                    # WhatsApp (Aquí no suele haber problema de llaves porque es un link HTML)
+                        st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}", unsafe_allow_html=True)
+                        cur = conn.cursor()
+                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
+                        r = cur.fetchone()
+                        if r and r[0] and r[1] and str(r[1]).isdigit():
+                            st.markdown(f"<a href='https://wa.me/{str(r[0]).replace('+','')}{r[1]}' class='wa-btn'>💬 WhatsApp</a>", unsafe_allow_html=True)
+                        else: st.caption("🚫 Sin contacto (WO)")
+                        st.button("📸 Subir Resultado", key=f"cam_{p['id']}")
+                        st.markdown("</div>", unsafe_allow_html=True)
                     
                     # Sistema de Carga con LLAVES ÚNICAS (agregamos 'dt_')
                     with st.expander(f"📸 Reportar Marcador J{p['jornada']}", expanded=False):
@@ -510,6 +516,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
