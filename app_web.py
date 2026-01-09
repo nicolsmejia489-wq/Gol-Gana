@@ -547,7 +547,7 @@ if rol == "dt":
   
 # --- TAB: GESTIÓN DE RESULTADOS (SOLO ADMIN) ---
 if rol == "admin":
-    with tabs[1]:  # Asegúrate de que el índice coincida con tu lista de st.tabs
+    with tabs[2]:  # Asegúrate de que el índice coincida con tu lista de st.tabs
         st.subheader("🛠️ Gestión de Resultados y Conflictos")
         
         # 1. Filtro por Jornada
@@ -638,6 +638,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
