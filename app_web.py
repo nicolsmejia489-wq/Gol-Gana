@@ -550,74 +550,73 @@ if rol == "dt":
 if rol == "admin":
     with tabs[2]:
         with get_db_connection() as conn:
-            # 1. Selector de Jornada Súper Compacto
+            # Selector de Jornada minimalista
             res_j = conn.execute("SELECT DISTINCT jornada FROM partidos ORDER BY jornada").fetchall()
             jornadas = [r[0] for r in res_j] if res_j else [1]
-            
-            # Usamos un selectbox simple para ahorrar todo el espacio de los botones
-            jor_actual = st.selectbox("📅 Jornada:", jornadas, label_visibility="collapsed")
+            jor_actual = st.selectbox("Jornada", jornadas, label_visibility="collapsed")
 
-            # 2. Cargar Partidos
             partidos = pd.read_sql_query(
-                "SELECT * FROM partidos WHERE jornada = ? ORDER BY conflicto DESC, id ASC", 
-                conn, params=(jor_actual,)
+                "SELECT * FROM partidos WHERE jornada = ?", conn, params=(jor_actual,)
             )
 
             for _, p in partidos.iterrows():
-                # Borde rojo sutil si hay conflicto
-                style = "border-left: 5px solid #ff4b4b;" if p['conflicto'] else "border-left: 5px solid #ddd;"
+                # Borde sutil: Rojo si hay conflicto
+                bg_color = "#fff5f5" if p['conflicto'] else "#ffffff"
+                border = "1px solid #ff4b4b" if p['conflicto'] else "1px solid #eee"
                 
                 with st.container():
-                    # Caja principal tipo Calendario
                     st.markdown(f"""
-                        <div style='{style} padding: 10px; background: #f9f9f9; border-radius: 5px; margin-bottom: 5px;'>
-                            <div style='display: flex; justify-content: space-between; font-size: 0.8rem; color: gray;'>
-                                <span>ID: {p['id']}</span>
-                                <span>{ '⚠️ CONFLICTO' if p['conflicto'] else '✓ OK' }</span>
-                            </div>
-                            <div style='text-align: center; font-weight: bold; margin: 5px 0;'>
-                                {p['local']} vs {p['visitante']}
+                        <div style='background:{bg_color}; border:{border}; padding:10px; border-radius:8px; margin-bottom:10px;'>
+                            <div style='display:flex; justify-content:space-between; align-items:center;'>
+                                <div style='flex:1;'>
+                                    <span style='font-weight:bold; font-size:14px;'>{p['local']}</span>
+                                    <span id='wa_local'></span>
+                                </div>
+                                <div style='flex:1; text-align:right;'>
+                                    <span style='font-weight:bold; font-size:14px;'>{p['visitante']}</span>
+                                    <span id='wa_vis'></span>
+                                </div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # Fila de Inputs y Acciones (Todo en una línea de columnas)
-                    c1, c2, c3, c4, c5 = st.columns([1.5, 1, 1, 1.5, 1])
+                    # FILA DE CONTROL: Goles y Acciones
+                    # Usamos st.number_input con step=1 que ya trae los botones + y - integrados
+                    c1, c2, c3, c4 = st.columns([2, 1, 2, 1])
                     
-                    with c1: # Goles Local
-                        v_l = int(p['goles_l']) if p['goles_l'] is not None else 0
-                        n_gl = st.number_input("L", value=v_l, key=f"al_{p['id']}", label_visibility="collapsed")
-                    
-                    with c2: # Foto Local/Vis (Popovers compactos)
+                    with c1:
+                        # Goles Local + Link WA debajo del nombre
+                        gl = st.number_input(f"L", 0, 20, int(p['goles_l'] or 0), key=f"L{p['id']}", step=1, label_visibility="collapsed")
+                        # Link WhatsApp Local
+                        cur = conn.cursor()
+                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (p['local'],))
+                        r_l = cur.fetchone()
+                        if r_l and r_l[1]:
+                            st.markdown(f" <a href='https://wa.me/{str(r_l[0]).replace('+','')}{r_l[1]}' style='text-decoration:none; font-size:12px;'>💬 Chat {p['local'][:5]}...</a>", unsafe_allow_html=True)
+
+                    with c2:
+                        # Botón Foto (Solo aparece si hay alguna evidencia)
                         if p['url_foto_l'] or p['url_foto_v']:
                             with st.popover("🖼️"):
                                 if p['url_foto_l']: st.image(p['url_foto_l'], caption="Local")
                                 if p['url_foto_v']: st.image(p['url_foto_v'], caption="Vis")
-                        else: st.write("—")
+                        else: st.write("")
 
-                    with c3: # Guardar
-                        if st.button("💾", key=f"sv_{p['id']}", use_container_width=True):
+                    with c3:
+                        # Goles Visitante + Link WA
+                        gv = st.number_input(f"V", 0, 20, int(p['goles_v'] or 0), key=f"V{p['id']}", step=1, label_visibility="collapsed")
+                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (p['visitante'],))
+                        r_v = cur.fetchone()
+                        if r_v and r_v[1]:
+                            st.markdown(f" <a href='https://wa.me/{str(r_v[0]).replace('+','')}{r_v[1]}' style='text-decoration:none; font-size:12px;'>💬 Chat {p['visitante'][:5]}...</a>", unsafe_allow_html=True)
+
+                    with c4:
+                        # Guardar
+                        if st.button("💾", key=f"S{p['id']}"):
                             with get_db_connection() as conn_up:
-                                conn_up.execute("UPDATE partidos SET goles_l=?, goles_v=?, conflicto=0, estado='Finalizado' WHERE id=?", (n_gl, n_gv, p['id']))
+                                conn_up.execute("UPDATE partidos SET goles_l=?, goles_v=?, conflicto=0, estado='Finalizado' WHERE id=?", (gl, gv, p['id']))
                                 conn_up.commit()
                             st.rerun()
-
-                    with c4: # Goles Vis
-                        v_v = int(p['goles_v']) if p['goles_v'] is not None else 0
-                        n_gv = st.number_input("V", value=v_v, key=f"av_{p['id']}", label_visibility="collapsed")
-                    
-                    with c5: # WhatsApp
-                        # Buscamos solo el contacto del local por brevedad, o un popover para ambos
-                        with st.popover("📞"):
-                            for eq in [p['local'], p['visitante']]:
-                                cur = conn.cursor()
-                                cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (eq,))
-                                r = cur.fetchone()
-                                if r and r[1]:
-                                    num = f"{str(r[0]).replace('+','')}{r[1]}"
-                                    st.markdown(f"[{eq}](https://wa.me/{num})")
-
-                    st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True)
 
 
 
@@ -639,6 +638,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
