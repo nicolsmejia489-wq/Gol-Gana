@@ -563,41 +563,55 @@ if rol == "dt":
 
   
   
- # --- NUEVA PESTAÑA: GESTIÓN ADMIN ---
-    if rol == "admin":
-        with tabs[2]:
-            st.subheader("⚙️ Gestión de Resultados")
-            with get_db_connection() as conn:
-                df_adm = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
+# --- TAB: GESTIÓN ADMIN ---
+if rol == "admin":
+    with tabs[2]:
+        st.subheader("⚙️ Gestión de Resultados")
+        
+        with get_db_connection() as conn:
+            # Traemos partidos y datos de equipos (contacto) en una sola consulta para ahorrar tiempo
+            df_adm = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
+            df_equipos = pd.read_sql_query("SELECT nombre, prefijo, celular FROM equipos", conn)
+            # Creamos un diccionario de contactos rápido: {nombre: 'wa_link'}
+            contactos = {
+                r['nombre']: f"https://wa.me/{str(r['prefijo']).replace('+','')}{r['celular']}"
+                for _, r in df_equipos.iterrows() if r['celular']
+            }
+
+        # Iteramos sobre los partidos
+        for _, p in df_adm.iterrows():
+            # Título del Expander con estado visual (si hay conflicto o ya está finalizado)
+            label = f"J{p['jornada']}: {p['local']} vs {p['visitante']}"
+            if p.get('conflicto') == 1: label = "⚠️ CONFLICTO - " + label
             
-            for _, p in df_adm.iterrows():
-                with st.expander(f"J{p['jornada']}: {p['local']} vs {p['visitante']}"):
-                    c1, c2 = st.columns(2)
-                    # Precarga de goles evitando decimales
-                    gl_val = int(p['goles_l']) if pd.notna(p['goles_l']) else 0
-                    gv_val = int(p['goles_v']) if pd.notna(p['goles_v']) else 0
-                    
-                    with c1: gl = st.number_input(f"Goles {p['local']}", value=gl_val, step=1, key=f"al_{p['id']}")
-                    with c2: gv = st.number_input(f"Goles {p['visitante']}", value=gv_val, step=1, key=f"av_{p['id']}")
-                    
-                    # Botones de WhatsApp para el Admin
+            with st.expander(label):
+                # 1. Inputs de Goles (Compactos en columnas)
+                c1, c2, c3 = st.columns([2, 1, 2])
+                gl_val = int(p['goles_l']) if pd.notna(p['goles_l']) else 0
+                gv_val = int(p['goles_v']) if pd.notna(p['goles_v']) else 0
+                
+                gl = c1.number_input(f"Goles {p['local']}", value=gl_val, step=1, key=f"adm_l_{p['id']}")
+                c2.markdown("<div style='text-align:center; padding-top:25px;'>VS</div>", unsafe_allow_html=True)
+                gv = c3.number_input(f"Goles {p['visitante']}", value=gv_val, step=1, key=f"adm_v_{p['id']}")
+                
+                # 2. Botones de WhatsApp (Línea compacta)
+                wa_c1, wa_c2 = st.columns(2)
+                for i, eq in enumerate([p['local'], p['visitante']]):
+                    if eq in contactos:
+                        col = wa_c1 if i == 0 else wa_c2
+                        col.markdown(f"<a href='{contactos[eq]}' class='wa-btn' style='font-size:11px; padding:5px;'>💬 Contactar {eq}</a>", unsafe_allow_html=True)
+                
+                # 3. Acción de Guardar
+                if st.button("✅ Confirmar y Finalizar", key=f"save_adm_{p['id']}", use_container_width=True):
                     with get_db_connection() as conn:
-                        cur = conn.cursor()
-                        cur.execute("SELECT nombre, prefijo, celular FROM equipos WHERE nombre IN (?,?)", (p['local'], p['visitante']))
-                        dts = {row[0]: (row[1], row[2]) for row in cur.fetchall()}
-                    
-                    wa_cols = st.columns(2)
-                    for idx, equipo in enumerate([p['local'], p['visitante']]):
-                        if equipo in dts and dts[equipo][1]:
-                            pref, cel = dts[equipo]
-                            wa_cols[idx].markdown(f"<a href='https://wa.me/{str(pref).replace('+','')}{cel}' class='wa-btn' style='font-size:10px'>💬 WA {equipo}</a>", unsafe_allow_html=True)
-                    
-                    if st.button("Guardar Marcador", key=f"btn_s_{p['id']}"):
-                        with get_db_connection() as conn:
-                            conn.execute("UPDATE partidos SET goles_l=?, goles_v=?, estado='finalizado' WHERE id=?", (gl, gv, p['id']))
-                            conn.commit()
-                        st.success("Resultado guardado")
-                        st.rerun()
+                        conn.execute("""
+                            UPDATE partidos 
+                            SET goles_l=?, goles_v=?, estado='finalizado', conflicto=0 
+                            WHERE id=?
+                        """, (gl, gv, p['id']))
+                        conn.commit()
+                    st.success("Resultado oficializado")
+                    st.rerun()
 
 
 
@@ -619,6 +633,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
