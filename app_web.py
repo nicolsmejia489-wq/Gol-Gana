@@ -9,6 +9,9 @@ import io
 import numpy as np
 from PIL import Image
 
+import re  # Para expresiones regulares (encontrar números difíciles)
+from thefuzz import fuzz # Para comparación flexible de nombres
+
 # Configura tus credenciales (Búscalas en tu Dashboard de Cloudinary)
 cloudinary.config( 
   cloud_name = "dlvczeqlp", 
@@ -158,57 +161,71 @@ def migrar_db():
 inicializar_db() # 1. Crea lo básico
 migrar_db()      # 2. Asegura que lo nuevo esté ahí
 
-##### ALGORITMO IA
+
 ##### ALGORITMO IA #####
 
 @st.cache_resource
 def obtener_lector():
-    # Carga el modelo una sola vez para evitar errores de memoria
+    # Inicializamos EasyOCR solo una vez para ahorrar memoria
     return easyocr.Reader(['es', 'en'], gpu=False)
 
 def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     try:
-        # 1. Obtener el lector (usando el caché)
         reader = obtener_lector()
         
-        # 2. Abrir la imagen correctamente desde los bytes de Streamlit
-        # Usamos getvalue() y BytesIO para que PIL no falle
+        # 1. Procesar imagen (igual que antes)
         image = Image.open(io.BytesIO(imagen_bytes.getvalue()))
-        
-        # 3. Convertir a formato NumPy (RGB) para EasyOCR
         image_np = np.array(image.convert('RGB'))
         
-        # 4. La IA lee todo el texto de la imagen
-        resultados = reader.readtext(image_np)
-        texto_detectado = " ".join([res[1].upper() for res in resultados])
+        # Leer todo el texto
+        resultados = reader.readtext(image_np, detail=0, paragraph=True)
+        texto_detectado = " ".join(resultados).upper()
         
-        # 5. Extraer números usando expresiones regulares (más confiable que .split)
-        import re
-        numeros_encontrados = re.findall(r'\d+', texto_detectado)
-        numeros = [int(n) for n in numeros_encontrados]
+        # --- MEJORA 1: BÚSQUEDA FLEXIBLE DE NOMBRES (Fuzzy Matching) ---
+        # Usamos 'partial_ratio' para buscar si el nombre real está "contenido" en el texto detectado.
+        # Un puntaje > 80 suele ser una coincidencia muy sólida.
+        score_local = fuzz.partial_ratio(local_real.upper(), texto_detectado)
+        score_visitante = fuzz.partial_ratio(visitante_real.upper(), texto_detectado)
         
-        # --- VALIDACIÓN DE EQUIPOS ---
-        # Buscamos si el nombre de los equipos aparece en la foto
-        found_local = local_real.upper() in texto_detectado
-        found_visitante = visitante_real.upper() in texto_detectado
+        umbrla_coincidencia = 80 # Exigimos un 80% de similitud mínima
+
+        # Validamos: ¿Encontré al menos uno de los dos equipos con certeza?
+        # (A veces el OCR falla en un nombre raro, pero si el otro y el marcador están bien, es válido)
+        found_local = score_local >= umbrla_coincidencia
+        found_visitante = score_visitante >= umbrla_coincidencia
 
         if not found_local and not found_visitante:
-            return None, f"⚠️ No detecto a '{local_real}' o '{visitante_real}'. Asegúrate de que se vean los nombres en pantalla."
+            # Si no encuentro a ninguno, es muy arriesgado aceptar la foto.
+            # Debug: Descomenta esto si quieres ver qué leyó la IA realmente
+            # print(f"Texto leído: {texto_detectado} | Scores: L={score_local}, V={score_visitante}")
+            return None, f"⚠️ No reconozco los nombres de los equipos en la imagen (Similitud baja). Intenta enfocar mejor los nombres."
 
-        # --- EXTRACCIÓN DE MARCADOR ---
-        # Filtramos números lógicos para un marcador (ej. entre 0 y 25)
-        goles = [n for n in numeros if 0 <= n <= 25]
+        # --- MEJORA 2: EXTRACCIÓN ROBUSTA DE NÚMEROS (Regex) ---
+        # En lugar de buscar dígitos aislados, usamos regex para encontrar cualquier secuencia de números.
+        # Esto encuentra el "2" y el "0" incluso en cadenas como "2-0" o "2v0".
+        numeros_encontrados = re.findall(r'\d+', texto_detectado)
         
-        if len(goles) < 2:
-            return None, "🚫 No pude identificar el marcador (necesito al menos dos números). Toma una mejor foto."
+        # Convertimos a enteros y filtramos resultados locos (ej. un año "2023" o un número de camiseta "99")
+        goles_posibles = []
+        for num in numeros_encontrados:
+            n = int(num)
+            if 0 <= n <= 15: # Asumimos que es raro un marcador mayor a 15 en fútbol
+                goles_posibles.append(n)
         
-        # Asumimos que el primer número es Local y el segundo Visitante
-        gl, gv = goles[0], goles[1]
+        # Necesitamos encontrar al menos dos números válidos
+        if len(goles_posibles) < 2:
+            return None, "🚫 No pude identificar claramente dos números para el marcador. Toma una mejor foto."
+        
+        # ASUNCIÓN IMPORTANTE: En los marcadores horizontales, el primer número que se lee 
+        # de izquierda a derecha suele ser el del equipo local (izquierda) y el segundo el visitante (derecha).
+        # Tomamos los dos primeros números válidos que encontramos.
+        gl = goles_posibles[0]
+        gv = goles_posibles[1]
+        
         return (gl, gv), "OK"
 
     except Exception as e:
-        # Si algo falla, devolvemos el error para no romper la app
-        return None, f"❌ Error al procesar la imagen: {str(e)}"
+        return None, f"Error técnico en el análisis de imagen: {e}"
 
 #####FIN IA
 # --- 2. LÓGICA DE JORNADAS ---
@@ -572,6 +589,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
