@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import random
-
+import easyocr
 import cloudinary
 import cloudinary.uploader
 
@@ -333,35 +333,41 @@ if fase_actual == "inscripcion":
 
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
 elif fase_actual == "clasificacion":
-    # --- TAB: CLASIFICACIÓN (Ya está en tu código, se mantiene) ---
+
     
     # --- TAB: CALENDARIO ---
-    with tabs[1]:
-        st.subheader("📅 Calendario Oficial")
-        with get_db_connection() as conn:
-            df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
-        
-        j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
-        for i, jt in enumerate(j_tabs):
-            with jt:
-                df_j = df_p[df_p['jornada'] == (i + 1)]
-                for _, p in df_j.iterrows():
-                    # Formateo de resultado
-                    if pd.notna(p['goles_l']) and pd.notna(p['goles_v']):
+ # --- TAB: CALENDARIO ---
+with tabs[1]:
+    st.subheader("📅 Calendario Oficial")
+    with get_db_connection() as conn:
+        df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
+    
+    j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
+    for i, jt in enumerate(j_tabs):
+        with jt:
+            df_j = df_p[df_p['jornada'] == (i + 1)]
+            for _, p in df_j.iterrows():
+                # BLOQUE CORREGIDO: Manejo robusto de marcadores
+                # Verificamos que los goles no sean None antes de convertirlos
+                if p['goles_l'] is not None and p['goles_v'] is not None:
+                    try:
                         res_text = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
-                    else:
+                    except (ValueError, TypeError):
                         res_text = "vs"
-                    
-                    # Línea del partido con icono de ojo si hay fotos
-                    c1, c2 = st.columns([0.8, 0.2])
-                    c1.write(f"**{p['local']}** {res_text} **{p['visitante']}**")
-                    
-                    # Si hay alguna foto subida, mostrar icono 👁️
-                    if p['url_foto_l'] or p['url_foto_v']:
-                        if c2.button("👁️", key=f"view_{p['id']}"):
-                            if p['url_foto_l']: st.image(p['url_foto_l'], caption=f"Evidencia {p['local']}")
-                            if p['url_foto_v']: st.image(p['url_foto_v'], caption=f"Evidencia {p['visitante']}")
-
+                else:
+                    res_text = "vs"
+                
+                # Diseño de la fila del partido
+                c1, c2 = st.columns([0.8, 0.2])
+                c1.write(f"**{p['local']}** {res_text} **{p['visitante']}**")
+                
+                # Si hay fotos subidas, mostrar el icono para visualizarlas
+                if p['url_foto_l'] or p['url_foto_v']:
+                    if c2.button("👁️", key=f"view_{p['id']}"):
+                        if p['url_foto_l']: 
+                            st.image(p['url_foto_l'], caption=f"Evidencia {p['local']}")
+                        if p['url_foto_v']: 
+                            st.image(p['url_foto_v'], caption=f"Evidencia {p['visitante']}")
     # --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
 
  # --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
@@ -513,6 +519,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
