@@ -6,6 +6,7 @@ import easyocr
 import cloudinary
 import cloudinary.uploader
 import io
+from PIL import Image
 
 # Configura tus credenciales (Búscalas en tu Dashboard de Cloudinary)
 cloudinary.config( 
@@ -570,6 +571,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
