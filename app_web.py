@@ -566,99 +566,65 @@ if rol == "dt":
 # --- TAB: GESTIÓN DE RESULTADOS 
 if rol == "admin":
     with tabs[2]:
-        # CSS para forzar la fila única y estilo de inputs
-        st.markdown("""
-            <style>
-            /* Contenedor principal de la fila */
-            .fila-partido {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 8px 5px;
-                border-bottom: 1px solid #eee;
-                gap: 5px;
-            }
-            /* Nombres de equipo estrechos */
-            .nombre-equipo {
-                flex: 2;
-                font-size: 11px;
-                font-weight: bold;
-                line-height: 1.1;
-                overflow: hidden;
-            }
-            /* Contenedor de marcador */
-            .marcador-container {
-                display: flex;
-                align-items: center;
-                gap: 3px;
-                flex: 3;
-                justify-content: center;
-            }
-            .vs-text { font-size: 10px; color: #888; font-weight: bold; }
-            /* Ajuste para que los inputs de Streamlit no se rompan */
-            div[data-testid="stNumberInput"] {
-                width: 65px !important;
-                min-width: 65px !important;
-            }
-            div[data-testid="stNumberInput"] button { display: none; } /* Opcional: quita +/- si quieres más espacio */
-            </style>
-        """, unsafe_allow_html=True)
-
         with get_db_connection() as conn:
-            # Selector de Jornada
+            # Selector de Jornada (Filtro)
             res_j = conn.execute("SELECT DISTINCT jornada FROM partidos ORDER BY jornada").fetchall()
             jornadas = [r[0] for r in res_j] if res_j else [1]
-            jor_actual = st.selectbox("Jornada", jornadas, label_visibility="collapsed")
+            jor_actual = st.selectbox("Elegir Jornada", jornadas, label_visibility="collapsed")
 
             partidos = pd.read_sql_query("SELECT * FROM partidos WHERE jornada = ?", conn, params=(jor_actual,))
 
             for _, p in partidos.iterrows():
-                # Borde lateral rojo si hay conflicto
-                borde_conflicto = "border-left: 4px solid #ff4b4b;" if p['conflicto'] else ""
+                # Fila única para Móvil
+                # Estructura: [Equipo L + 💬] [Input L] [vs] [Input V] [Equipo V + 💬] [💾]
                 
-                # 1. ENCABEZADO DE FILA (Nombres y WhatsApp)
-                st.markdown(f"""
-                <div class="fila-partido" style="{borde_conflicto}">
-                    <div class="nombre-equipo">
-                        {p['local']}<br>
-                        <a href="https://wa.me/{p['id']}" style="text-decoration:none;">💬</a>
-                    </div>
-                    <div id="marcador-{p['id']}" style="flex:4; display:flex; justify-content:center;">
-                        </div>
-                    <div class="nombre-equipo" style="text-align:right;">
-                        {p['visitante']}<br>
-                        <a href="https://wa.me/{p['id']}" style="text-decoration:none;">💬</a>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                # Creamos un contenedor base
+                with st.container():
+                    col_main = st.columns([3, 1.2, 0.5, 1.2, 3, 1])
+                    
+                    # 1. Local y WhatsApp
+                    with col_main[0]:
+                        st.markdown(f"**{p['local'][:10]}**")
+                        # Link WhatsApp pequeño debajo
+                        cur = conn.cursor()
+                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (p['local'],))
+                        r_l = cur.fetchone()
+                        if r_l: st.markdown(f"<a href='https://wa.me/{str(r_l[0]).replace('+','')}{r_l[1]}' style='text-decoration:none;'>💬</a>", unsafe_allow_html=True)
 
-                # 2. CONTROLES DE STREAMLIT (Goles y Guardar)
-                # Usamos una proporción muy ajustada para que quepan en la misma línea
-                c1, cvs, c2, c_btn = st.columns([1, 0.4, 1, 0.8])
-                
-                with c1:
-                    gl = st.number_input("", 0, 20, int(p['goles_l'] or 0), key=f"L{p['id']}", label_visibility="collapsed")
-                
-                with cvs:
-                    st.markdown("<div style='text-align:center; padding-top:10px; font-size:12px;'>vs</div>", unsafe_allow_html=True)
-                
-                with c2:
-                    gv = st.number_input("", 0, 20, int(p['goles_v'] or 0), key=f"V{p['id']}", label_visibility="collapsed")
-                
-                with c_btn:
-                    # Foto y Guardar juntos para ahorrar espacio
-                    col_foto, col_save = st.columns(2)
-                    with col_foto:
-                        if p['url_foto_l'] or p['url_foto_v']:
-                            with st.popover("🖼️"):
-                                if p['url_foto_l']: st.image(p['url_foto_l'])
-                                if p['url_foto_v']: st.image(p['url_foto_v'])
-                    with col_save:
+                    # 2. Goles Local (Input tipo texto para que sea más pequeño)
+                    with col_main[1]:
+                        gl = st.text_input("", value=str(p['goles_l'] or 0), key=f"L{p['id']}", label_visibility="collapsed")
+
+                    # 3. VS
+                    with col_main[2]:
+                        st.markdown("<div style='margin-top:10px; color:gray;'>vs</div>", unsafe_allow_html=True)
+
+                    # 4. Goles Visitante
+                    with col_main[3]:
+                        gv = st.text_input("", value=str(p['goles_v'] or 0), key=f"V{p['id']}", label_visibility="collapsed")
+
+                    # 5. Visitante y WhatsApp
+                    with col_main[4]:
+                        st.markdown(f"<div style='text-align:right;'><b>{p['visitante'][:10]}</b></div>", unsafe_allow_html=True)
+                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (p['visitante'],))
+                        r_v = cur.fetchone()
+                        if r_v: st.markdown(f"<div style='text-align:right;'><a href='https://wa.me/{str(r_v[0]).replace('+','')}{r_v[1]}' style='text-decoration:none;'>💬</a></div>", unsafe_allow_html=True)
+
+                    # 6. Botón Guardar / Foto
+                    with col_main[5]:
                         if st.button("💾", key=f"S{p['id']}"):
-                            with get_db_connection() as conn_up:
-                                conn_up.execute("UPDATE partidos SET goles_l=?, goles_v=?, conflicto=0, estado='Finalizado' WHERE id=?", (gl, gv, p['id']))
-                                conn_up.commit()
-                            st.rerun()
+                            try:
+                                with get_db_connection() as conn_up:
+                                    conn_up.execute("UPDATE partidos SET goles_l=?, goles_v=?, conflicto=0, estado='Finalizado' WHERE id=?", (int(gl), int(gv), p['id']))
+                                    conn_up.commit()
+                                st.rerun()
+                            except:
+                                st.error("Error")
+                
+                # Separador sutil
+                st.markdown("<hr style='margin:2px 0; opacity:0.2;'>", unsafe_allow_html=True)
+
+
 
 
 # SECCIÓN ADMIN (INFERIOR)
@@ -678,6 +644,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
