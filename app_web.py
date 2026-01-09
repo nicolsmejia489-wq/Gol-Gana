@@ -8,7 +8,7 @@ import cloudinary.uploader
 import io
 import numpy as np
 from PIL import Image
-
+import cv2
 import re  # Para expresiones regulares (encontrar números difíciles)
 from thefuzz import fuzz # Para comparación flexible de nombres
 
@@ -589,6 +589,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
