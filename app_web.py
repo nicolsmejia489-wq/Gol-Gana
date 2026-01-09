@@ -545,21 +545,49 @@ if rol == "dt":
 
   
   
- # --- NUEVA PESTAÑA: GESTIÓN ADMIN ---
-# --- TAB: GESTIÓN DE RESULTADOS (Índice 2) ---
+# --- TAB: GESTIÓN DE RESULTADOS 
 if rol == "admin":
     with tabs[2]:
-        # CSS inyectado para encoger los cuadros de números y botones
+        # CSS para forzar la fila única y estilo de inputs
         st.markdown("""
             <style>
-            [data-testid="stNumberInput"] { width: 70px !important; }
-            .stButton button { padding: 0px 10px; height: 38px; }
-            .vs-text { font-weight: bold; color: #888; padding-top: 10px; text-align: center; }
-            .team-name { font-size: 13px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            /* Contenedor principal de la fila */
+            .fila-partido {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 8px 5px;
+                border-bottom: 1px solid #eee;
+                gap: 5px;
+            }
+            /* Nombres de equipo estrechos */
+            .nombre-equipo {
+                flex: 2;
+                font-size: 11px;
+                font-weight: bold;
+                line-height: 1.1;
+                overflow: hidden;
+            }
+            /* Contenedor de marcador */
+            .marcador-container {
+                display: flex;
+                align-items: center;
+                gap: 3px;
+                flex: 3;
+                justify-content: center;
+            }
+            .vs-text { font-size: 10px; color: #888; font-weight: bold; }
+            /* Ajuste para que los inputs de Streamlit no se rompan */
+            div[data-testid="stNumberInput"] {
+                width: 65px !important;
+                min-width: 65px !important;
+            }
+            div[data-testid="stNumberInput"] button { display: none; } /* Opcional: quita +/- si quieres más espacio */
             </style>
         """, unsafe_allow_html=True)
 
         with get_db_connection() as conn:
+            # Selector de Jornada
             res_j = conn.execute("SELECT DISTINCT jornada FROM partidos ORDER BY jornada").fetchall()
             jornadas = [r[0] for r in res_j] if res_j else [1]
             jor_actual = st.selectbox("Jornada", jornadas, label_visibility="collapsed")
@@ -567,55 +595,52 @@ if rol == "admin":
             partidos = pd.read_sql_query("SELECT * FROM partidos WHERE jornada = ?", conn, params=(jor_actual,))
 
             for _, p in partidos.iterrows():
-                # Color de borde si hay conflicto
-                border_color = "#ff4b4b" if p['conflicto'] else "#eee"
+                # Borde lateral rojo si hay conflicto
+                borde_conflicto = "border-left: 4px solid #ff4b4b;" if p['conflicto'] else ""
                 
-                with st.container():
-                    # Usamos 6 columnas para alinear todo en una sola fila
-                    # EquipoL | GolesL | VS | GolesV | EquipoV | Acciones
-                    c1, c2, cvs, c3, c4, c5 = st.columns([2.5, 1.2, 0.6, 1.2, 2.5, 1.2])
-                    
-                    with c1: # Local y WhatsApp
-                        st.markdown(f"<div class='team-name'>{p['local']}</div>", unsafe_allow_html=True)
-                        cur = conn.cursor()
-                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (p['local'],))
-                        r_l = cur.fetchone()
-                        if r_l and r_l[1]:
-                            num = f"{str(r_l[0]).replace('+','')}{r_l[1]}"
-                            st.markdown(f"<a href='https://wa.me/{num}' style='text-decoration:none;'>💬</a>", unsafe_allow_html=True)
+                # 1. ENCABEZADO DE FILA (Nombres y WhatsApp)
+                st.markdown(f"""
+                <div class="fila-partido" style="{borde_conflicto}">
+                    <div class="nombre-equipo">
+                        {p['local']}<br>
+                        <a href="https://wa.me/{p['id']}" style="text-decoration:none;">💬</a>
+                    </div>
+                    <div id="marcador-{p['id']}" style="flex:4; display:flex; justify-content:center;">
+                        </div>
+                    <div class="nombre-equipo" style="text-align:right;">
+                        {p['visitante']}<br>
+                        <a href="https://wa.me/{p['id']}" style="text-decoration:none;">💬</a>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-                    with c2: # Cuadro Goles Local
-                        gl = st.number_input("", 0, 20, int(p['goles_l'] or 0), key=f"L{p['id']}", label_visibility="collapsed")
-
-                    with cvs: # El VS central
-                        st.markdown("<div class='vs-text'>vs</div>", unsafe_allow_html=True)
-
-                    with c3: # Cuadro Goles Visitante
-                        gv = st.number_input("", 0, 20, int(p['goles_v'] or 0), key=f"V{p['id']}", label_visibility="collapsed")
-
-                    with c4: # Visitante y WhatsApp
-                        st.markdown(f"<div class='team-name' style='text-align:right;'>{p['visitante']}</div>", unsafe_allow_html=True)
-                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (p['visitante'],))
-                        r_v = cur.fetchone()
-                        if r_v and r_v[1]:
-                            num = f"{str(r_v[0]).replace('+','')}{r_v[1]}"
-                            st.markdown(f"<div style='text-align:right;'><a href='https://wa.me/{num}' style='text-decoration:none;'>💬</a></div>", unsafe_allow_html=True)
-
-                    with c5: # Botones de control (Foto y Guardar)
-                        # Foto en popover pequeño si existe
+                # 2. CONTROLES DE STREAMLIT (Goles y Guardar)
+                # Usamos una proporción muy ajustada para que quepan en la misma línea
+                c1, cvs, c2, c_btn = st.columns([1, 0.4, 1, 0.8])
+                
+                with c1:
+                    gl = st.number_input("", 0, 20, int(p['goles_l'] or 0), key=f"L{p['id']}", label_visibility="collapsed")
+                
+                with cvs:
+                    st.markdown("<div style='text-align:center; padding-top:10px; font-size:12px;'>vs</div>", unsafe_allow_html=True)
+                
+                with c2:
+                    gv = st.number_input("", 0, 20, int(p['goles_v'] or 0), key=f"V{p['id']}", label_visibility="collapsed")
+                
+                with c_btn:
+                    # Foto y Guardar juntos para ahorrar espacio
+                    col_foto, col_save = st.columns(2)
+                    with col_foto:
                         if p['url_foto_l'] or p['url_foto_v']:
                             with st.popover("🖼️"):
-                                if p['url_foto_l']: st.image(p['url_foto_l'], caption="Local")
-                                if p['url_foto_v']: st.image(p['url_foto_v'], caption="Vis")
-                        
-                        if st.button("💾", key=f"S{p['id']}", use_container_width=True):
+                                if p['url_foto_l']: st.image(p['url_foto_l'])
+                                if p['url_foto_v']: st.image(p['url_foto_v'])
+                    with col_save:
+                        if st.button("💾", key=f"S{p['id']}"):
                             with get_db_connection() as conn_up:
                                 conn_up.execute("UPDATE partidos SET goles_l=?, goles_v=?, conflicto=0, estado='Finalizado' WHERE id=?", (gl, gv, p['id']))
                                 conn_up.commit()
                             st.rerun()
-
-                    st.markdown(f"<hr style='margin: 5px 0; border: 0; border-top: 1px solid {border_color};'>", unsafe_allow_html=True)
-
 
 
 # SECCIÓN ADMIN (INFERIOR)
@@ -635,6 +660,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
