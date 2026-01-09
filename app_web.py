@@ -363,45 +363,66 @@ elif fase_actual == "clasificacion":
 
 
 # --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
-if rol == "dt":
-    with tabs[2]:
-        st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
-        with get_db_connection() as conn:
-            # Importante: p['id'] es lo que usamos para las llaves
-            mis = pd.read_sql_query("SELECT * FROM partidos WHERE (local=? OR visitante=?) ORDER BY jornada ASC", 
-                                   conn, params=(equipo_usuario, equipo_usuario))
-            
-            for _, p in mis.iterrows():
-                rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
+    if rol == "dt":
+        with tabs[2]:
+            st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
+            with get_db_connection() as conn:
+                # Obtenemos los partidos donde participa el usuario
+                mis = pd.read_sql_query(
+                    "SELECT * FROM partidos WHERE (local=? OR visitante=?) ORDER BY jornada ASC", 
+                    conn, params=(equipo_usuario, equipo_usuario)
+                )
                 
-                with st.container():
-                        st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}", unsafe_allow_html=True)
+                for _, p in mis.iterrows():
+                    rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
+                    
+                    with st.container():
+                        # Caja de información del partido
+                        st.markdown(f"""
+                            <div class='match-box'>
+                                <b>Jornada {p['jornada']}</b><br>
+                                Rival: {rival}
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # --- SECCIÓN DE CONTACTO WHATSAPP ---
                         cur = conn.cursor()
                         cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
                         r = cur.fetchone()
+                        
                         if r and r[0] and r[1] and str(r[1]).isdigit():
-                            st.markdown(f"<a href='https://wa.me/{str(r[0]).replace('+','')}{r[1]}' class='wa-btn'>💬 WhatsApp</a>", unsafe_allow_html=True)
-                        else: st.caption("🚫 Sin contacto (WO)")
-                        st.button("📸 Subir Resultado", key=f"cam_{p['id']}")
-                        st.markdown("</div>", unsafe_allow_html=True)
-                    
-                    # Sistema de Carga con LLAVES ÚNICAS (agregamos 'dt_')
-                    with st.expander(f"📸 Reportar Marcador J{p['jornada']}", expanded=False):
-                        # Agregamos "dt_" al inicio de cada key para que no se duplique con el calendario
-                        opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
-                        
-                        foto = None
-                        if opcion == "Cámara":
-                            foto = st.camera_input("Capturar", key=f"dt_cam_{p['id']}")
+                            numero_wa = f"{str(r[0]).replace('+', '')}{r[1]}"
+                            st.markdown(f"""
+                                <a href='https://wa.me/{numero_wa}' class='wa-btn' style='text-decoration: none;'>
+                                    💬 Contactar Rival (WhatsApp)
+                                </a>
+                            """, unsafe_allow_html=True)
                         else:
-                            foto = st.file_uploader("Archivo", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
-                        
-                        if foto:
-                            st.image(foto, width=150)
-                            # Cambiamos la llave del botón también
-                            if st.button("🔍 Analizar y Enviar", key=f"dt_btn_ia_{p['id']}"):
-                                       with st.spinner("La IA está analizando la evidencia..."):
-                                        # 1. Ejecutar el Cerebro IA
+                            st.caption("🚫 Sin contacto registrado para este rival.")
+
+                        # --- EXPANDER PARA REPORTAR RESULTADO ---
+                        with st.expander(f"📸 Reportar Marcador J{p['jornada']}", expanded=False):
+                            # Llave única con prefijo 'dt_' para evitar DuplicateElementKey
+                            opcion = st.radio(
+                                "Selecciona fuente:", 
+                                ["Cámara", "Galería"], 
+                                key=f"dt_opt_{p['id']}", 
+                                horizontal=True
+                            )
+                            
+                            foto = None
+                            if opcion == "Cámara":
+                                foto = st.camera_input("Capturar pantalla", key=f"dt_cam_{p['id']}")
+                            else:
+                                foto = st.file_uploader("Subir imagen", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
+                            
+                            if foto:
+                                st.image(foto, width=200, caption="Evidencia seleccionada")
+                                
+                                # Botón con llave única
+                                if st.button("🔍 Analizar y Enviar Resultado", key=f"dt_btn_ia_{p['id']}"):
+                                    with st.spinner("La IA está analizando la evidencia..."):
+                                        # 1. Llamada a la función del "Cerebro IA"
                                         res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
                                         
                                         if res_ia is None:
@@ -410,53 +431,65 @@ if rol == "dt":
                                             gl_ia, gv_ia = res_ia
                                             es_local = (p['local'] == equipo_usuario)
                                             
-                                            # 2. Feedback de Victoria/Derrota/Empate
+                                            # 2. Feedback emocional/informativo al DT
                                             mis_goles = gl_ia if es_local else gv_ia
                                             sus_goles = gv_ia if es_local else gl_ia
-                                            if mis_goles > sus_goles: 
-                                                st.success(f"✅ ¡Resultado {gl_ia}-{gv_ia} a tu favor!")
-                                            elif mis_goles < sus_goles: 
-                                                st.warning(f"📉 Resultado {gl_ia}-{gv_ia} en contra.")
-                                            else: 
-                                                st.info(f"🤝 Empate {gl_ia}-{gv_ia}.")
+                                            
+                                            if mis_goles > sus_goles:
+                                                st.success(f"✅ ¡Resultado {gl_ia}-{gv_ia} a tu favor! ¡Excelente victoria!")
+                                            elif mis_goles < sus_goles:
+                                                st.warning(f"📉 Resultado {gl_ia}-{gv_ia} en contra. ¡A mejorar en la siguiente!")
+                                            else:
+                                                st.info(f"🤝 Marcador {gl_ia}-{gv_ia}. ¡Empate!")
 
                                             try:
-                                                # 3. Subir a la Nube
+                                                # 3. Subida de la imagen a Cloudinary
                                                 res_cloud = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
                                                 url_nueva = res_cloud['secure_url']
                                                 col_foto = "url_foto_l" if es_local else "url_foto_v"
 
                                                 with get_db_connection() as conn_up:
-                                                    # 4. Lógica de Consenso / Conflicto
+                                                    # 4. Lógica de Consenso y Detección de Conflictos
                                                     gl_existente = p['goles_l']
                                                     gv_existente = p['goles_v']
 
+                                                    # Si ya había un resultado cargado (por el rival)
                                                     if gl_existente is not None:
-                                                        # Si ya había un resultado y no coincide con la nueva foto
                                                         if int(gl_existente) != gl_ia or int(gv_existente) != gv_ia:
-                                                            conn_up.execute(f"""UPDATE partidos SET 
-                                                                             goles_l=NULL, goles_v=NULL, 
-                                                                             conflicto=1, {col_foto}=?, 
-                                                                             ia_goles_l=?, ia_goles_v=? 
-                                                                             WHERE id=?""", (url_nueva, gl_ia, gv_ia, p['id']))
-                                                            st.warning("⚠️ Conflicto detectado. El Admin resolverá.")
+                                                            # CONFLICTO: Los datos no coinciden
+                                                            conn_up.execute(f"""
+                                                                UPDATE partidos SET 
+                                                                goles_l=NULL, goles_v=NULL, 
+                                                                conflicto=1, {col_foto}=?, 
+                                                                ia_goles_l=?, ia_goles_v=? 
+                                                                WHERE id=?""", (url_nueva, gl_ia, gv_ia, p['id']))
+                                                            st.warning("⚠️ Conflicto: Tu reporte no coincide con el del rival. El Admin revisará las fotos.")
                                                         else:
-                                                            # Si coincide, quitamos conflicto y guardamos la foto
-                                                            conn_up.execute(f"UPDATE partidos SET {col_foto}=?, conflicto=0 WHERE id=?", (url_nueva, p['id']))
-                                                            st.success("¡Confirmado por ambos equipos!")
+                                                            # CONSENSO: Ambos reportaron lo mismo
+                                                            conn_up.execute(f"""
+                                                                UPDATE partidos SET 
+                                                                {col_foto}=?, conflicto=0 
+                                                                WHERE id=?""", (url_nueva, p['id']))
+                                                            st.success("¡Marcador verificado y confirmado por ambos equipos!")
                                                     else:
-                                                        # Primer reporte del partido
-                                                        conn_up.execute(f"""UPDATE partidos SET 
-                                                                         goles_l=?, goles_v=?, 
-                                                                         {col_foto}=?, ia_goles_l=?, 
-                                                                         ia_goles_v=?, estado='Revision' 
-                                                                         WHERE id=?""", (gl_ia, gv_ia, url_nueva, gl_ia, gv_ia, p['id']))
-                                                        st.info("Resultado guardado. Esperando reporte del rival.")
+                                                        # PRIMER REPORTE: Nadie había subido evidencia aún
+                                                        conn_up.execute(f"""
+                                                            UPDATE partidos SET 
+                                                            goles_l=?, goles_v=?, 
+                                                            {col_foto}=?, ia_goles_l=?, 
+                                                            ia_goles_v=?, estado='Revision' 
+                                                            WHERE id=?""", (gl_ia, gv_ia, url_nueva, gl_ia, gv_ia, p['id']))
+                                                        st.info("Resultado guardado con éxito. Esperando a que el rival reporte.")
                                                     
                                                     conn_up.commit()
+                                                
+                                                # Refrescar la página para actualizar estados
                                                 st.rerun()
+                                                
                                             except Exception as e:
-                                                st.error(f"Error técnico: {e}")
+                                                st.error(f"Error técnico durante el guardado: {e}")
+                        
+                        st.markdown("<hr>", unsafe_allow_html=True)
 
   #########
 
@@ -516,6 +549,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
