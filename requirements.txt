@@ -1,6 +1,8 @@
 streamlit
 easyocr
+opencv-python-headless
 pandas
 pillow
 numpy
 cloudinary
+
