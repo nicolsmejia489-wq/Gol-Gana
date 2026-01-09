@@ -59,8 +59,26 @@ st.markdown("""
         padding: 8px 15px; border-radius: 5px; text-decoration: none; 
         font-weight: bold; font-size: 14px; margin-top: 5px;
     }
+
+    div[data-testid="stCameraInput"] button {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid #dcdfe4 !important;
+    font-weight: bold !important;
+}
+
+/* Estilo para el botón de 'Eliminar foto' que aparece después */
+div[data-testid="stCameraInput"] button:disabled {
+    background-color: #f0f2f6 !important;
+    color: #31333f !important;
+}
+
+    
     </style>
     """, unsafe_allow_html=True)
+
+
+
 
 @contextmanager
 def get_db_connection():
@@ -318,7 +336,7 @@ elif fase_actual == "clasificacion":
                             
                             if foto:
                                 st.image(foto, width=150)
-                                if st.button("🚀 Enviar Evidencia", key=f"up_{p['id']}"):
+                                if st.button("🚀 Enviar Resultado", key=f"up_{p['id']}"):
                                     with st.spinner("Subiendo..."):
                                         try:
                                             # Subida a Cloudinary
@@ -388,6 +406,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
