@@ -361,39 +361,6 @@ elif fase_actual == "clasificacion":
                             if p['url_foto_l']: st.image(p['url_foto_l'], caption=f"Evidencia {p['local']}")
                             if p['url_foto_v']: st.image(p['url_foto_v'], caption=f"Evidencia {p['visitante']}")
 
-    # 2. Pestaña de DT (tabs[2]) - NOTA: Esta línea DEBE estar al mismo nivel que 'with tabs[1]'
-    if rol == "dt":
-        with tabs[2]:
-            st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
-            with get_db_connection() as conn:
-                query = "SELECT * FROM partidos WHERE (local=? OR visitante=?) ORDER BY jornada ASC"
-                mis = pd.read_sql_query(query, conn, params=(equipo_usuario, equipo_usuario))
-                
-                for _, p in mis.iterrows():
-                    rival = p['visitante'] if p['local'] == equipo_usuario else p['local']
-                    
-                    with st.container():
-                        st.markdown(f"<div class='match-box'><b>Jornada {p['jornada']}</b><br>Rival: {rival}</div>", unsafe_allow_html=True)
-                        
-                        # WhatsApp
-                        cur = conn.cursor()
-                        cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
-                        r = cur.fetchone()
-                        if r and r[0] and r[1]:
-                            st.markdown(f"<a href='https://wa.me/{str(r[0]).replace('+','')}{r[1]}' class='wa-btn'>💬 WhatsApp</a>", unsafe_allow_html=True)
-                        
-                        # Reporte con IA
-                        with st.expander("📸 Reportar Marcador"):
-                            opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"opt_{p['id']}", horizontal=True)
-                            foto = st.camera_input("Capturar", key=f"cam_{p['id']}") if opcion == "Cámara" else st.file_uploader("Archivo", type=['png', 'jpg', 'jpeg'], key=f"gal_{p['id']}")
-                            
-                            if foto:
-                                if st.button("🔍 Analizar y Enviar", key=f"btn_ia_{p['id']}"):
-                                    # Aquí llamarías a tu función leer_marcador_ia
-                                    st.info("Analizando foto...")
-                                    # (Lógica de guardado que ya tienes...)
-           
-          
 
 # --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
 if rol == "dt":
@@ -543,6 +510,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
