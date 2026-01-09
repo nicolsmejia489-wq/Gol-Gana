@@ -164,6 +164,7 @@ migrar_db()      # 2. Asegura que lo nuevo esté ahí
 
 ##### ALGORITMO IA #####
 
+
 def limpiar_nombre(nombre):
     """Elimina sufijos comunes para quedarse con la raíz del nombre."""
     palabras_basura = ["FC", "MX", "CLUB", "REAL", "DEPORTIVO", "10", "A", "B"]
@@ -178,9 +179,11 @@ def obtener_lector():
 
 def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     try:
-        # Usar getvalue() no mueve el puntero de la misma forma que read()
-        datos_puros = imagen_bytes.getvalue() 
-        file_bytes = np.asarray(bytearray(datos_puros), dtype=np.uint8)
+        datos_puros = imagen_bytes.getvalue()  
+        reader = obtener_lector()
+        file_bytes = np.asarray(bytearray(datos_puros), dtype=np.uint8) 
+        # --- PASO 1: MEJORA DE IMAGEN PROFESIONAL ---
+        file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         
         # Convertir a escala de grises
@@ -595,6 +598,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
