@@ -5,6 +5,7 @@ import random
 import easyocr
 import cloudinary
 import cloudinary.uploader
+import io
 
 # Configura tus credenciales (Búscalas en tu Dashboard de Cloudinary)
 cloudinary.config( 
@@ -156,37 +157,57 @@ inicializar_db() # 1. Crea lo básico
 migrar_db()      # 2. Asegura que lo nuevo esté ahí
 
 ##### ALGORITMO IA
+##### ALGORITMO IA #####
+
+@st.cache_resource
+def obtener_lector():
+    # Carga el modelo una sola vez para evitar errores de memoria
+    return easyocr.Reader(['es', 'en'], gpu=False)
+
 def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
-    # Inicializar el lector (solo la primera vez)
-    reader = easyocr.Reader(['es', 'en'])
-    
-    # Convertir imagen para OpenCV
-    image = Image.open(imagen_bytes)
-    image_np = np.array(image)
-    
-    # La IA lee todo el texto de la imagen
-    resultados = reader.readtext(image_np)
-    texto_detectado = " ".join([res[1].upper() for res in resultados])
-    numeros = [int(s) for s in texto_detectado.split() if s.isdigit()]
-    
-    # --- VALIDACIÓN DE EQUIPOS ---
-    # Buscamos si el nombre de los equipos aparece en la foto
-    found_local = local_real.upper() in texto_detectado
-    found_visitante = visitante_real.upper() in texto_detectado
+    try:
+        # 1. Obtener el lector (usando el caché)
+        reader = obtener_lector()
+        
+        # 2. Abrir la imagen correctamente desde los bytes de Streamlit
+        # Usamos getvalue() y BytesIO para que PIL no falle
+        image = Image.open(io.BytesIO(imagen_bytes.getvalue()))
+        
+        # 3. Convertir a formato NumPy (RGB) para EasyOCR
+        image_np = np.array(image.convert('RGB'))
+        
+        # 4. La IA lee todo el texto de la imagen
+        resultados = reader.readtext(image_np)
+        texto_detectado = " ".join([res[1].upper() for res in resultados])
+        
+        # 5. Extraer números usando expresiones regulares (más confiable que .split)
+        import re
+        numeros_encontrados = re.findall(r'\d+', texto_detectado)
+        numeros = [int(n) for n in numeros_encontrados]
+        
+        # --- VALIDACIÓN DE EQUIPOS ---
+        # Buscamos si el nombre de los equipos aparece en la foto
+        found_local = local_real.upper() in texto_detectado
+        found_visitante = visitante_real.upper() in texto_detectado
 
-    if not found_local and not found_visitante:
-        return None, "⚠️ No detecto los nombres de los clubes. Asegúrate de que se vean en pantalla."
+        if not found_local and not found_visitante:
+            return None, f"⚠️ No detecto a '{local_real}' o '{visitante_real}'. Asegúrate de que se vean los nombres en pantalla."
 
-    # --- EXTRACCIÓN DE MARCADOR ---
-    # Buscamos los primeros dos números que parezcan un marcador (ej. entre 0 y 20)
-    goles = [n for n in numeros if 0 <= n <= 20]
-    
-    if len(goles) < 2:
-        return None, "🚫 No pude identificar el marcador claramente. Toma una mejor foto."
-    
-    # Asumimos que el primer número es Local y el segundo Visitante (orden estándar)
-    gl, gv = goles[0], goles[1]
-    return (gl, gv), "OK"
+        # --- EXTRACCIÓN DE MARCADOR ---
+        # Filtramos números lógicos para un marcador (ej. entre 0 y 25)
+        goles = [n for n in numeros if 0 <= n <= 25]
+        
+        if len(goles) < 2:
+            return None, "🚫 No pude identificar el marcador (necesito al menos dos números). Toma una mejor foto."
+        
+        # Asumimos que el primer número es Local y el segundo Visitante
+        gl, gv = goles[0], goles[1]
+        return (gl, gv), "OK"
+
+    except Exception as e:
+        # Si algo falla, devolvemos el error para no romper la app
+        return None, f"❌ Error al procesar la imagen: {str(e)}"
+
 #####FIN IA
 # --- 2. LÓGICA DE JORNADAS ---
 def generar_calendario():
@@ -549,6 +570,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
