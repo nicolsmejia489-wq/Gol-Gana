@@ -30,6 +30,42 @@ ADMIN_PIN = "2025"
 st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
 st.markdown("""
   <style>
+  :root {
+        --primary-color: #ff4b4b;
+        --background-color: #ffffff;
+        --secondary-background-color: #f0f2f6;
+        --text-color: #31333f;
+        --font: "sans serif";
+    }
+
+    /* 2. Blindaje para Expanders (Cuerpo y Título) */
+    .st-emotion-cache-1h9usn1, .st-emotion-cache-6q9sum, .st-emotion-cache-p4m0d4 {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #eeeeee !important;
+    }
+
+    /* 3. Blindaje para Inputs (Goles y selección) */
+    input, .st-emotion-cache-16297zj, .st-emotion-cache-bc07j5 {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important; /* Para Safari/iOS */
+    }
+
+    /* 4. Títulos de pestañas y subheaders */
+    h1, h2, h3, p, span, label, .stMarkdown {
+        color: #000000 !important;
+    }
+
+    /* 5. Forzar que el fondo de la app sea blanco siempre */
+    .stApp {
+        background-color: #ffffff !important;
+    }
+
+    /* 6. Evitar el "resaltado" azul o negro al tocar en el móvil */
+    * {
+        -webkit-tap-highlight-color: transparent !important;
+    }
     /* Estrechar el contenedor de la tabla */
     .reportview-container .main .block-container { padding-top: 1rem; }
     
@@ -671,6 +707,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
