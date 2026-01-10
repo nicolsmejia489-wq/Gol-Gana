@@ -12,6 +12,13 @@ import cv2
 import re  # Para expresiones regulares (encontrar números difíciles)
 from thefuzz import fuzz # Para comparación flexible de nombres
 
+# 1. En la configuración de la página
+st.set_page_config(page_title="Gol-Gana Pro", layout="centered", initial_sidebar_state="collapsed")
+
+# 2. Inyectar el Meta Tag de "color-scheme"
+st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
+
+
 # Configura tus credenciales (Búscalas en tu Dashboard de Cloudinary)
 cloudinary.config( 
   cloud_name = "dlvczeqlp", 
@@ -631,6 +638,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
