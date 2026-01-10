@@ -27,162 +27,86 @@ from contextlib import contextmanager
 DB_NAME = "gol_gana.db"
 ADMIN_PIN = "2025" 
 
+
+####TEMAS Y COLORES
 st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
+
 st.markdown("""
-  <style>
-  :root {
-        --primary-color: #ff4b4b;
-        --background-color: #ffffff;
-        --secondary-background-color: #f0f2f6;
-        --text-color: #31333f;
-        --font: "sans serif";
+    <style>
+    /* 1. RESET GLOBAL: Forzar colores base en TODA la app y cualquier tema de celular */
+    html, body, .stApp, [data-testid="stAppViewContainer"] {
+        background-color: white !important;
+        color: black !important;
     }
 
-    /* 2. Blindaje para Expanders (Cuerpo y Título) */
-    .st-emotion-cache-1h9usn1, .st-emotion-cache-6q9sum, .st-emotion-cache-p4m0d4 {
+    /* 2. SOBREESCRITURA DE MODO OSCURO (Celulares) */
+    @media (prefers-color-scheme: dark) {
+        .stApp, [data-testid="stAppViewContainer"], .st-emotion-cache-1h9usn1 {
+            background-color: white !important;
+            color: black !important;
+        }
+    }
+
+    /* 3. ELEMENTOS DE TEXTO: Forzar negro en todo */
+    h1, h2, h3, p, span, label, div, b, .stMarkdown {
+        color: black !important;
+        -webkit-text-fill-color: black !important; /* Blindaje para iPhone */
+    }
+
+    /* 4. EXPANDERS Y CONTENEDORES: Fondo blanco puro para que no se pongan negros */
+    [data-testid="stExpander"], .st-emotion-cache-1h9usn1, .st-emotion-cache-6q9sum {
         background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #eeeeee !important;
+        color: black !important;
+        border: 1px solid #ddd !important;
     }
 
-    /* 3. Blindaje para Inputs (Goles y selección) */
-    input, .st-emotion-cache-16297zj, .st-emotion-cache-bc07j5 {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        -webkit-text-fill-color: #000000 !important; /* Para Safari/iOS */
-    }
-
-    /* 4. Títulos de pestañas y subheaders */
-    h1, h2, h3, p, span, label, .stMarkdown {
-        color: #000000 !important;
-    }
-
-    /* 5. Forzar que el fondo de la app sea blanco siempre */
-    .stApp {
+    /* Evitar el color negro cuando el expander está en foco o activo */
+    .st-emotion-cache-1h9usn1:focus, .st-emotion-cache-6q9sum:active {
         background-color: #ffffff !important;
     }
 
-    /* 6. Evitar el "resaltado" azul o negro al tocar en el móvil */
-    * {
-        -webkit-tap-highlight-color: transparent !important;
+    /* 5. INPUTS Y BOTONES: Estilo limpio y legible */
+    input {
+        background-color: #f9f9f9 !important;
+        color: black !important;
+        border: 1px solid #ccc !important;
     }
-    /* Estrechar el contenedor de la tabla */
-    .reportview-container .main .block-container { padding-top: 1rem; }
-    
-    /* Forzar tabla compacta */
-    .admin-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-    }
-    .admin-table td {
-        padding: 5px 2px;
-        vertical-align: middle;
-        border-bottom: 1px solid #eee;
-    }
-    .input-goles {
-        width: 45px !important;
-        text-align: center;
-    }
-    .stApp { background-color: white !important; }
-    .stApp, .stMarkdown, p, h1, h2, h3, label { color: black !important; }
 
     div.stButton > button {
         background-color: #f0f2f6 !important;
         color: #31333f !important;
-        border: 1px solid #dcdfe4 !important;
         border-radius: 8px !important;
-        transition: 0.3s;
+        border: 1px solid #dcdfe4 !important;
+        width: 100%;
     }
-    
+
+    /* 6. TABLAS MÓVILES */
     .mobile-table { 
         width: 100%; border-collapse: collapse; font-size: 12px; 
         background-color: white !important; color: black !important;
-        border: 1px solid #ddd;
     }
-    .mobile-table th { 
-        background: #f0f2f6 !important; color: black !important; 
-        padding: 8px; border: 1px solid #ddd;
-    }
-    .mobile-table td { padding: 8px; text-align: center; border: 1px solid #eee; color: black !important; }
-    .team-cell { text-align: left !important; font-weight: bold; color: #1f77b4 !important; }
-
+    .mobile-table th { background: #f0f2f6 !important; color: black !important; padding: 8px; }
+    .mobile-table td { padding: 8px; border-bottom: 1px solid #eee; color: black !important; }
+    
+    /* 7. COMPONENTES ESPECÍFICOS */
     .match-box { 
-        border: 1px solid #ccc; padding: 15px; border-radius: 10px; 
-        margin-bottom: 15px; background: #ffffff !important; 
-        color: black !important;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+        border: 1px solid #eee; padding: 15px; border-radius: 10px; 
+        margin-bottom: 15px; background: white !important; color: black !important;
+        box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
     }
 
     .wa-btn { 
         display: inline-block; background-color: #25D366; color: white !important; 
         padding: 8px 15px; border-radius: 5px; text-decoration: none; 
-        font-weight: bold; font-size: 14px; margin-top: 5px;
+        font-weight: bold; font-size: 12px; text-align: center;
     }
 
-    div[data-testid="stCameraInput"] button {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    border: 2px solid #dcdfe4 !important;
-    font-weight: bold !important;
-}
-
-/* Estilo para el botón de 'Eliminar foto' que aparece después */
-div[data-testid="stCameraInput"] button:disabled {
-    background-color: #f0f2f6 !important;
-    color: #31333f !important;
-}
-/* 1. Botón de Galería (Browse Files) */
-    section[data-testid="stFileUploadDropzone"] button {
-        background-color: #f0f2f6 !important;
-        color: #31333f !important;
-    }
-
-    /* 2. Títulos de los Expander y etiquetas */
-    .st-emotion-cache-p4m0d4, .st-ae, label, .stMarkdown p {
-        background-color: #f0f2f6 !important;
-        color: #31333f !important;;
-    }
-    /* Forzar fondo blanco y texto negro en expanders y sus contenedores */
-    .st-emotion-cache-1h9usn1, .st-emotion-cache-6q9sum, .st-emotion-cache-p4m0d4 {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-
-    /* Estilo para las etiquetas de los inputs dentro del expander */
-    .st-emotion-cache-p4m0d4 p, label {
-        color: #000000 !important;
-    }
-
-    /* Evitar que el expander se ponga negro al hacer clic */
-    .st-emotion-cache-6q9sum:focus, .st-emotion-cache-1h9usn1:active {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-
-
-    
-
-    /* 3. Fondo del Expander cuando se abre */
-    .st-emotion-cache-1h9usn1, .st-emotion-cache-6q9sum {
-        background-color: #f0f2f6 !important;
-        color: #31333f !important;
-    }
-
-    /* 4. Texto dentro del Expander */
-    .st-emotion-cache-1h9usn1 p, .st-emotion-cache-1h9usn1 span {
-        color: black !important;
-    }
-
-    /* Ajuste para el radio button (Cámara/Galería) */
-    div[data-testid="stWidgetLabel"] p {
-        color: black !important;
-        font-weight: bold !important;
-    }
-    
+    /* Quitar el resaltado azul al tocar en móviles */
+    * { -webkit-tap-highlight-color: transparent !important; }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
+############# FIN COLORES
 
 
 
@@ -707,6 +631,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
