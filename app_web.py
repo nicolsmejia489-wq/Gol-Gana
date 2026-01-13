@@ -659,57 +659,25 @@ if rol == "admin":
 
 
 
-# SECCIÓN ADMIN (INFERIOR - PANEL DE CONTROL)
+# SECCIÓN ADMIN (INFERIOR)
 if rol == "admin":
     st.divider()
-    st.subheader("🛠️ Panel de Control Maestro")
-    
-    # 1. GESTIÓN DE INSCRIPCIONES
     if fase_actual == "inscripcion":
-        st.info("Fase Actual: **Registro de Equipos**")
         with get_db_connection() as conn:
-            # Consultas rápidas
             pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
-            aprobados_count = pd.read_sql_query("SELECT COUNT(*) as total FROM equipos WHERE estado='aprobado'", conn).iloc[0]['total']
-            
-            st.metric("Equipos Confirmados", f"{aprobados_count} / 32")
+            st.write(f"Aprobados: {len(pd.read_sql_query('SELECT 1 FROM equipos WHERE estado=\'aprobado\'', conn))}/32")
+            for _, r in pend.iterrows():
+                if st.button(f"Aprobar {r['nombre']}"):
+                    conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
+                    conn.commit(); st.rerun()
+        if st.button("🚀 INICIAR TORNEO"): generar_calendario(); st.rerun()
+    if st.button("🚨 REINICIAR TODO"):
+        with get_db_connection() as conn:
+            conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
+            conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
+        st.rerun()
 
-            if not pend.empty:
-                st.write("---")
-                st.write("📩 **Solicitudes Pendientes:**")
-                for _, r in pend.iterrows():
-                    col_eq, col_btn = st.columns([3, 1])
-                    col_eq.write(f"**{r['nombre']}** (DT: {r['dt_nombre']})")
-                    # Usamos una key única para evitar el DuplicateKeyError
-                    if col_btn.button(f"✅ Aprobar", key=f"app_btn_{r['nombre']}"):
-                        conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
-                        conn.commit()
-                        st.success(f"Equipo {r['nombre']} aprobado.")
-                        st.rerun()
-            else:
-                st.light("No hay equipos pendientes por aprobar.")
 
-        st.write("---")
-        # Botón para pasar a la siguiente fase
-        if aprobados_count >= 2: # Mínimo 2 equipos para iniciar
-            if st.button("🚀 INICIAR TORNEO Y GENERAR CALENDARIO", use_container_width=True, type="primary"):
-                generar_calendario()
-                st.rerun()
-        else:
-            st.warning("Se necesitan al menos 2 equipos aprobados para iniciar el torneo.")
-
-    # 2. ACCIONES CRÍTICAS (Siempre visibles para el Admin)
-    with st.expander("🚨 Zona de Peligro (Acciones Irreversibles)"):
-        st.warning("El reinicio borrará todos los equipos, partidos y fotos almacenadas.")
-        if st.button("REINICIAR TODO EL SISTEMA", key="btn_reset_total", use_container_width=True):
-            with get_db_connection() as conn:
-                conn.execute("DROP TABLE IF EXISTS equipos")
-                conn.execute("DROP TABLE IF EXISTS partidos")
-                # Reiniciamos la configuración a fase inicial
-                conn.execute("UPDATE config SET valor='inscripcion' WHERE parametro='fase'")
-                conn.commit()
-            st.error("Sistema reseteado por completo.")
-            st.rerun()
 
 
 
