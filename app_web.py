@@ -297,17 +297,55 @@ elif st.session_state.pin_usuario:
         res = cur.fetchone()
         if res: rol = "dt"; equipo_usuario = res[0]
 
-# --- 4. TABS ---
+
+
+# --- LÓGICA DINÁMICA DE PESTAÑAS ---
 if fase_actual == "inscripcion":
-    tabs = st.tabs(["📊 Clasificación", "📝 Inscribirse"])
-else:
-    # Agregamos la pestaña de Gestión solo si es Admin
     if rol == "admin":
-        tabs = st.tabs(["📊 Clasificación", "📅 Calendario", "⚙️ Gestión Admin"])
+        titulos = ["📊 Clasificación", "📝 Inscripciones", "⚙️ Gestión Admin"]
+    else:
+        titulos = ["📊 Clasificación", "📝 Inscribirse"]
+else:
+    # Fase de Torneo
+    if rol == "admin":
+        titulos = ["📊 Clasificación", "📅 Calendario", "⚙️ Gestión Admin"]
     elif rol == "dt": 
-        tabs = st.tabs(["📊 Clasificación", "📅 Calendario", "⚽ Mis Partidos"])
+        titulos = ["📊 Clasificación", "📅 Calendario", "⚽ Mis Partidos"]
     else: 
-        tabs = st.tabs(["📊 Clasificación", "📅 Calendario"])
+        titulos = ["📊 Clasificación", "📅 Calendario"]
+
+tabs = st.tabs(titulos)
+
+# --- CONTENIDO DE LAS PESTAÑAS ---
+with tabs[0]:
+    st.subheader("Tabla de Posiciones")
+    # Tu código de tabla...
+
+with tabs[1]:
+    if fase_actual == "inscripcion":
+        st.subheader("Registro de Equipos")
+        # Aquí va tu formulario de inscripción o lista para el admin
+    else:
+        st.subheader("Calendario de Juegos")
+        # Aquí va el calendario
+
+# La pestaña [2] solo existe si eres Admin o DT en fase de juego
+if len(titulos) > 2:
+    with tabs[2]:
+        if rol == "admin":
+            st.subheader("⚙️ Panel de Control Admin")
+            if fase_actual == "inscripcion":
+                st.info("Acepta a los equipos inscritos aquí abajo:")
+                # Aquí pondremos el código para validar equipos
+            else:
+                st.info("Gestiona los resultados de los partidos:")
+                # Aquí va tu código de gestión de resultados que ya hicimos
+        elif rol == "dt":
+            st.subheader("⚽ Gestión de mi Equipo")
+
+
+
+
 
 # TAB: CLASIFICACIÓN
 with tabs[0]:
@@ -621,23 +659,58 @@ if rol == "admin":
 
 
 
-# SECCIÓN ADMIN (INFERIOR)
+# SECCIÓN ADMIN (INFERIOR - PANEL DE CONTROL)
 if rol == "admin":
     st.divider()
+    st.subheader("🛠️ Panel de Control Maestro")
+    
+    # 1. GESTIÓN DE INSCRIPCIONES
     if fase_actual == "inscripcion":
+        st.info("Fase Actual: **Registro de Equipos**")
         with get_db_connection() as conn:
+            # Consultas rápidas
             pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
-            st.write(f"Aprobados: {len(pd.read_sql_query('SELECT 1 FROM equipos WHERE estado=\'aprobado\'', conn))}/32")
-            for _, r in pend.iterrows():
-                if st.button(f"Aprobar {r['nombre']}"):
-                    conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
-                    conn.commit(); st.rerun()
-        if st.button("🚀 INICIAR TORNEO"): generar_calendario(); st.rerun()
-    if st.button("🚨 REINICIAR TODO"):
-        with get_db_connection() as conn:
-            conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
-            conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
-        st.rerun()
+            aprobados_count = pd.read_sql_query("SELECT COUNT(*) as total FROM equipos WHERE estado='aprobado'", conn).iloc[0]['total']
+            
+            st.metric("Equipos Confirmados", f"{aprobados_count} / 32")
+
+            if not pend.empty:
+                st.write("---")
+                st.write("📩 **Solicitudes Pendientes:**")
+                for _, r in pend.iterrows():
+                    col_eq, col_btn = st.columns([3, 1])
+                    col_eq.write(f"**{r['nombre']}** (DT: {r['dt_nombre']})")
+                    # Usamos una key única para evitar el DuplicateKeyError
+                    if col_btn.button(f"✅ Aprobar", key=f"app_btn_{r['nombre']}"):
+                        conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
+                        conn.commit()
+                        st.success(f"Equipo {r['nombre']} aprobado.")
+                        st.rerun()
+            else:
+                st.light("No hay equipos pendientes por aprobar.")
+
+        st.write("---")
+        # Botón para pasar a la siguiente fase
+        if aprobados_count >= 2: # Mínimo 2 equipos para iniciar
+            if st.button("🚀 INICIAR TORNEO Y GENERAR CALENDARIO", use_container_width=True, type="primary"):
+                generar_calendario()
+                st.rerun()
+        else:
+            st.warning("Se necesitan al menos 2 equipos aprobados para iniciar el torneo.")
+
+    # 2. ACCIONES CRÍTICAS (Siempre visibles para el Admin)
+    with st.expander("🚨 Zona de Peligro (Acciones Irreversibles)"):
+        st.warning("El reinicio borrará todos los equipos, partidos y fotos almacenadas.")
+        if st.button("REINICIAR TODO EL SISTEMA", key="btn_reset_total", use_container_width=True):
+            with get_db_connection() as conn:
+                conn.execute("DROP TABLE IF EXISTS equipos")
+                conn.execute("DROP TABLE IF EXISTS partidos")
+                # Reiniciamos la configuración a fase inicial
+                conn.execute("UPDATE config SET valor='inscripcion' WHERE parametro='fase'")
+                conn.commit()
+            st.error("Sistema reseteado por completo.")
+            st.rerun()
+
 
 
 
