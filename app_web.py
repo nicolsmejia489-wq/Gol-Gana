@@ -83,14 +83,23 @@ st.markdown("""
         border-color: #ff4b4b !important;
     }
 
-    /* 5. INPUTS: Evitar que el texto desaparezca al escribir */
-    input[type="text"], input[type="password"], textarea {
+/* 5. INPUTS Y SELECTS */
+    input[type="text"], input[type="password"], textarea, div[data-baseweb="select"] > div {
         background-color: #ffffff !important;
         color: black !important;
         border: 1px solid #ccc !important;
         -webkit-text-fill-color: black !important;
     }
 
+    /* Menú flotante del selectbox */
+    ul[data-baseweb="menu"] {
+        background-color: white !important;
+    }
+    
+    li[role="option"] {
+        color: black !important;
+        -webkit-text-fill-color: black !important;
+    }
     /* 6. EXPANDERS: Fondo blanco para que no hereden el negro del sistema */
     [data-testid="stExpander"] {
         background-color: white !important;
@@ -119,6 +128,11 @@ st.markdown("""
     * { -webkit-tap-highlight-color: transparent !important; }
     </style>
 """, unsafe_allow_html=True)
+
+
+
+
+
 
 ############# FIN COLORES
 
@@ -683,6 +697,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
