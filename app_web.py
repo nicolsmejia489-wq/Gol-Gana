@@ -11,15 +11,48 @@ from PIL import Image
 import cv2
 import re  # Para expresiones regulares (encontrar números difíciles)
 from thefuzz import fuzz # Para comparación flexible de nombres
+import json
+import os
 
-# 1. En la configuración de la página
+
+#PROVISIONAL PARA HACER PRUEBAS DE DESARROLLO
+# Nombre del archivo donde se guardará todo
+DB_FILE = "data_torneo.json"
+
+def guardar_datos():
+    """Guarda el estado actual de session_state en un archivo JSON"""
+    # Filtramos solo lo que queremos persistir (equipos, resultados, etc.)
+    datos_a_guardar = {
+        "equipos": st.session_state.get("equipos", []),
+        "partidos": st.session_state.get("partidos", []),
+        "registrados": st.session_state.get("registrados", False)
+    }
+    with open(DB_FILE, "w") as f:
+        json.dump(datos_a_guardar, f)
+
+def cargar_datos():
+    """Carga los datos desde el archivo JSON al session_state"""
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r") as f:
+            datos = json.load(f)
+            for key, value in datos.items():
+                st.session_state[key] = value
+        return True
+    return False
+
+
+
+####FIN PROVISIONAL
+
+
+# 1. CONFIGURACIÓN PRINCIPAL DE SITIO
 st.set_page_config(page_title="Gol-Gana Pro", layout="centered", initial_sidebar_state="collapsed")
 
 # 2. Inyectar el Meta Tag de "color-scheme"
 st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
 
 
-# Configura tus credenciales (Búscalas en tu Dashboard de Cloudinary)
+# Configura credenciales (Cloudinary) Base de datos en Nube
 cloudinary.config( 
   cloud_name = "dlvczeqlp", 
   api_key = "276694391654197", 
@@ -36,7 +69,7 @@ ADMIN_PIN = "2025"
 
 
 
-####TEMAS Y COLORES
+
 
 
 #### TEMAS Y COLORES ####
@@ -154,6 +187,18 @@ st.markdown("""
 
 ############# FIN COLORES
 
+
+# --- INICIALIZACIÓN DE DATOS --- #PROVISIONAL PARTE 2
+if "datos_cargados" not in st.session_state:
+    if cargar_datos():
+        st.session_state["datos_cargados"] = True
+    else:
+        # Si no hay archivo, inicializamos vacío
+        if "equipos" not in st.session_state: st.session_state["equipos"] = []
+        if "partidos" not in st.session_state: st.session_state["partidos"] = []
+        st.session_state["datos_cargados"] = True
+
+####FIN PROVISIONAL PARTE 2
 
 
 @contextmanager
@@ -715,6 +760,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
