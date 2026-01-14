@@ -129,38 +129,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-/* 1. El contenedor flotante del menú */
-    div[data-baseweb="popover"], 
-    div[data-baseweb="menu"], 
-    ul[role="listbox"] {
-        background-color: white !important;
-        border: 1px solid #ccc !important;
-    }
-
-    /* 2. Las opciones individuales dentro del menú */
-    li[role="option"], 
-    li[role="option"] div, 
-    li[role="option"] span {
-        background-color: white !important;
-        color: black !important;
-        -webkit-text-fill-color: black !important; /* Fix para iPhone */
-    }
-
-    /* 3. Color cuando pasas el dedo o seleccionas una opción */
-    li[role="option"]:hover, 
-    li[role="option"]:active, 
-    li[role="option"][aria-selected="true"] {
-        background-color: #f0f2f6 !important; /* Gris muy clarito */
-        color: #ff4b4b !important;           /* Texto en rojo Streamlit */
-    }
-    
-    /* 4. El ícono de la flechita del desplegable */
-    div[data-baseweb="select"] svg {
-        fill: black !important;
-    }
-
-
-
 
 
 
@@ -727,6 +695,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
