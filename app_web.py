@@ -37,85 +37,88 @@ ADMIN_PIN = "2025"
 
 
 ####TEMAS Y COLORES
-st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
+
 
 st.markdown("""
     <style>
-    /* 1. RESET GLOBAL: Forzar colores base en TODA la app y cualquier tema de celular */
-    html, body, .stApp, [data-testid="stAppViewContainer"] {
+    /* 1. RESET GLOBAL: Fondo blanco y texto negro absoluto */
+    html, body, .stApp, [data-testid="stAppViewContainer"], .st-emotion-cache-1h9usn1 {
         background-color: white !important;
         color: black !important;
     }
 
-    /* 2. SOBREESCRITURA DE MODO OSCURO (Celulares) */
+    /* 2. FORZAR LUZ EN MÓVILES (Incluso si el sistema está en Dark Mode) */
     @media (prefers-color-scheme: dark) {
-        .stApp, [data-testid="stAppViewContainer"], .st-emotion-cache-1h9usn1 {
+        .stApp, [data-testid="stAppViewContainer"] {
             background-color: white !important;
             color: black !important;
         }
     }
 
-    /* 3. ELEMENTOS DE TEXTO: Forzar negro en todo */
-    h1, h2, h3, p, span, label, div, b, .stMarkdown {
+    /* 3. TEXTO: Blindaje para iPhone y Android */
+    h1, h2, h3, p, span, label, div, b, .stMarkdown, [data-testid="stWidgetLabel"] p {
         color: black !important;
-        -webkit-text-fill-color: black !important; /* Blindaje para iPhone */
+        -webkit-text-fill-color: black !important;
     }
 
-    /* 4. EXPANDERS Y CONTENEDORES: Fondo blanco puro para que no se pongan negros */
-    [data-testid="stExpander"], .st-emotion-cache-1h9usn1, .st-emotion-cache-6q9sum {
+    /* 4. BOTONES: El fix para el botón "Siguiente" y "Aprobar" */
+    /* Target: Botones normales, botones de formulario y botones primarios */
+    div.stButton > button, 
+    div.stFormSubmitButton > button, 
+    [data-testid="baseButton-secondary"], 
+    [data-testid="baseButton-primary"] {
+        background-color: #f0f2f6 !important; /* Gris claro */
+        color: #31333f !important;           /* Texto oscuro */
+        border: 1px solid #dcdfe4 !important;
+        border-radius: 8px !important;
+        width: 100%;
+        height: 3em;
+        font-weight: bold !important;
+        -webkit-text-fill-color: #31333f !important;
+    }
+
+    /* Cambio de color al tocar/pasar el mouse para feedback visual */
+    div.stButton > button:active, div.stFormSubmitButton > button:active {
+        background-color: #e0e2e6 !important;
+        border-color: #ff4b4b !important;
+    }
+
+    /* 5. INPUTS: Evitar que el texto desaparezca al escribir */
+    input[type="text"], input[type="password"], textarea {
         background-color: #ffffff !important;
-        color: black !important;
-        border: 1px solid #ddd !important;
-    }
-
-    /* Evitar el color negro cuando el expander está en foco o activo */
-    .st-emotion-cache-1h9usn1:focus, .st-emotion-cache-6q9sum:active {
-        background-color: #ffffff !important;
-    }
-
-    /* 5. INPUTS Y BOTONES: Estilo limpio y legible */
-    input {
-        background-color: #f9f9f9 !important;
         color: black !important;
         border: 1px solid #ccc !important;
+        -webkit-text-fill-color: black !important;
     }
 
-    div.stButton > button {
-        background-color: #f0f2f6 !important;
-        color: #31333f !important;
-        border-radius: 8px !important;
-        border: 1px solid #dcdfe4 !important;
-        width: 100%;
+    /* 6. EXPANDERS: Fondo blanco para que no hereden el negro del sistema */
+    [data-testid="stExpander"] {
+        background-color: white !important;
+        border: 1px solid #eee !important;
     }
 
-    /* 6. TABLAS MÓVILES */
+    /* 7. TABLAS Y CAJAS DE PARTIDO */
     .mobile-table { 
         width: 100%; border-collapse: collapse; font-size: 12px; 
         background-color: white !important; color: black !important;
     }
     .mobile-table th { background: #f0f2f6 !important; color: black !important; padding: 8px; }
     .mobile-table td { padding: 8px; border-bottom: 1px solid #eee; color: black !important; }
-    
-    /* 7. COMPONENTES ESPECÍFICOS */
+
     .match-box { 
         border: 1px solid #eee; padding: 15px; border-radius: 10px; 
         margin-bottom: 15px; background: white !important; color: black !important;
-        box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
     }
 
     .wa-btn { 
         display: inline-block; background-color: #25D366; color: white !important; 
-        padding: 8px 15px; border-radius: 5px; text-decoration: none; 
-        font-weight: bold; font-size: 12px; text-align: center;
+        padding: 10px; border-radius: 8px; text-decoration: none; 
+        font-weight: bold; width: 100%; text-align: center;
     }
 
-    /* Quitar el resaltado azul al tocar en móviles */
     * { -webkit-tap-highlight-color: transparent !important; }
     </style>
 """, unsafe_allow_html=True)
-
-
-
 
 ############# FIN COLORES
 
@@ -680,6 +683,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
