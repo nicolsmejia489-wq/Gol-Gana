@@ -35,6 +35,44 @@ DB_NAME = "gol_gana.db"
 ADMIN_PIN = "2025" 
 
 
+
+####TEMAS Y COLORES
+st.set_page_config(page_title="Gol-Gana Pro", layout="centered")
+
+st.markdown("""
+    <style>
+    /* 1. RESET GLOBAL: Forzar colores base en TODA la app y cualquier tema de celular */
+    html, body, .stApp, [data-testid="stAppViewContainer"] {
+        background-color: white !important;
+        color: black !important;
+    }
+
+    /* 2. SOBREESCRITURA DE MODO OSCURO (Celulares) */
+    @media (prefers-color-scheme: dark) {
+        .stApp, [data-testid="stAppViewContainer"], .st-emotion-cache-1h9usn1 {
+            background-color: white !important;
+            color: black !important;
+        }
+    }
+
+    /* 3. ELEMENTOS DE TEXTO: Forzar negro en todo */
+    h1, h2, h3, p, span, label, div, b, .stMarkdown {
+        color: black !important;
+        -webkit-text-fill-color: black !important; /* Blindaje para iPhone */
+    }
+
+    /* 4. EXPANDERS Y CONTENEDORES: Fondo blanco puro para que no se pongan negros */
+    [data-testid="stExpander"], .st-emotion-cache-1h9usn1, .st-emotion-cache-6q9sum {
+        background-color: #ffffff !important;
+        color: black !important;
+        border: 1px solid #ddd !important;
+    }
+
+    /* Evitar el color negro cuando el expander está en foco o activo */
+    .st-emotion-cache-1h9usn1:focus, .st-emotion-cache-6q9sum:active {
+        background-color: #ffffff !important;
+    }
+
     /* 5. INPUTS Y BOTONES: Estilo limpio y legible */
     input {
         background-color: #f9f9f9 !important;
@@ -75,7 +113,6 @@ ADMIN_PIN = "2025"
     * { -webkit-tap-highlight-color: transparent !important; }
     </style>
 """, unsafe_allow_html=True)
-
 
 
 
@@ -643,6 +680,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
