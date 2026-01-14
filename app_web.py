@@ -39,6 +39,8 @@ ADMIN_PIN = "2025"
 ####TEMAS Y COLORES
 
 
+#### TEMAS Y COLORES ####
+
 st.markdown("""
     <style>
     /* 1. RESET GLOBAL: Fondo blanco y texto negro absoluto */
@@ -61,14 +63,13 @@ st.markdown("""
         -webkit-text-fill-color: black !important;
     }
 
-    /* 4. BOTONES: El fix para el botón "Siguiente" y "Aprobar" */
-    /* Target: Botones normales, botones de formulario y botones primarios */
+    /* 4. BOTONES: Fix para botón "Siguiente", "Aprobar" y estándar */
     div.stButton > button, 
     div.stFormSubmitButton > button, 
     [data-testid="baseButton-secondary"], 
     [data-testid="baseButton-primary"] {
-        background-color: #f0f2f6 !important; /* Gris claro */
-        color: #31333f !important;           /* Texto oscuro */
+        background-color: #f0f2f6 !important;
+        color: #31333f !important;
         border: 1px solid #dcdfe4 !important;
         border-radius: 8px !important;
         width: 100%;
@@ -77,13 +78,12 @@ st.markdown("""
         -webkit-text-fill-color: #31333f !important;
     }
 
-    /* Cambio de color al tocar/pasar el mouse para feedback visual */
     div.stButton > button:active, div.stFormSubmitButton > button:active {
         background-color: #e0e2e6 !important;
         border-color: #ff4b4b !important;
     }
 
-/* 5. INPUTS Y SELECTS */
+    /* 5. INPUTS Y CAJA DEL SELECTBOX */
     input[type="text"], input[type="password"], textarea, div[data-baseweb="select"] > div {
         background-color: #ffffff !important;
         color: black !important;
@@ -91,22 +91,43 @@ st.markdown("""
         -webkit-text-fill-color: black !important;
     }
 
-    /* Menú flotante del selectbox */
-    ul[data-baseweb="menu"] {
+    /* 6. FIX DEFINITIVO PARA EL DESPLEGABLE (MENU FLOTANTE) */
+    /* Este bloque ataca la capa que flota cuando abres el país/prefijo */
+    div[data-baseweb="popover"], 
+    div[data-baseweb="menu"], 
+    ul[role="listbox"] {
         background-color: white !important;
+        border: 1px solid #ddd !important;
     }
-    
-    li[role="option"] {
+
+    li[role="option"], 
+    li[role="option"] div, 
+    li[role="option"] span {
+        background-color: white !important;
         color: black !important;
         -webkit-text-fill-color: black !important;
     }
-    /* 6. EXPANDERS: Fondo blanco para que no hereden el negro del sistema */
+
+    /* Color cuando pasas el dedo o seleccionas una opción */
+    li[role="option"]:hover, 
+    li[role="option"]:active, 
+    li[role="option"][aria-selected="true"] {
+        background-color: #f0f2f6 !important;
+        color: #ff4b4b !important;
+    }
+
+    /* El ícono de la flechita del selectbox */
+    div[data-baseweb="select"] svg {
+        fill: black !important;
+    }
+
+    /* 7. EXPANDERS */
     [data-testid="stExpander"] {
         background-color: white !important;
         border: 1px solid #eee !important;
     }
 
-    /* 7. TABLAS Y CAJAS DE PARTIDO */
+    /* 8. TABLAS Y CAJAS DE PARTIDO */
     .mobile-table { 
         width: 100%; border-collapse: collapse; font-size: 12px; 
         background-color: white !important; color: black !important;
@@ -128,7 +149,6 @@ st.markdown("""
     * { -webkit-tap-highlight-color: transparent !important; }
     </style>
 """, unsafe_allow_html=True)
-
 
 
 
@@ -695,6 +715,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
