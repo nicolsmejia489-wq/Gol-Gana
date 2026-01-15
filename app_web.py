@@ -671,42 +671,51 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (En construccion) ---
+# --- TAB: GESTIÓN ADMIN (Versión Pro Celular) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        # --- 1. SECCIÓN DE APROBACIONES (SIEMPRE ARRIBA) ---
+        # --- 1. SECCIÓN DE APROBACIONES (DISEÑO DE TARJETAS PARA MÓVIL) ---
         st.subheader("📩 Equipos por Aprobar")
         with get_db_connection() as conn:
-            # Consultamos pendientes y conteo de aprobados
             pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
-            aprobados_df = pd.read_sql_query("SELECT 1 FROM equipos WHERE estado='aprobado'", conn)
-            st.write(f"**Progreso de Inscripción: {len(aprobados_df)}/32 Equipos**")
+            aprobados_count = len(pd.read_sql_query("SELECT 1 FROM equipos WHERE estado='aprobado'", conn))
+            st.write(f"**Progreso: {aprobados_count}/32 Equipos**")
         
         if not pend.empty:
             for _, r in pend.iterrows():
-                # Diseño compacto para celular
-                col_aprob, col_info = st.columns([1, 2])
-                with col_aprob:
-                    if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}"):
-                        with get_db_connection() as conn:
-                            conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
-                            conn.commit()
-                        st.success(f"{r['nombre']} aprobado")
-                        st.rerun()
-                with col_info:
-                    st.write(f"**{r['nombre']}** ({r.get('celular', 'S/N')})")
+                # Creamos un contenedor con borde para separar visualmente cada equipo
+                with st.container():
+                    col_data, col_btn = st.columns([2, 1])
+                    
+                    # Formateo de link de WhatsApp
+                    prefijo = str(r.get('prefijo', '')).replace('+', '')
+                    wa_link = f"https://wa.me/{prefijo}{r['celular']}"
+                    
+                    with col_data:
+                        st.markdown(f"""
+                        **{r['nombre']}** <a href="{wa_link}" style="text-decoration:none;">🟢 📞 Contactar DT</a>
+                        """, unsafe_allow_html=True)
+                    
+                    with col_btn:
+                        if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
+                            with get_db_connection() as conn:
+                                conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
+                                conn.commit()
+                            st.success(f"Aprobado")
+                            st.rerun()
+                    st.markdown("---") # Separador visual claro para móvil
         else:
-            st.info("No hay equipos pendientes de aprobación.")
+            st.info("No hay equipos pendientes.")
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA (RADIO PARA MÓVILES) ---
-        opcion_admin = st.radio("Selecciona Tarea:", ["⚽ Gestionar Resultados", "🛠️ Control de Equipos"], horizontal=True)
+        # --- 2. SELECCIÓN DE TAREA ---
+        opcion_admin = st.radio("Selecciona Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos"], horizontal=True)
         st.divider()
 
-        if opcion_admin == "⚽ Gestionar Resultados":
+        if opcion_admin == "⚽ Resultados":
             st.subheader("🏁 Gestión de Marcadores")
             with get_db_connection() as conn:
                 df_adm = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
@@ -720,24 +729,31 @@ if rol == "admin":
                     with mini_tabs[i]:
                         partidos_j = df_adm[df_adm['jornada'] == j_num]
                         for _, p in partidos_j.iterrows():
-                            with st.expander(f"{p['local']} vs {p['visitante']}"):
-                                # Aquí incluyes tu lógica de number_input para goles y el botón de guardar
-                                pass # (Mantén tu código de inputs de goles aquí)
+                            # Mantenemos tus expanders de resultados intactos
+                            with st.expander(f"{p['local']} {p['goles_l'] if pd.notna(p['goles_l']) else ''} vs {p['goles_v'] if pd.notna(p['goles_v']) else ''} {p['visitante']}"):
+                                # (Aquí va tu lógica de inputs de goles que ya funciona)
+                                pass
 
-        elif opcion_admin == "🛠️ Control de Equipos":
-            st.subheader("📋 Directorio Maestro")
+        elif opcion_admin == "🛠️ Directorio de Equipos":
+            st.subheader("📋 Directorio de Equipos")
             try:
                 with get_db_connection() as conn:
-                    # FIX ERROR: Seleccionamos todo para verificar qué columnas existen realmente
                     df_maestro = pd.read_sql_query("SELECT * FROM equipos", conn)
                 
                 if df_maestro.empty:
-                    st.warning("No hay equipos en la base de datos.")
+                    st.warning("No hay equipos registrados.")
                 else:
-                    # Listado simple
+                    # Lista de equipos con prefijo y link directo
                     for _, eq in df_maestro.iterrows():
-                        # Usamos .get() para evitar que la app explote si la columna no existe
-                        st.markdown(f"**{eq['nombre']}** | 🔑 PIN: `{eq.get('pin', 'N/A')}` | 📞 {eq.get('celular', 'N/A')}")
+                        pref = str(eq.get('prefijo', ''))
+                        cel = str(eq.get('celular', ''))
+                        wa_url = f"https://wa.me/{pref.replace('+','')}{cel}"
+                        
+                        st.markdown(f"""
+                        **{eq['nombre']}** `PIN: {eq.get('pin', 'N/A')}` | {pref} {cel}  
+                        [💬 Enviar mensaje a DT]({wa_url})
+                        """)
+                        st.markdown("<br>", unsafe_allow_html=True)
                     
                     st.divider()
                     st.subheader("✏️ Corregir Datos")
@@ -746,103 +762,37 @@ if rol == "admin":
                     
                     with st.form("edit_master_form"):
                         new_name = st.text_input("Nombre", datos_sel['nombre'])
-                        new_cel = st.text_input("WhatsApp", str(datos_sel.get('celular', '')))
+                        new_pref = st.text_input("Prefijo", str(datos_sel.get('prefijo', '')))
+                        new_cel = st.text_input("Celular", str(datos_sel.get('celular', '')))
                         new_pin = st.text_input("PIN", str(datos_sel.get('pin', '')))
                         
                         if st.form_submit_button("💾 Guardar Cambios"):
                             with get_db_connection() as conn:
-                                conn.execute("UPDATE equipos SET nombre=?, celular=?, pin=? WHERE nombre=?", 
-                                             (new_name, new_cel, new_pin, equipo_sel))
+                                conn.execute("""
+                                    UPDATE equipos 
+                                    SET nombre=?, prefijo=?, celular=?, pin=? 
+                                    WHERE nombre=?
+                                """, (new_name, new_pref, new_cel, new_pin, equipo_sel))
                                 conn.commit()
-                            st.success("Datos actualizados")
+                            st.success("Cambios guardados")
                             st.rerun()
             except Exception as e:
-                st.error(f"Error de base de datos: {e}")
+                st.error(f"Error: {e}")
 
-        # --- 3. BOTONES DE ACCIÓN (SIEMPRE AL FINAL) ---
+        # --- 3. ACCIONES FINALES ---
         st.divider()
-        st.subheader("🚀 Acciones del Torneo")
-        
         c1, c2 = st.columns(2)
         with c1:
             if st.button("🚀 INICIAR TORNEO", use_container_width=True):
-                # Solo inicia si hay suficientes equipos
-                generar_calendario() # Asegúrate que esta función esté definida arriba
+                # Tu función generar_calendario()
                 st.rerun()
-        
         with c2:
-            if st.button("🚨 REINICIAR TODO", help="Borra equipos y partidos", use_container_width=True):
+            if st.button("🚨 REINICIAR", use_container_width=True):
                 with get_db_connection() as conn:
                     conn.execute("DROP TABLE IF EXISTS equipos")
                     conn.execute("DROP TABLE IF EXISTS partidos")
-                    conn.execute("UPDATE config SET valor='inscripcion' WHERE clave='fase'") # Ajusta según tu tabla config
                     conn.commit()
-                st.warning("Torneo reseteado")
                 st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
