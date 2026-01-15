@@ -671,101 +671,115 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN ---
+# --- TAB: GESTIÓN ADMIN (En construccion) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
-        st.info("Acepta a los equipos inscritos aquí abajo:")
-
-        # --- 1. SECCIÓN DE APROBACIONES (AHORA ARRIBA) ---
-        # (Aquí va tu lógica actual que genera los botones de "Aprobar")
-        # Ejemplo de cómo integrarlo según tu imagen:
-        with get_db_connection() as conn:
-            # Consultamos equipos que aún no están en la tabla de aprobados o similar
-            df_pendientes = pd.read_sql_query("SELECT * FROM equipos WHERE aprobado = 0", conn) # Ajusta 'aprobado = 0' según tu lógica
         
-        if not df_pendientes.empty:
-            st.write(f"**Aprobados: {32 - len(df_pendientes)}/32**") # Ejemplo de contador
-            for _, equipo in df_pendientes.iterrows():
-                if st.button(f"✅ Aprobar {equipo['nombre']}", key=f"aprob_{equipo['nombre']}"):
-                    # Tu lógica de aprobación aquí (UPDATE equipos SET aprobado=1...)
-                    st.success(f"{equipo['nombre']} aprobado.")
-                    st.rerun()
+        # --- 1. SECCIÓN DE APROBACIONES (SIEMPRE ARRIBA) ---
+        st.subheader("📩 Equipos por Aprobar")
+        with get_db_connection() as conn:
+            # Consultamos pendientes y conteo de aprobados
+            pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
+            aprobados_df = pd.read_sql_query("SELECT 1 FROM equipos WHERE estado='aprobado'", conn)
+            st.write(f"**Progreso de Inscripción: {len(aprobados_df)}/32 Equipos**")
+        
+        if not pend.empty:
+            for _, r in pend.iterrows():
+                # Diseño compacto para celular
+                col_aprob, col_info = st.columns([1, 2])
+                with col_aprob:
+                    if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}"):
+                        with get_db_connection() as conn:
+                            conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
+                            conn.commit()
+                        st.success(f"{r['nombre']} aprobado")
+                        st.rerun()
+                with col_info:
+                    st.write(f"**{r['nombre']}** ({r.get('celular', 'S/N')})")
         else:
-            st.success("No hay equipos pendientes de aprobación.")
+            st.info("No hay equipos pendientes de aprobación.")
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA ---
+        # --- 2. SELECCIÓN DE TAREA (RADIO PARA MÓVILES) ---
         opcion_admin = st.radio("Selecciona Tarea:", ["⚽ Gestionar Resultados", "🛠️ Control de Equipos"], horizontal=True)
         st.divider()
 
         if opcion_admin == "⚽ Gestionar Resultados":
-            # --- SECCIÓN RESULTADOS ---
             st.subheader("🏁 Gestión de Marcadores")
-            
             with get_db_connection() as conn:
                 df_adm = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
             
             if df_adm.empty:
-                st.info("No hay partidos programados.")
-                # EL BOTÓN DE INICIAR TORNEO SOLO APARECE SI NO HAY PARTIDOS
-                if st.button("🚀 INICIAR TORNEO", use_container_width=True):
-                    # Tu función de generar fixture aquí
-                    st.rerun()
+                st.info("El calendario aún no ha sido generado.")
             else:
-                # Tu lógica actual de mini_tabs para Jornadas (J1, J2...)
                 jornadas = sorted(df_adm['jornada'].unique())
-                tab_names = [f"Jornada {j}" for j in jornadas]
-                mini_tabs = st.tabs(tab_names)
-                # ... (resto de tu código de expanders de partidos)
+                mini_tabs = st.tabs([f"J{j}" for j in jornadas])
+                for i, j_num in enumerate(jornadas):
+                    with mini_tabs[i]:
+                        partidos_j = df_adm[df_adm['jornada'] == j_num]
+                        for _, p in partidos_j.iterrows():
+                            with st.expander(f"{p['local']} vs {p['visitante']}"):
+                                # Aquí incluyes tu lógica de number_input para goles y el botón de guardar
+                                pass # (Mantén tu código de inputs de goles aquí)
 
         elif opcion_admin == "🛠️ Control de Equipos":
-            # --- 3. SECCIÓN DIRECTORIO (SOLUCIÓN AL ERROR) ---
             st.subheader("📋 Directorio Maestro")
-            
             try:
                 with get_db_connection() as conn:
-                    # SOLUCIÓN AL ERROR: Usamos 'rowid' por si no existe la columna 'id' 
-                    # y verificamos que los nombres coincidan con tu tabla
-                    df_maestro = pd.read_sql_query("SELECT rowid as id, nombre, celular, pin FROM equipos", conn)
+                    # FIX ERROR: Seleccionamos todo para verificar qué columnas existen realmente
+                    df_maestro = pd.read_sql_query("SELECT * FROM equipos", conn)
                 
                 if df_maestro.empty:
                     st.warning("No hay equipos en la base de datos.")
                 else:
+                    # Listado simple
                     for _, eq in df_maestro.iterrows():
-                        st.markdown(f"**{eq['nombre']}** | 🔑 PIN: `{eq['pin']}` | 📞 {eq['celular']}")
+                        # Usamos .get() para evitar que la app explote si la columna no existe
+                        st.markdown(f"**{eq['nombre']}** | 🔑 PIN: `{eq.get('pin', 'N/A')}` | 📞 {eq.get('celular', 'N/A')}")
                     
                     st.divider()
                     st.subheader("✏️ Corregir Datos")
-                    equipo_sel = st.selectbox("Selecciona equipo para editar:", df_maestro['nombre'].tolist())
+                    equipo_sel = st.selectbox("Equipo a corregir:", df_maestro['nombre'].tolist())
+                    datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
                     
-                    # Formulario de edición (como el que diseñamos antes)
-                    # ...
+                    with st.form("edit_master_form"):
+                        new_name = st.text_input("Nombre", datos_sel['nombre'])
+                        new_cel = st.text_input("WhatsApp", str(datos_sel.get('celular', '')))
+                        new_pin = st.text_input("PIN", str(datos_sel.get('pin', '')))
+                        
+                        if st.form_submit_button("💾 Guardar Cambios"):
+                            with get_db_connection() as conn:
+                                conn.execute("UPDATE equipos SET nombre=?, celular=?, pin=? WHERE nombre=?", 
+                                             (new_name, new_cel, new_pin, equipo_sel))
+                                conn.commit()
+                            st.success("Datos actualizados")
+                            st.rerun()
             except Exception as e:
-                st.error(f"Error al cargar el directorio: {e}")
-                st.info("Prueba a verificar si la tabla 'equipos' tiene las columnas: nombre, celular y pin.")
+                st.error(f"Error de base de datos: {e}")
 
+        # --- 3. BOTONES DE ACCIÓN (SIEMPRE AL FINAL) ---
+        st.divider()
+        st.subheader("🚀 Acciones del Torneo")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🚀 INICIAR TORNEO", use_container_width=True):
+                # Solo inicia si hay suficientes equipos
+                generar_calendario() # Asegúrate que esta función esté definida arriba
+                st.rerun()
+        
+        with c2:
+            if st.button("🚨 REINICIAR TODO", help="Borra equipos y partidos", use_container_width=True):
+                with get_db_connection() as conn:
+                    conn.execute("DROP TABLE IF EXISTS equipos")
+                    conn.execute("DROP TABLE IF EXISTS partidos")
+                    conn.execute("UPDATE config SET valor='inscripcion' WHERE clave='fase'") # Ajusta según tu tabla config
+                    conn.commit()
+                st.warning("Torneo reseteado")
+                st.rerun()
 
-
-
-# SECCIÓN ADMIN (INFERIOR)
-if rol == "admin":
-    st.divider()
-    if fase_actual == "inscripcion":
-        with get_db_connection() as conn:
-            pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
-            st.write(f"Aprobados: {len(pd.read_sql_query('SELECT 1 FROM equipos WHERE estado=\'aprobado\'', conn))}/32")
-            for _, r in pend.iterrows():
-                if st.button(f"Aprobar {r['nombre']}"):
-                    conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
-                    conn.commit(); st.rerun()
-        if st.button("🚀 INICIAR TORNEO"): generar_calendario(); st.rerun()
-    if st.button("🚨 REINICIAR TODO"):
-        with get_db_connection() as conn:
-            conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
-            conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
-        st.rerun()
 
 
 
