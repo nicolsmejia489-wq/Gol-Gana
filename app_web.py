@@ -388,9 +388,9 @@ elif st.session_state.pin_usuario:
         else:
             # TOAST PERSONALIZADO: Fondo blanco, letras negras, desaparece solo
             st.markdown("""
-                <div id="custom-toast" style="
+               <div id="custom-toast" style="
                     position: fixed;
-                    bottom: 20px;
+                    top: 70px;
                     left: 50%;
                     transform: translateX(-50%);
                     background-color: white;
@@ -398,7 +398,7 @@ elif st.session_state.pin_usuario:
                     padding: 12px 24px;
                     border-radius: 8px;
                     border: 2px solid #ff4b4b;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
                     z-index: 9999;
                     font-weight: bold;
                     animation: fadeout 4s forwards;
@@ -833,6 +833,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
