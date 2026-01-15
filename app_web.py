@@ -352,48 +352,35 @@ def generar_calendario():
 if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
 if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
-# --- BLOQUE DE ACCESO (LOGIN) ---
 st.title("⚽ Gol Gana")
+c_nav1, c_nav2 = st.columns(2)
+with c_nav1:
+    if st.button("🔙 Inicio"):
+        st.session_state.reg_estado = "formulario"
+        st.session_state.pin_usuario = ""
+        st.rerun()
+with c_nav2:
+    if st.button("🔄 Refrescar"): st.rerun()
 
-# Usamos un formulario para que el PIN no se valide letra por letra
-with st.form("login_form", clear_on_submit=True):
-    pin_input = st.text_input("🔑 PIN de Acceso", type="password", help="Introduce tu PIN y pulsa Entrar")
-    submit_button = st.form_submit_button("Entrar", use_container_width=True)
+pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
+st.session_state.pin_usuario = pin_input
 
-# Variables de control
+with get_db_connection() as conn:
+    cur = conn.cursor()
+    cur.execute("SELECT valor FROM config WHERE llave = 'fase'")
+    fase_actual = cur.fetchone()[0]
+
 rol = "espectador"
 equipo_usuario = None
-
-if submit_button:
-    if pin_input == ADMIN_PIN:
-        st.session_state.pin_usuario = pin_input
-        st.rerun()
-    elif pin_input:
-        with get_db_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (pin_input,))
-            res = cur.fetchone()
+if st.session_state.pin_usuario == ADMIN_PIN:
+    rol = "admin"
+elif st.session_state.pin_usuario:
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
+        res = cur.fetchone()
+        if res: rol = "dt"; equipo_usuario = res[0]
             
-            if res:
-                st.session_state.pin_usuario = pin_input
-                st.rerun()
-            else:
-                # El aviso superior que ya te gustaba
-                st.markdown("""
-                    <div style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
-                                background-color: white; color: black; padding: 12px 24px;
-                                border-radius: 8px; border: 2px solid #ff4b4b;
-                                box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
-                                font-weight: bold; animation: fadeout 4s forwards;">
-                        ⚠️ PIN no registrado o no aprobado
-                    </div>
-                    <style>
-                    @keyframes fadeout { 0% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
-                    </style>
-                """, unsafe_allow_html=True)
-                # No ponemos st.rerun() aquí para que el mensaje se mantenga visible
-
-
 
 
 
@@ -814,6 +801,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
