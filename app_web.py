@@ -370,14 +370,15 @@ with get_db_connection() as conn:
     cur.execute("SELECT valor FROM config WHERE llave = 'fase'")
     fase_actual = cur.fetchone()[0]
 
+# --- BLOQUE DE VALIDACIÓN DE PIN ---
 rol = "espectador"
 equipo_usuario = None
+
 if st.session_state.pin_usuario == ADMIN_PIN:
     rol = "admin"
 elif st.session_state.pin_usuario:
     with get_db_connection() as conn:
         cur = conn.cursor()
-        # Buscamos si el PIN pertenece a un equipo aprobado
         cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
         res = cur.fetchone()
         
@@ -385,10 +386,14 @@ elif st.session_state.pin_usuario:
             rol = "dt"
             equipo_usuario = res[0]
         else:
-            # ESTA ES LA MEJORA: Si escribió algo pero no entró en los roles anteriores
-            st.toast("❌ PIN no registrado o equipo aún no aprobado", icon="⚠️")
-            # Opcional: limpiar el PIN si quieres que intente de nuevo
-            # st.session_state.pin_usuario = ""
+            # Notificación forzada: Fondo blanco, texto negro, visible en cualquier modo
+            st.markdown("""
+                <div style="background-color: white; color: black; padding: 10px; 
+                            border-radius: 5px; border: 2px solid #ff4b4b; 
+                            margin-bottom: 20px; text-align: center; font-weight: bold;">
+                    ⚠️ PIN no registrado o equipo aún no aprobado
+                </div>
+            """, unsafe_allow_html=True)
 
 
 
@@ -808,6 +813,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
