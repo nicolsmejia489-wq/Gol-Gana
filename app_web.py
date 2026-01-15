@@ -353,34 +353,76 @@ if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formular
 if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
 st.title("⚽ Gol Gana")
+
+# --- NAVEGACIÓN (Botones en paralelo) ---
 c_nav1, c_nav2 = st.columns(2)
 with c_nav1:
-    if st.button("🔙 Inicio"):
+    if st.button("🔙 Inicio", use_container_width=True):
         st.session_state.reg_estado = "formulario"
         st.session_state.pin_usuario = ""
         st.rerun()
 with c_nav2:
-    if st.button("🔄 Refrescar"): st.rerun()
+    if st.button("🔄 Refrescar", use_container_width=True): 
+        st.rerun()
 
-pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
-st.session_state.pin_usuario = pin_input
+# --- BLOQUE DE ACCESO CON FORMULARIO (Evita errores y limpia la caja) ---
+with st.form("login_form", clear_on_submit=True):
+    # El valor inicial es lo que esté en session_state (vacio por defecto)
+    pin_ingresado = st.text_input("🔑 PIN de Acceso", type="password", help="Introduce tu PIN y presiona Entrar")
+    btn_entrar = st.form_submit_button("🔓 Entrar", use_container_width=True)
 
+# Obtener fase actual antes de validar
 with get_db_connection() as conn:
     cur = conn.cursor()
     cur.execute("SELECT valor FROM config WHERE llave = 'fase'")
     fase_actual = cur.fetchone()[0]
 
+# --- LÓGICA DE VALIDACIÓN ---
 rol = "espectador"
 equipo_usuario = None
-if st.session_state.pin_usuario == ADMIN_PIN:
-    rol = "admin"
-elif st.session_state.pin_usuario:
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
-        res = cur.fetchone()
-        if res: rol = "dt"; equipo_usuario = res[0]
+
+# Solo procesamos si se presionó el botón del formulario
+if btn_entrar:
+    if pin_ingresado == ADMIN_PIN:
+        st.session_state.pin_usuario = pin_ingresado
+        st.rerun()
+    elif pin_ingresado:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (pin_ingresado,))
+            res = cur.fetchone()
             
+            if res:
+                st.session_state.pin_usuario = pin_ingresado
+                st.rerun()
+            else:
+                # Aviso superior personalizado (Fondo blanco, Letras negras)
+                st.markdown("""
+                    <div style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+                                background-color: white; color: black; padding: 12px 24px;
+                                border-radius: 8px; border: 2px solid #ff4b4b;
+                                box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
+                                font-weight: bold; animation: fadeout 4s forwards;">
+                        ⚠️ PIN no registrado o no aprobado
+                    </div>
+                    <style>
+                    @keyframes fadeout { 0% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+                    </style>
+                """, unsafe_allow_html=True)
+                # Al NO haber rerun aquí, el código sigue con pin_usuario vacío y muestra el error
+
+# Si ya hay un PIN guardado en la sesión (porque pasó el login), asignamos el rol
+if st.session_state.pin_usuario:
+    if st.session_state.pin_usuario == ADMIN_PIN:
+        rol = "admin"
+    else:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
+            res = cur.fetchone()
+            if res:
+                rol = "dt"
+                equipo_usuario = res
 
 
 
@@ -801,6 +843,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
