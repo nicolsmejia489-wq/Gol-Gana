@@ -389,7 +389,7 @@ elif st.session_state.pin_usuario:
             # 1. Mostramos el aviso superior (Fondo blanco, letras negras)
             st.markdown("""
                 <div id="custom-toast" style="
-                    position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+                    position: fixed; top: 50px; left: 50%; transform: translateX(-50%);
                     background-color: white; color: black; padding: 12px 24px;
                     border-radius: 8px; border: 2px solid #ff4b4b;
                     box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
@@ -840,6 +840,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
