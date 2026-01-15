@@ -377,43 +377,35 @@ equipo_usuario = None
 if st.session_state.pin_usuario == ADMIN_PIN:
     rol = "admin"
 elif st.session_state.pin_usuario:
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
-        res = cur.fetchone()
-        
-        if res:
-            rol = "dt"
-            equipo_usuario = res[0]
-        else:
-            # TOAST PERSONALIZADO: Fondo blanco, letras negras, desaparece solo
-            st.markdown("""
-               <div id="custom-toast" style="
-                    position: fixed;
-                    top: 70px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    background-color: white;
-                    color: black;
-                    padding: 12px 24px;
-                    border-radius: 8px;
-                    border: 2px solid #ff4b4b;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                    z-index: 9999;
-                    font-weight: bold;
-                    animation: fadeout 4s forwards;
-                ">
-                    ⚠️ PIN no registrado o no aprobado
-                </div>
-
-                <style>
-                @keyframes fadeout {
-                    0% { opacity: 1; }
-                    80% { opacity: 1; }
-                    100% { opacity: 0; visibility: hidden; }
-                }
-                </style>
-            """, unsafe_allow_html=True)
+    # Verificamos longitud mínima para evitar disparar el error mientras escribe (ej. 3 caracteres)
+    if len(st.session_state.pin_usuario) >= 3: 
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
+            res = cur.fetchone()
+            
+            if res:
+                rol = "dt"
+                equipo_usuario = res[0]
+            else:
+                # El aviso superior que desaparece solo
+                st.markdown("""
+                    <div id="custom-toast" style="
+                        position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+                        background-color: white; color: black; padding: 12px 24px;
+                        border-radius: 8px; border: 2px solid #ff4b4b;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
+                        font-weight: bold; animation: fadeout 4s forwards;
+                    ">
+                        ⚠️ PIN no registrado o no aprobado
+                    </div>
+                    <style>
+                    @keyframes fadeout {
+                        0% { opacity: 1; } 80% { opacity: 1; }
+                        100% { opacity: 0; visibility: hidden; }
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
 
 
 
@@ -833,6 +825,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
