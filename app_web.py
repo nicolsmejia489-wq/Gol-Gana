@@ -377,9 +377,18 @@ if st.session_state.pin_usuario == ADMIN_PIN:
 elif st.session_state.pin_usuario:
     with get_db_connection() as conn:
         cur = conn.cursor()
+        # Buscamos si el PIN pertenece a un equipo aprobado
         cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
         res = cur.fetchone()
-        if res: rol = "dt"; equipo_usuario = res[0]
+        
+        if res:
+            rol = "dt"
+            equipo_usuario = res[0]
+        else:
+            # ESTA ES LA MEJORA: Si escribió algo pero no entró en los roles anteriores
+            st.toast("❌ PIN no registrado o equipo aún no aprobado", icon="⚠️")
+            # Opcional: limpiar el PIN si quieres que intente de nuevo
+            # st.session_state.pin_usuario = ""
 
 
 
@@ -794,5 +803,6 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
