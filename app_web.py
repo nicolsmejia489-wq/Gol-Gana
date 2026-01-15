@@ -386,13 +386,33 @@ elif st.session_state.pin_usuario:
             rol = "dt"
             equipo_usuario = res[0]
         else:
-            # Notificación forzada: Fondo blanco, texto negro, visible en cualquier modo
+            # TOAST PERSONALIZADO: Fondo blanco, letras negras, desaparece solo
             st.markdown("""
-                <div style="background-color: white; color: black; padding: 10px; 
-                            border-radius: 5px; border: 2px solid #ff4b4b; 
-                            margin-bottom: 20px; text-align: center; font-weight: bold;">
-                    ⚠️ PIN no registrado o equipo aún no aprobado
+                <div id="custom-toast" style="
+                    position: fixed;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background-color: white;
+                    color: black;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    border: 2px solid #ff4b4b;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                    z-index: 9999;
+                    font-weight: bold;
+                    animation: fadeout 4s forwards;
+                ">
+                    ⚠️ PIN no registrado o no aprobado
                 </div>
+
+                <style>
+                @keyframes fadeout {
+                    0% { opacity: 1; }
+                    80% { opacity: 1; }
+                    100% { opacity: 0; visibility: hidden; }
+                }
+                </style>
             """, unsafe_allow_html=True)
 
 
@@ -813,6 +833,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
