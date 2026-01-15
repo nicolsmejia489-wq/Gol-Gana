@@ -671,12 +671,12 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Versión Pro Celular) ---
+# --- TAB: GESTIÓN ADMIN (Versión Final Pulida) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        # --- 1. SECCIÓN DE APROBACIONES (DISEÑO DE TARJETAS PARA MÓVIL) ---
+        # --- 1. SECCIÓN DE APROBACIONES ---
         st.subheader("📩 Equipos por Aprobar")
         with get_db_connection() as conn:
             pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
@@ -685,34 +685,35 @@ if rol == "admin":
         
         if not pend.empty:
             for _, r in pend.iterrows():
-                # Creamos un contenedor con borde para separar visualmente cada equipo
                 with st.container():
                     col_data, col_btn = st.columns([2, 1])
-                    
-                    # Formateo de link de WhatsApp
                     prefijo = str(r.get('prefijo', '')).replace('+', '')
                     wa_link = f"https://wa.me/{prefijo}{r['celular']}"
                     
                     with col_data:
-                        st.markdown(f"""
-                        **{r['nombre']}** <a href="{wa_link}" style="text-decoration:none;">🟢 📞 Contactar DT</a>
-                        """, unsafe_allow_html=True)
+                        # Link con emoji verde
+                        st.markdown(f"**{r['nombre']}** \n<a href='{wa_link}' style='color: #25D366; text-decoration: none; font-weight: bold;'>🟢 📞 Contactar DT</a>", unsafe_allow_html=True)
                     
                     with col_btn:
                         if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
                             with get_db_connection() as conn:
                                 conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
                                 conn.commit()
-                            st.success(f"Aprobado")
                             st.rerun()
-                    st.markdown("---") # Separador visual claro para móvil
+                    st.markdown("---") 
         else:
             st.info("No hay equipos pendientes.")
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA ---
-        opcion_admin = st.radio("Selecciona Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos"], horizontal=True)
+        # --- 2. SELECCIÓN DE TAREA (Con persistencia de estado) ---
+        # Usamos 'key' para que Streamlit recuerde la selección al recargar la página
+        opcion_admin = st.radio(
+            "Selecciona Tarea:", 
+            ["⚽ Resultados", "🛠️ Directorio de Equipos"], 
+            horizontal=True,
+            key="admin_tab_selected" 
+        )
         st.divider()
 
         if opcion_admin == "⚽ Resultados":
@@ -729,9 +730,8 @@ if rol == "admin":
                     with mini_tabs[i]:
                         partidos_j = df_adm[df_adm['jornada'] == j_num]
                         for _, p in partidos_j.iterrows():
-                            # Mantenemos tus expanders de resultados intactos
-                            with st.expander(f"{p['local']} {p['goles_l'] if pd.notna(p['goles_l']) else ''} vs {p['goles_v'] if pd.notna(p['goles_v']) else ''} {p['visitante']}"):
-                                # (Aquí va tu lógica de inputs de goles que ya funciona)
+                            with st.expander(f"{p['local']} vs {p['visitante']}"):
+                                # Aquí va tu lógica de marcadores (inputs y botón guardar)
                                 pass
 
         elif opcion_admin == "🛠️ Directorio de Equipos":
@@ -743,35 +743,36 @@ if rol == "admin":
                 if df_maestro.empty:
                     st.warning("No hay equipos registrados.")
                 else:
-                    # Lista de equipos con prefijo y link directo
                     for _, eq in df_maestro.iterrows():
                         pref = str(eq.get('prefijo', ''))
                         cel = str(eq.get('celular', ''))
+                        pin = str(eq.get('pin', 'N/A'))
                         wa_url = f"https://wa.me/{pref.replace('+','')}{cel}"
                         
+                        # PIN estilizado para evitar el fondo negro
+                        pin_html = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{pin}</span>'
+                        
                         st.markdown(f"""
-                        **{eq['nombre']}** `PIN: {eq.get('pin', 'N/A')}` | {pref} {cel}  
-                        [💬 Enviar mensaje a DT]({wa_url})
-                        """)
-                        st.markdown("<br>", unsafe_allow_html=True)
+                        **{eq['nombre']}** | 🔑 PIN: {pin_html}  
+                        📞 {pref} {cel} | [💬 WhatsApp DT]({wa_url})
+                        """, unsafe_allow_html=True)
+                        st.markdown("---")
                     
-                    st.divider()
                     st.subheader("✏️ Corregir Datos")
-                    equipo_sel = st.selectbox("Equipo a corregir:", df_maestro['nombre'].tolist())
+                    equipo_sel = st.selectbox("Selecciona equipo:", df_maestro['nombre'].tolist())
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
                     
                     with st.form("edit_master_form"):
+                        c1, c2 = st.columns(2)
                         new_name = st.text_input("Nombre", datos_sel['nombre'])
-                        new_pref = st.text_input("Prefijo", str(datos_sel.get('prefijo', '')))
-                        new_cel = st.text_input("Celular", str(datos_sel.get('celular', '')))
+                        new_pref = c1.text_input("Prefijo", str(datos_sel.get('prefijo', '')))
+                        new_cel = c2.text_input("Celular", str(datos_sel.get('celular', '')))
                         new_pin = st.text_input("PIN", str(datos_sel.get('pin', '')))
                         
-                        if st.form_submit_button("💾 Guardar Cambios"):
+                        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             with get_db_connection() as conn:
                                 conn.execute("""
-                                    UPDATE equipos 
-                                    SET nombre=?, prefijo=?, celular=?, pin=? 
-                                    WHERE nombre=?
+                                    UPDATE equipos SET nombre=?, prefijo=?, celular=?, pin=? WHERE nombre=?
                                 """, (new_name, new_pref, new_cel, new_pin, equipo_sel))
                                 conn.commit()
                             st.success("Cambios guardados")
@@ -781,18 +782,17 @@ if rol == "admin":
 
         # --- 3. ACCIONES FINALES ---
         st.divider()
-        c1, c2 = st.columns(2)
-        with c1:
+        c_ini, c_res = st.columns(2)
+        with c_ini:
             if st.button("🚀 INICIAR TORNEO", use_container_width=True):
                 # Tu función generar_calendario()
                 st.rerun()
-        with c2:
+        with c_res:
             if st.button("🚨 REINICIAR", use_container_width=True):
                 with get_db_connection() as conn:
                     conn.execute("DROP TABLE IF EXISTS equipos")
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
-
 
 
