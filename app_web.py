@@ -362,13 +362,7 @@ with c_nav1:
 with c_nav2:
     if st.button("🔄 Refrescar"): st.rerun()
 
-pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
-st.session_state.pin_usuario = pin_input
 
-with get_db_connection() as conn:
-    cur = conn.cursor()
-    cur.execute("SELECT valor FROM config WHERE llave = 'fase'")
-    fase_actual = cur.fetchone()[0]
 
 # Usamos un formulario para que el PIN no se valide letra por letra
 with st.form("login_form", clear_on_submit=True):
@@ -825,6 +819,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
