@@ -674,71 +674,121 @@ if rol == "dt":
 # --- TAB: GESTIÓN ADMIN ---
 if rol == "admin":
     with tabs[2]:
-        st.subheader("⚙️ Gestión de Resultados")
-        
-        with get_db_connection() as conn:
-            df_adm = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
-            df_equipos = pd.read_sql_query("SELECT nombre, prefijo, celular FROM equipos", conn)
-            contactos = {
-                r['nombre']: f"https://wa.me/{str(r['prefijo']).replace('+','')}{r['celular']}"
-                for _, r in df_equipos.iterrows() if r['celular']
-            }
+        # Selector de sub-sección para móviles
+        opcion_admin = st.radio("Selecciona Tarea:", ["⚽ Gestionar Resultados", "🛠️ Control de Equipos"], horizontal=True)
+        st.divider()
 
-        # --- SEPARACIÓN POR JORNADAS (Mini-Pestañas) ---
-        jornadas = sorted(df_adm['jornada'].unique())
-        if jornadas:
-            # Creamos mini-pestañas dinámicas: "J1", "J2", etc.
-            tab_names = [f"Jornada {j}" for j in jornadas]
-            mini_tabs = st.tabs(tab_names)
+        if opcion_admin == "⚽ Gestionar Resultados":
+            st.subheader("⚙️ Gestión de Marcadores")
+            
+            with get_db_connection() as conn:
+                df_adm = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
+                df_equipos = pd.read_sql_query("SELECT nombre, prefijo, celular FROM equipos", conn)
+                contactos = {
+                    r['nombre']: f"https://wa.me/{str(r['prefijo']).replace('+','')}{r['celular']}"
+                    for _, r in df_equipos.iterrows() if r['celular']
+                }
 
-            for i, j_num in enumerate(jornadas):
-                with mini_tabs[i]:
-                    partidos_jornada = df_adm[df_adm['jornada'] == j_num]
+            jornadas = sorted(df_adm['jornada'].unique())
+            if jornadas:
+                tab_names = [f"J{j}" for j in jornadas]
+                mini_tabs = st.tabs(tab_names)
+
+                for i, j_num in enumerate(jornadas):
+                    with mini_tabs[i]:
+                        partidos_jornada = df_adm[df_adm['jornada'] == j_num]
+                        for _, p in partidos_jornada.iterrows():
+                            label = f"{p['local']} vs {p['visitante']}"
+                            if p.get('conflicto') == 1:
+                                label = f"⚠️ CONFLICTO: {label}"
+
+                            with st.expander(label):
+                                if p['url_foto_l'] or p['url_foto_v']:
+                                    f1, f2 = st.columns(2)
+                                    with f1:
+                                        if p['url_foto_l']: st.image(p['url_foto_l'], caption=f"Foto {p['local']}", width=150)
+                                    with f2:
+                                        if p['url_foto_v']: st.image(p['url_foto_v'], caption=f"Foto {p['visitante']}", width=150)
+
+                                c1, c2, c3 = st.columns([2, 1, 2])
+                                gl_val = int(p['goles_l']) if pd.notna(p['goles_l']) else 0
+                                gv_val = int(p['goles_v']) if pd.notna(p['goles_v']) else 0
+                                
+                                gl = c1.number_input(f"{p['local']}", value=gl_val, step=1, key=f"adm_l_{p['id']}")
+                                c2.markdown("<div style='text-align:center; padding-top:25px;'>VS</div>", unsafe_allow_html=True)
+                                gv = c3.number_input(f"{p['visitante']}", value=gv_val, step=1, key=f"adm_v_{p['id']}")
+                                
+                                wa1, wa2 = st.columns(2)
+                                if p['local'] in contactos:
+                                    wa1.markdown(f"<a href='{contactos[p['local']]}' class='wa-btn' style='font-size:10px'>💬 WA {p['local']}</a>", unsafe_allow_html=True)
+                                if p['visitante'] in contactos:
+                                    wa2.markdown(f"<a href='{contactos[p['visitante']]}' class='wa-btn' style='font-size:10px'>💬 WA {p['visitante']}</a>", unsafe_allow_html=True)
+                                
+                                if st.button("Guardar Resultado Oficial", key=f"save_adm_{p['id']}", use_container_width=True):
+                                    with get_db_connection() as conn:
+                                        conn.execute("""
+                                            UPDATE partidos 
+                                            SET goles_l=?, goles_v=?, estado='finalizado', conflicto=0 
+                                            WHERE id=?
+                                        """, (gl, gv, p['id']))
+                                        conn.commit()
+                                    st.success("Marcador Actualizado")
+                                    st.rerun()
+            else:
+                st.info("No hay partidos programados.")
+
+        # --- NUEVA SECCIÓN: CONTROL DE EQUIPOS ---
+        elif opcion_admin == "🛠️ Control de Equipos":
+            st.subheader("📋 Directorio Maestro")
+            
+            with get_db_connection() as conn:
+                df_maestro = pd.read_sql_query("SELECT id, nombre, celular, pin FROM equipos", conn)
+            
+            if df_maestro.empty:
+                st.warning("No hay equipos registrados aún.")
+            else:
+                # 1. Visualización rápida para celular
+                for _, eq in df_maestro.iterrows():
+                    st.markdown(f"**{eq['nombre']}** | 🔑 PIN: `{eq['pin']}` | 📞 {eq['celular']}")
+                
+                st.divider()
+                st.subheader("✏️ Corregir Datos")
+                
+                # Buscador de equipo para editar
+                equipo_sel = st.selectbox("Equipo a modificar:", df_maestro['nombre'].tolist())
+                datos_eq = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
+                
+                with st.form("edicion_equipo_form"):
+                    new_name = st.text_input("Nombre del Equipo", datos_eq['nombre'])
+                    new_cel = st.text_input("Celular (sin prefijo)", datos_eq['celular'])
+                    new_pin = st.text_input("PIN de acceso", datos_eq['pin'])
                     
-                    for _, p in partidos_jornada.iterrows():
-                        # Etiqueta con alerta de conflicto
-                        label = f"{p['local']} vs {p['visitante']}"
-                        if p.get('conflicto') == 1:
-                            label = f"⚠️ CONFLICTO: {label}"
-
-                        with st.expander(label):
-                            # Mostrar fotos si existen para que el admin compare
-                            if p['url_foto_l'] or p['url_foto_v']:
-                                f1, f2 = st.columns(2)
-                                with f1:
-                                    if p['url_foto_l']: st.image(p['url_foto_l'], caption=f"Foto {p['local']}", width=150)
-                                with f2:
-                                    if p['url_foto_v']: st.image(p['url_foto_v'], caption=f"Foto {p['visitante']}", width=150)
-
-                            # Inputs de Goles
-                            c1, c2, c3 = st.columns([2, 1, 2])
-                            gl_val = int(p['goles_l']) if pd.notna(p['goles_l']) else 0
-                            gv_val = int(p['goles_v']) if pd.notna(p['goles_v']) else 0
-                            
-                            gl = c1.number_input(f"{p['local']}", value=gl_val, step=1, key=f"adm_l_{p['id']}")
-                            c2.markdown("<div style='text-align:center; padding-top:25px;'>VS</div>", unsafe_allow_html=True)
-                            gv = c3.number_input(f"{p['visitante']}", value=gv_val, step=1, key=f"adm_v_{p['id']}")
-                            
-                            # Botones WhatsApp
-                            wa1, wa2 = st.columns(2)
-                            if p['local'] in contactos:
-                                wa1.markdown(f"<a href='{contactos[p['local']]}' class='wa-btn' style='font-size:10px'>💬 WA {p['local']}</a>", unsafe_allow_html=True)
-                            if p['visitante'] in contactos:
-                                wa2.markdown(f"<a href='{contactos[p['visitante']]}' class='wa-btn' style='font-size:10px'>💬 WA {p['visitante']}</a>", unsafe_allow_html=True)
-                            
-                            # Guardado
-                            if st.button("Guardar Resultado Oficial", key=f"save_adm_{p['id']}", use_container_width=True):
-                                with get_db_connection() as conn:
-                                    conn.execute("""
-                                        UPDATE partidos 
-                                        SET goles_l=?, goles_v=?, estado='finalizado', conflicto=0 
-                                        WHERE id=?
-                                    """, (gl, gv, p['id']))
-                                    conn.commit()
-                                st.success("Marcador Actualizado")
-                                st.rerun()
-        else:
-            st.info("No hay partidos programados.")
+                    st.info("💡 Al cambiar el nombre, se actualizará en todos los partidos.")
+                    
+                    c_btn1, c_btn2 = st.columns(2)
+                    with c_btn1:
+                        btn_save = st.form_submit_button("✅ Guardar", use_container_width=True)
+                    with c_btn2:
+                        btn_del = st.form_submit_button("🗑️ Eliminar", use_container_width=True)
+                    
+                    if btn_save:
+                        with get_db_connection() as conn:
+                            # 1. Actualizar tabla equipos
+                            conn.execute("UPDATE equipos SET nombre=?, celular=?, pin=? WHERE id=?", 
+                                         (new_name, new_cel, new_pin, int(datos_eq['id'])))
+                            # 2. Actualizar nombres en partidos (cascada manual)
+                            conn.execute("UPDATE partidos SET local=? WHERE local=?", (new_name, equipo_sel))
+                            conn.execute("UPDATE partidos SET visitante=? WHERE visitante=?", (new_name, equipo_sel))
+                            conn.commit()
+                        st.success("Cambios aplicados correctamente.")
+                        st.rerun()
+                    
+                    if btn_del:
+                        with get_db_connection() as conn:
+                            conn.execute("DELETE FROM equipos WHERE id=?", (int(datos_eq['id']),))
+                            conn.commit()
+                        st.warning("Equipo eliminado.")
+                        st.rerun()
 
 
 
@@ -760,6 +810,7 @@ if rol == "admin":
             conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
             conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
         st.rerun()
+
 
 
 
