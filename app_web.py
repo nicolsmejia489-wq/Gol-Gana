@@ -370,42 +370,57 @@ with get_db_connection() as conn:
     cur.execute("SELECT valor FROM config WHERE llave = 'fase'")
     fase_actual = cur.fetchone()[0]
 
-# --- BLOQUE DE VALIDACIÓN DE PIN ---
+# --- BLOQUE DE VALIDACIÓN DE PIN PRO (Con Auto-Limpieza) ---
 rol = "espectador"
 equipo_usuario = None
 
 if st.session_state.pin_usuario == ADMIN_PIN:
     rol = "admin"
 elif st.session_state.pin_usuario:
-    # Verificamos longitud mínima para evitar disparar el error mientras escribe (ej. 3 caracteres)
-    if len(st.session_state.pin_usuario) >= 3: 
-        with get_db_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
-            res = cur.fetchone()
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
+        res = cur.fetchone()
+        
+        if res:
+            rol = "dt"
+            equipo_usuario = res[0]
+        else:
+            # 1. Mostramos el aviso superior (Fondo blanco, letras negras)
+            st.markdown("""
+                <div id="custom-toast" style="
+                    position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+                    background-color: white; color: black; padding: 12px 24px;
+                    border-radius: 8px; border: 2px solid #ff4b4b;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
+                    font-weight: bold; animation: fadeout 4s forwards;
+                ">
+                    ⚠️ PIN no registrado o no aprobado
+                </div>
+                <style>
+                @keyframes fadeout {
+                    0% { opacity: 1; } 80% { opacity: 1; }
+                    100% { opacity: 0; visibility: hidden; }
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
+            # 2. TRUCO DE MAGIA: Limpiamos la caja del PIN visualmente y en el sistema
+            st.session_state.pin_usuario = ""
             
-            if res:
-                rol = "dt"
-                equipo_usuario = res[0]
-            else:
-                # El aviso superior que desaparece solo
-                st.markdown("""
-                    <div id="custom-toast" style="
-                        position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
-                        background-color: white; color: black; padding: 12px 24px;
-                        border-radius: 8px; border: 2px solid #ff4b4b;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
-                        font-weight: bold; animation: fadeout 4s forwards;
-                    ">
-                        ⚠️ PIN no registrado o no aprobado
-                    </div>
-                    <style>
-                    @keyframes fadeout {
-                        0% { opacity: 1; } 80% { opacity: 1; }
-                        100% { opacity: 0; visibility: hidden; }
-                    }
-                    </style>
-                """, unsafe_allow_html=True)
+            # Este pequeño script busca la caja de texto del PIN y la vacía
+            st.components.v1.html("""
+                <script>
+                var inputs = window.parent.document.querySelectorAll('input[type="password"]');
+                inputs.forEach(input => {
+                    input.value = '';
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+                </script>
+            """, height=0)
+            
+            # Forzamos un reinicio ligero para que la app sepa que el PIN ahora está vacío
+            st.rerun()
 
 
 
@@ -825,6 +840,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
