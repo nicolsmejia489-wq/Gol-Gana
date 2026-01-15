@@ -392,50 +392,43 @@ elif st.session_state.pin_usuario:
 
 
 
-# --- LÓGICA DINÁMICA DE PESTAÑAS ---
-if fase_actual == "inscripcion":
-    if rol == "admin":
-        titulos = ["📊 Clasificación", "📝 Inscripciones", "⚙️ Gestión Admin"]
-    else:
-        titulos = ["📊 Clasificación", "📝 Inscribirse"]
-else:
-    # Fase de Torneo
-    if rol == "admin":
-        titulos = ["📊 Clasificación", "📅 Calendario", "⚙️ Gestión Admin"]
-    elif rol == "dt": 
-        titulos = ["📊 Clasificación", "📅 Calendario", "⚽ Mis Partidos"]
-    else: 
-        titulos = ["📊 Clasificación", "📅 Calendario"]
-
+# --- DEFINICIÓN DE PESTAÑAS (Siempre 3 para evitar errores) ---
+titulos = ["📊 Posiciones", "📅 Partidos", "👤 Gestión"]
 tabs = st.tabs(titulos)
 
-# --- CONTENIDO DE LAS PESTAÑAS ---
+# --- PESTAÑA 0: TABLA ---
 with tabs[0]:
-    st.subheader("Tabla de Posiciones")
-    # Tu código de tabla...
+    st.subheader("🏆 Tabla de Posiciones")
+    # Tu código de la tabla aquí...
 
+# --- PESTAÑA 1: CALENDARIO ---
 with tabs[1]:
     if fase_actual == "inscripcion":
-        st.subheader("Registro de Equipos")
-        # Aquí va tu formulario de inscripción o lista para el admin
+        st.info("🕒 El calendario se activará una vez que el Admin inicie el torneo.")
+        # Opcional: mostrar aquí la lista de equipos que ya están aprobados
     else:
-        st.subheader("Calendario de Juegos")
-        # Aquí va el calendario
+        st.subheader("📅 Calendario de Juegos")
+        # Tu código de mostrar jornadas y partidos aquí...
 
-# La pestaña [2] solo existe si eres Admin o DT en fase de juego
-if len(titulos) > 2:
-    with tabs[2]:
-        if rol == "admin":
-            st.subheader("⚙️ Panel de Control Admin")
-            if fase_actual == "inscripcion":
-                st.info("Acepta a los equipos inscritos aquí abajo:")
-                # Aquí pondremos el código para validar equipos
-            else:
-                st.info("Gestiona los resultados de los partidos:")
-                # Aquí va tu código de gestión de resultados que ya hicimos
-        elif rol == "dt":
-            st.subheader("⚽ Gestión de mi Equipo")
+# --- PESTAÑA 2: GESTIÓN (ADMIN O DT) ---
+# Al estar fuera de un IF de longitud, tabs[2] siempre es seguro
+with tabs[2]:
+    if rol == "admin":
+        # Todo el bloque de "Gestión Admin" que pulimos anteriormente va aquí
+        pass 
 
+    elif rol == "dt":
+        st.header(f"⚽ Panel de: {equipo_usuario}")
+        if fase_actual == "inscripcion":
+            st.warning("¡Hola DT! Tu equipo está listo. Podrás subir resultados cuando inicie el torneo.")
+        else:
+            st.info("Aquí podrás reportar tus resultados y fotos.")
+            # Aquí irá el formulario para que el DT suba su marcador
+
+    else:
+        # Contenido para el Espectador que intenta entrar a Gestión
+        st.markdown("### 🔒 Área Restringida")
+        st.write("Si eres DT de un equipo, ingresa tu PIN en la parte superior para gestionar tus partidos.")
 
 
 
@@ -803,6 +796,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
