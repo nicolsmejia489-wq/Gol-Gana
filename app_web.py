@@ -540,83 +540,32 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN (Versión con Escudos y nombres limpios) ---
+# TAB: CLASIFICACIÓN
 with tabs[0]:
     with get_db_connection() as conn:
-        # Paso 1: Traemos nombre y escudo de la tabla
-        df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
-        
-        if df_eq.empty: 
-            st.info("No hay equipos todavía.")
+        df_eq = pd.read_sql_query("SELECT nombre FROM equipos WHERE estado = 'aprobado'", conn)
+        if df_eq.empty: st.info("No hay equipos todavía.")
         else:
-            # LIMPIEZA: Forzamos a que el nombre sea texto y no una tupla
-            df_eq['nombre'] = df_eq['nombre'].astype(str).str.replace(r"[\(\)',]", "", regex=True).str.strip()
-            
-            # Mapeos iniciales
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
-            escudos_map = dict(zip(df_eq['nombre'], df_eq['escudo']))
-
-            # Paso 2: Cálculo de Estadísticas (Tu lógica original)
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             for _, f in df_p.iterrows():
-                # Limpiamos nombres de locales y visitantes también
-                l = str(f['local']).replace("('", "").replace("',)", "").replace("'", "").strip()
-                v = str(f['visitante']).replace("('", "").replace("',)", "").replace("'", "").strip()
-                
+                l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
                 if l in stats and v in stats:
-                    gl, gv = int(f['goles_l']), int(f['goles_v'])
                     stats[l]['PJ']+=1; stats[v]['PJ']+=1
                     stats[l]['GF']+=gl; stats[l]['GC']+=gv
                     stats[v]['GF']+=gv; stats[v]['GC']+=gl
                     if gl > gv: stats[l]['PTS']+=3
                     elif gv > gl: stats[v]['PTS']+=3
                     else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
-
-            # Paso 3: Construcción del DataFrame Final
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-            df_f.columns = ['Equipo', 'PJ', 'PTS', 'GF', 'GC'] # "EQ" cambiado a "Equipo"
+            df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
-
-            # Paso 4: Renderizado HTML Épico
-            # Inyectamos el estilo para que el escudo se vea pequeño pero nítido
-            st.markdown("""
-                <style>
-                    .escudo-tabla { width: 30px; height: 30px; object-fit: contain; vertical-align: middle; margin-right: 12px; }
-                    .celda-equipo { display: flex; align-items: center; justify-content: flex-start; font-weight: bold; }
-                    .mobile-table { width: 100%; border-collapse: collapse; }
-                    .mobile-table th { border-bottom: 2px solid #ddd; padding: 8px; }
-                    .mobile-table td { border-bottom: 1px solid #eee; padding: 10px; text-align: center; }
-                </style>
-            """, unsafe_allow_html=True)
-
-            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">Equipo</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
-            
+            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
             for _, r in df_f.iterrows():
-                url = escudos_map.get(r['Equipo'])
-                
-                # Si Fifinhos (o cualquier otro) tiene URL, la mostramos. Si no, espacio de 30px.
-                if url and str(url).strip() != "" and str(url) != "None":
-                    img_tag = f'<img src="{url}" class="escudo-tabla">'
-                else:
-                    img_tag = '<div style="width: 30px; display: inline-block; margin-right: 12px;"></div>'
-
-                html += f"""
-                <tr>
-                    <td>{r['POS']}</td>
-                    <td style='text-align:left'><div class='celda-equipo'>{img_tag} {r['Equipo']}</div></td>
-                    <td><b>{r['PTS']}</b></td>
-                    <td>{r['PJ']}</td>
-                    <td>{r['GF']}</td>
-                    <td>{r['GC']}</td>
-                    <td>{r['DG']}</td>
-                </tr>
-                """
-            
-            # EL CIERRE: st.markdown con unsafe_allow_html=True para dibujar la tabla
+                html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
-
 
 
 
@@ -958,6 +907,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
