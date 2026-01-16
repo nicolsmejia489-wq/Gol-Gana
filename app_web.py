@@ -643,7 +643,7 @@ if fase_actual == "inscripcion":
                     font-weight: bold;
                 }
                 [data-testid="stFileUploader"] button::before {
-                    content: "🛡️ SELECCIONAR ESCUDO";
+                    content: "🛡️ SUBIR ESCUDO -";
                 }
                 [data-testid="stFileUploader"] button div {
                     display: none;
@@ -976,6 +976,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
