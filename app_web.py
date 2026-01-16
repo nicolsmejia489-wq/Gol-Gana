@@ -902,13 +902,24 @@ if rol == "admin":
                     wa_link = f"https://wa.me/{prefijo}{r['celular']}"
                     
                     with col_data:
-                        # Link con emoji verde
+                        # Link con emoji verde (Mantenido tal cual)
                         st.markdown(f"**{r['nombre']}** \n<a href='{wa_link}' style='color: #25D366; text-decoration: none; font-weight: bold;'>🟢 📞 Contactar DT</a>", unsafe_allow_html=True)
                     
                     with col_btn:
                         if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
+                            url_escudo_ia = None
+                            
+                            # --- INTEGRACIÓN CLOUDINARY IA ---
+                            # Si el archivo está en memoria temporal, lo procesamos
+                            if 'datos_temp' in st.session_state and st.session_state.datos_temp.get('n') == r['nombre']:
+                                archivo = st.session_state.datos_temp.get('escudo_obj')
+                                if archivo:
+                                    with st.spinner("🤖 IA Limpiando Escudo..."):
+                                        url_escudo_ia = procesar_y_subir_escudo(archivo, r['nombre'])
+
                             with get_db_connection() as conn:
-                                conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
+                                # Se guarda el link de la IA en la columna 'escudo'
+                                conn.execute("UPDATE equipos SET estado='aprobado', escudo=? WHERE nombre=?", (url_escudo_ia, r['nombre']))
                                 conn.commit()
                             st.rerun()
                     st.markdown("---") 
@@ -917,8 +928,7 @@ if rol == "admin":
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA (Con persistencia de estado) ---
-        # Usamos 'key' para que Streamlit recuerde la selección al recargar la página
+        # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio(
             "Selecciona Tarea:", 
             ["⚽ Resultados", "🛠️ Directorio de Equipos"], 
@@ -942,7 +952,6 @@ if rol == "admin":
                         partidos_j = df_adm[df_adm['jornada'] == j_num]
                         for _, p in partidos_j.iterrows():
                             with st.expander(f"{p['local']} vs {p['visitante']}"):
-                                # Aquí va tu lógica de marcadores (inputs y botón guardar)
                                 pass
 
         elif opcion_admin == "🛠️ Directorio de Equipos":
@@ -960,7 +969,7 @@ if rol == "admin":
                         pin = str(eq.get('pin', 'N/A'))
                         wa_url = f"https://wa.me/{pref.replace('+','')}{cel}"
                         
-                        # PIN estilizado para evitar el fondo negro
+                        # PIN estilizado (Mantenido tal cual para evitar fondo negro)
                         pin_html = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{pin}</span>'
                         
                         st.markdown(f"""
@@ -980,11 +989,18 @@ if rol == "admin":
                         new_cel = c2.text_input("Celular", str(datos_sel.get('celular', '')))
                         new_pin = st.text_input("PIN", str(datos_sel.get('pin', '')))
                         
+                        # --- AJUSTE: QUITAR ESCUDO ---
+                        quitar_escudo = st.checkbox("❌ Quitar escudo (volver a sin escudo)")
+                        
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                            # Si marca quitar_escudo, el link en la DB se vuelve None
+                            link_actual = datos_sel.get('escudo')
+                            link_final = None if quitar_escudo else link_actual
+                            
                             with get_db_connection() as conn:
                                 conn.execute("""
-                                    UPDATE equipos SET nombre=?, prefijo=?, celular=?, pin=? WHERE nombre=?
-                                """, (new_name, new_pref, new_cel, new_pin, equipo_sel))
+                                    UPDATE equipos SET nombre=?, prefijo=?, celular=?, pin=?, escudo=? WHERE nombre=?
+                                """, (new_name, new_pref, new_cel, new_pin, link_final, equipo_sel))
                                 conn.commit()
                             st.success("Cambios guardados")
                             st.rerun()
@@ -1008,6 +1024,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
