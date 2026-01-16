@@ -546,7 +546,7 @@ with tabs[1]:
 with tabs[2]:
     if rol == "admin":
         # --- BLOQUE DE GESTIÓN ADMIN (El que ya pulimos) ---
-        st.header("⚙️ Panel de Control Admin")
+        st.header("👑")
         # Aquí pegas todo el código de: Aprobaciones, Radio de Tareas, 
         # Directorio de Equipos y Botones de Iniciar/Reiniciar.
         
@@ -1024,6 +1024,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
