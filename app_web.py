@@ -357,7 +357,7 @@ if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
 # --- CONSTANTES DE DISEÑO ---
 # Reemplaza este link con el que obtengas de Cloudinary o GitHub
-URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1768594399/1464608e-1841-4be6-8fad-9353b5b28d7c_dh9lqb.png" 
+URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1768595083/PORTADA_TEMP_twxtp5.png" 
 
 # --- ESTILO CSS INYECTADO ---
 st.markdown(f"""
@@ -393,7 +393,7 @@ st.markdown(f"""
     </style>
 
     <div class="main-banner">
-        <h1 class="banner-title">GOL GANA</h1>
+        <h1 class="banner-title"></h1>
     </div>
 """, unsafe_allow_html=True)
 
@@ -897,6 +897,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
