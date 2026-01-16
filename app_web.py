@@ -250,14 +250,6 @@ def migrar_db():
         conn.commit()
 
 
-# BORRAR--- BLOQUE DE VERIFICACIÓN (Solo para estar seguros) ---
-with get_db_connection() as conn:
-    columnas = pd.read_sql_query("PRAGMA table_info(equipos)", conn)
-    st.write("Columnas detectadas en la tabla equipos:", columnas['name'].tolist())
-
-
-
-
 # --- EJECUCIÓN ---
 inicializar_db() # 1. Crea lo básico
 migrar_db()      # 2. Asegura que lo nuevo esté ahí
@@ -548,80 +540,31 @@ with tabs[2]:
 
 
 
-
-# --- TAB: CLASIFICACIÓN (Versión Definitiva) ---
+# TAB: CLASIFICACIÓN
 with tabs[0]:
     with get_db_connection() as conn:
-        # Traemos nombre y escudo
-        df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
-        
-        if df_eq.empty:
-            st.info("No hay equipos todavía.")
+        df_eq = pd.read_sql_query("SELECT nombre FROM equipos WHERE estado = 'aprobado'", conn)
+        if df_eq.empty: st.info("No hay equipos todavía.")
         else:
-            # LIMPIEZA TOTAL: Forzamos a que el nombre sea texto puro, no tuplas
-            df_eq['nombre'] = df_eq['nombre'].astype(str).str.replace(r"[\(\)',]", "", regex=True).str.strip()
-            
-            # Diccionario para estadísticas
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
-            # Diccionario para escudos (Nombre -> URL)
-            escudos_dict = dict(zip(df_eq['nombre'], df_eq['escudo']))
-
-            # Procesar partidos terminados
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             for _, f in df_p.iterrows():
-                # Limpiar nombres de los equipos en los partidos también
-                l = str(f['local']).replace("('", "").replace("',)", "").replace("'", "").strip()
-                v = str(f['visitante']).replace("('", "").replace("',)", "").replace("'", "").strip()
-                
+                l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
                 if l in stats and v in stats:
-                    gl, gv = int(f['goles_l']), int(f['goles_v'])
                     stats[l]['PJ']+=1; stats[v]['PJ']+=1
                     stats[l]['GF']+=gl; stats[l]['GC']+=gv
                     stats[v]['GF']+=gv; stats[v]['GC']+=gl
                     if gl > gv: stats[l]['PTS']+=3
                     elif gv > gl: stats[v]['PTS']+=3
                     else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
-
-            # Crear DataFrame final
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-            df_f.columns = ['Equipo', 'PJ', 'PTS', 'GF', 'GC'] # Nombre cambiado a 'Equipo'
+            df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
-
-            # --- RENDERIZADO HTML ---
-            # CSS para que la tabla se vea épica y no como texto plano
-            st.markdown("""
-                <style>
-                    .tabla-posiciones { width: 100%; border-collapse: collapse; margin-top: 10px; font-family: sans-serif; }
-                    .tabla-posiciones th { background-color: #f8f9fa; color: #333; padding: 10px; border-bottom: 2px solid #dee2e6; }
-                    .tabla-posiciones td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; color: #444; }
-                    .escudo-tabla { width: 30px; height: 30px; object-fit: contain; vertical-align: middle; margin-right: 10px; }
-                    .celda-equipo { display: flex; align-items: center; justify-content: flex-start; font-weight: bold; }
-                </style>
-            """, unsafe_allow_html=True)
-
-            html = '<table class="tabla-posiciones"><thead><tr><th>POS</th><th style="text-align:left">Equipo</th><th>PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
-            
+            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
             for _, r in df_f.iterrows():
-                url = escudos_dict.get(r['Equipo'])
-                # Lógica: Si hay URL de Cloudinary ponemos la imagen, si no, un espacio
-                if url and str(url) != 'None' and str(url).strip() != "":
-                    img_tag = f'<img src="{url}" class="escudo-tabla">'
-                else:
-                    img_tag = '<div style="width:30px; display:inline-block;"></div>'
-                
-                html += f"""
-                <tr>
-                    <td>{r['POS']}</td>
-                    <td><div class="celda-equipo">{img_tag} {r['Equipo']}</div></td>
-                    <td><b>{r['PTS']}</b></td>
-                    <td>{r['PJ']}</td>
-                    <td>{r['DG']}</td>
-                </tr>
-                """
-            
-            # FINALMENTE: Renderizamos la tabla como HTML real
+                html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
 
@@ -965,6 +908,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
