@@ -571,7 +571,7 @@ with tabs[0]:
 
             
 
-# TAB: REGISTRO ## en desarrollo
+# --- TAB: REGISTRO (Versión Final con Escudo Limpio) ---
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
@@ -584,7 +584,7 @@ if fase_actual == "inscripcion":
             d = st.session_state.datos_temp
             st.warning("⚠️ **Confirma tus datos:**")
             
-            # Layout de confirmación con Escudo
+            # Layout de confirmación con previsualización del Escudo
             col_info, col_img = st.columns([2, 1])
             with col_info:
                 st.write(f"**Equipo:** {d['n']}")
@@ -601,8 +601,8 @@ if fase_actual == "inscripcion":
             
             if c1.button("✅ Confirmar"):
                 registro_ok = False
-                # Aquí es donde en el futuro procesaremos la IA y Cloudinary
-                # Por ahora, guardamos el campo 'escudo' como None o vacío
+                # Aquí guardamos los datos iniciales. 'escudo' queda como None 
+                # hasta que la IA de Cloudinary lo procese en el siguiente paso.
                 with get_db_connection() as conn:
                     try:
                         conn.execute("""
@@ -621,14 +621,11 @@ if fase_actual == "inscripcion":
             if c2.button("✏️ Editar"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
-
-                
-  
-      else:
-            # --- CSS AVANZADO PARA BOTÓN DE SUBIDA LIMPIO ---
+        
+        else:
+            # --- CSS AVANZADO: Limpieza total del uploader ---
             st.markdown("""
                 <style>
-                /* 1. Ocultamos el texto de instrucciones y el borde de la caja */
                 [data-testid="stFileUploader"] section {
                     padding: 0;
                     background-color: transparent !important;
@@ -636,37 +633,27 @@ if fase_actual == "inscripcion":
                 [data-testid="stFileUploader"] section > div:first-child {
                     display: none;
                 }
-                
-                /* 2. Estilo del botón de subida */
                 [data-testid="stFileUploader"] button {
                     width: 100%;
                     background-color: white;
                     color: black;
-                    border: 2px solid #FFD700; /* Borde dorado como el banner */
+                    border: 2px solid #FFD700;
                     padding: 10px;
                     border-radius: 8px;
                     font-weight: bold;
-                    text-transform: uppercase;
                 }
-
-                /* 3. Cambiar el texto 'Browse files' por 'SUBIR ESCUDO' */
                 [data-testid="stFileUploader"] button::before {
                     content: "🛡️ SELECCIONAR ESCUDO";
                 }
                 [data-testid="stFileUploader"] button div {
                     display: none;
                 }
-
-                /* 4. Ocultar el texto de 'Limit 200MB...' */
                 [data-testid="stFileUploader"] small {
                     display: none;
                 }
                 </style>
             """, unsafe_allow_html=True)
 
-            with st.form("reg_preventivo"):
-                # ... resto de tu código de formulario ...
-            
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
                 
@@ -676,8 +663,8 @@ if fase_actual == "inscripcion":
                 tel = st.text_input("WhatsApp").strip()
                 pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
                 
-                # --- NUEVO CAMPO DE ESCUDO ---
-                archivo_escudo = st.file_uploader("🛡️ Subir Escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
+                # Campo de Escudo con el estilo aplicado
+                archivo_escudo = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
                 
                 if st.form_submit_button("Siguiente"):
                     if not nom or not tel or len(pin_r) < 4: 
@@ -685,11 +672,11 @@ if fase_actual == "inscripcion":
                     else:
                         with get_db_connection() as conn:
                             cur = conn.cursor()
-                            cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR pin=? OR celular=?", (nom, pin_r, tel))
+                            # Limpieza de seguridad para evitar duplicados
+                            cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR celular=?", (nom, tel))
                             if cur.fetchone(): 
-                                st.error("❌ Nombre, PIN o Teléfono ya registrados.")
+                                st.error("❌ El nombre del equipo o el teléfono ya están registrados.")
                             else:
-                                # Guardamos los datos y el objeto del archivo temporalmente
                                 st.session_state.datos_temp = {
                                     "n": nom, 
                                     "wa": tel, 
@@ -989,6 +976,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
