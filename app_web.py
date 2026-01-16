@@ -890,11 +890,12 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Aprobación con IA de Link Existente) ---
+# --- TAB: GESTIÓN ADMIN (Con Aprobación IA y Eliminación de Equipos) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
+        # --- 1. SECCIÓN DE APROBACIONES ---
         st.subheader("📩 Equipos por Aprobar")
         with get_db_connection() as conn:
             pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
@@ -918,12 +919,9 @@ if rol == "admin":
                     with col_btn:
                         if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
                             url_final = r['escudo']
-                            
-                            # PROCESAMIENTO IA SOBRE EL LINK YA EXISTENTE
                             if url_final:
                                 with st.spinner("🤖 IA Limpiando Escudo..."):
                                     try:
-                                        # Le pedimos a Cloudinary que procese su propio link
                                         res_ia = cloudinary.uploader.upload(
                                             url_final,
                                             background_removal="cloudinary_ai",
@@ -944,7 +942,7 @@ if rol == "admin":
 
         st.divider()
 
-        # --- SELECCIÓN DE TAREA (Demás lógica igual) ---
+        # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos"], horizontal=True, key="adm_tab")
         
         if opcion_admin == "🛠️ Directorio de Equipos":
@@ -954,26 +952,41 @@ if rol == "admin":
             
             if not df_maestro.empty:
                 for _, eq in df_maestro.iterrows():
+                    # Visualización simple del equipo en el directorio
+                    estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
                     pin_html = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{eq["pin"]}</span>'
-                    st.markdown(f"**{eq['nombre']}** | 🔑 PIN: {pin_html} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
+                    st.markdown(f"{estado_icon} **{eq['nombre']}** | 🔑 PIN: {pin_html} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
                 
-                st.subheader("✏️ Corregir Datos")
-                equipo_sel = st.selectbox("Equipo:", df_maestro['nombre'].tolist())
+                st.markdown("---")
+                st.subheader("✏️ Gestión y Edición")
+                equipo_sel = st.selectbox("Selecciona equipo para editar o eliminar:", df_maestro['nombre'].tolist())
                 datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
                 
+                # Formulario de edición
                 with st.form("edit_master_form"):
-                    new_name = st.text_input("Nombre", datos_sel['nombre'])
-                    new_pin = st.text_input("PIN", str(datos_sel['pin']))
+                    col1, col2 = st.columns(2)
+                    new_name = col1.text_input("Nombre del Equipo", datos_sel['nombre'])
+                    new_pin = col2.text_input("PIN de acceso", str(datos_sel['pin']))
                     quitar_escudo = st.checkbox("❌ Quitar escudo (volver a sin escudo)")
                     
-                    if st.form_submit_button("💾 Guardar Cambios"):
+                    if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                         link_final = None if quitar_escudo else datos_sel['escudo']
                         with get_db_connection() as conn:
                             conn.execute("UPDATE equipos SET nombre=?, pin=?, escudo=? WHERE nombre=?", (new_name, new_pin, link_final, equipo_sel))
                             conn.commit()
-                        st.success("Cambios guardados")
+                        st.success(f"Datos de {new_name} actualizados.")
                         st.rerun()
 
+                # Sección de Peligro: Bajar Equipo
+                st.warning("⚠️ **Zona de Peligro**")
+                if st.button(f"🗑️ Bajar equipo: {equipo_sel}", use_container_width=True):
+                    with get_db_connection() as conn:
+                        conn.execute("DELETE FROM equipos WHERE nombre = ?", (equipo_sel,))
+                        conn.commit()
+                    st.error(f"El equipo {equipo_sel} ha sido eliminado del sistema.")
+                    st.rerun()
+            else:
+                st.info("No hay equipos registrados en el directorio.")
                 
 
 
@@ -991,6 +1004,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
