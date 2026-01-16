@@ -569,23 +569,21 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN (Versión con Escudos IA) ---
+# --- TAB: CLASIFICACIÓN (Estrategia de Renderizado Garantizado) ---
 with tabs[0]:
     with get_db_connection() as conn:
-        # 1. Traemos nombre y escudo de los aprobados
+        # 1. Obtenemos datos incluyendo la columna escudo
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
         if df_eq.empty: 
             st.info("No hay equipos todavía.")
         else:
-            # Creamos un mapa de escudos para búsqueda rápida {Nombre: URL}
+            # Mapa de escudos {Nombre: URL}
             mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
             
-            # Inicializamos estadísticas
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
-            
-            # Procesamos partidos jugados
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
+            
             for _, f in df_p.iterrows():
                 l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
                 if l in stats and v in stats:
@@ -596,41 +594,49 @@ with tabs[0]:
                     elif gv > gl: stats[v]['PTS']+=3
                     else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
             
-            # Construimos DataFrame final
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
             df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
+
+            # --- ESTRATEGIA CSS PARA IMÁGENES EN TABLA ---
+            st.markdown("""
+                <style>
+                .img-escudo {
+                    width: 22px !important;
+                    height: 22px !important;
+                    margin-right: 10px;
+                    vertical-align: middle;
+                    object-fit: contain;
+                    border-radius: 2px;
+                }
+                .team-name {
+                    display: flex;
+                    align-items: center;
+                    font-weight: 500;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
+            # 2. Construcción del HTML
+            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQUIPO</th><th>PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
             
-            # 2. Generamos HTML con la columna de escudo integrada
-            html = """
-            <table class="mobile-table">
-                <thead>
-                    <tr>
-                        <th>POS</th>
-                        <th style="text-align:left">EQUIPO</th>
-                        <th>PTS</th>
-                        <th>PJ</th>
-                        <th>DG</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
             for _, r in df_f.iterrows():
-                # Buscamos el link del escudo en nuestro mapa
-                url_escudo = mapa_escudos.get(r['EQ'])
+                url = mapa_escudos.get(r['EQ'])
                 
-                # Si hay link, creamos el tag img; si no, un emoji por defecto
-                if url_escudo:
-                    img_html = f'<img src="{url_escudo}" style="width:25px; height:25px; margin-right:8px; vertical-align:middle; object-fit:contain;">'
+                # Estrategia: Si hay URL de Cloudinary se pone <img>, si no, un placeholder vacío
+                if url:
+                    img_tag = f'<img src="{url}" class="img-escudo">'
                 else:
-                    img_html = '<span style="margin-right:8px;">🛡️</span>'
+                    img_tag = '<span style="margin-right:10px;">🛡️</span>'
                 
                 html += f"""
                 <tr>
                     <td>{r['POS']}</td>
-                    <td class='team-cell' style='text-align:left;'>{img_html}{r['EQ']}</td>
+                    <td class='team-cell' style='text-align:left;'>
+                        <div class="team-name">{img_tag} {r['EQ']}</div>
+                    </td>
                     <td><b>{r['PTS']}</b></td>
                     <td>{r['PJ']}</td>
                     <td>{r['DG']}</td>
@@ -1066,6 +1072,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
