@@ -13,6 +13,7 @@ import re  # Para expresiones regulares (encontrar números difíciles)
 from thefuzz import fuzz # Para comparación flexible de nombres
 import json
 import os
+import streamlit as st
 
 
 #PROVISIONAL PARA HACER PRUEBAS DE DESARROLLO
@@ -352,7 +353,56 @@ def generar_calendario():
 if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
 if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
-st.title("⚽ Gol Gana")
+####################PORTADA EN PRUEBA
+
+# --- CONSTANTES DE DISEÑO ---
+# Reemplaza este link con el que obtengas de Cloudinary o GitHub
+URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1768594399/1464608e-1841-4be6-8fad-9353b5b28d7c_dh9lqb.png" 
+
+# --- ESTILO CSS INYECTADO ---
+st.markdown(f"""
+    <style>
+    /* Eliminamos el espacio blanco superior que Streamlit pone por defecto */
+    .stAppHeader {{
+        display: none;
+    }}
+    .block-container {{
+        padding-top: 0rem !important;
+    }}
+
+    .main-banner {{
+        width: 100%;
+        height: 200px;
+        background-image: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url("{URL_PORTADA}");
+        background-size: cover;
+        background-position: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 25px;
+        border-bottom: 5px solid #FFD700;
+    }}
+
+    .banner-title {{
+        color: white;
+        font-family: 'Impact', sans-serif;
+        font-size: 3.5rem;
+        text-shadow: 3px 3px 15px rgba(0,0,0,0.9);
+        letter-spacing: 3px;
+    }}
+    </style>
+
+    <div class="main-banner">
+        <h1 class="banner-title">GOL GANA</h1>
+    </div>
+""", unsafe_allow_html=True)
+
+
+
+
+
+######FIN PRUEBA
+
 
 # --- NAVEGACIÓN (Botones originales) ---
 c_nav1, c_nav2 = st.columns(2)
@@ -847,6 +897,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
