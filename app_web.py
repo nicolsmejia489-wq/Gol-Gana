@@ -189,7 +189,7 @@ st.markdown("""
 ############# FIN COLORES
 
 
-# --- INICIALIZACIÓN DE DATOS --- #PROVISIONAL PARTE 2
+# --- INICIALIZACIÓN DE DATOS 
 if "datos_cargados" not in st.session_state:
     if cargar_datos():
         st.session_state["datos_cargados"] = True
@@ -199,7 +199,7 @@ if "datos_cargados" not in st.session_state:
         if "partidos" not in st.session_state: st.session_state["partidos"] = []
         st.session_state["datos_cargados"] = True
 
-####FIN PROVISIONAL PARTE 2
+####
 
 
 @contextmanager
@@ -248,6 +248,15 @@ def migrar_db():
             except sqlite3.OperationalError:
                 pass # Si la columna ya existe, no hace nada
         conn.commit()
+
+
+# BORRAR--- BLOQUE DE VERIFICACIÓN (Solo para estar seguros) ---
+with get_db_connection() as conn:
+    columnas = pd.read_sql_query("PRAGMA table_info(equipos)", conn)
+    st.write("Columnas detectadas en la tabla equipos:", columnas['name'].tolist())
+
+
+
 
 # --- EJECUCIÓN ---
 inicializar_db() # 1. Crea lo básico
@@ -956,6 +965,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
