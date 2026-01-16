@@ -978,8 +978,8 @@ if rol == "admin":
                         st.rerun()
 
                 # Sección de Peligro: Bajar Equipo
-                st.warning("⚠️ **Zona de Peligro**")
-                if st.button(f"🗑️ Bajar equipo: {equipo_sel}", use_container_width=True):
+               
+                if st.button(f"✖️ Bajar equipo: {equipo_sel}", use_container_width=True):
                     with get_db_connection() as conn:
                         conn.execute("DELETE FROM equipos WHERE nombre = ?", (equipo_sel,))
                         conn.commit()
@@ -1004,6 +1004,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
