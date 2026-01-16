@@ -882,9 +882,7 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Versión Final Pulida con IA de Escudos) ---
-
-# --- TAB: GESTIÓN ADMIN (Limpieza y Corrección Visual) ---
+# --- TAB: GESTIÓN ADMIN (Versión Final Pulida) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
@@ -904,23 +902,13 @@ if rol == "admin":
                     wa_link = f"https://wa.me/{prefijo}{r['celular']}"
                     
                     with col_data:
-                        st.markdown(f"**{r['nombre']}**")
-                        st.markdown(f"<a href='{wa_link}' style='color: #25D366; text-decoration: none;'>🟢 Contactar DT</a>", unsafe_allow_html=True)
-                        
-                        # Detectamos si hay escudo pendiente en la sesión
-                        escudo_a_procesar = None
-                        if 'datos_temp' in st.session_state and st.session_state.datos_temp.get('n') == r['nombre']:
-                            escudo_a_procesar = st.session_state.datos_temp.get('escudo_obj')
+                        # Link con emoji verde
+                        st.markdown(f"**{r['nombre']}** \n<a href='{wa_link}' style='color: #25D366; text-decoration: none; font-weight: bold;'>🟢 📞 Contactar DT</a>", unsafe_allow_html=True)
                     
                     with col_btn:
-                        if st.button(f"✅ Aprobar", key=f"ap_btn_{r['nombre']}", use_container_width=True):
-                            url_escudo_ia = None
-                            if escudo_a_procesar:
-                                with st.spinner("🤖 Procesando Escudo..."):
-                                    url_escudo_ia = procesar_y_subir_escudo(escudo_a_procesar, r['nombre'])
-                            
+                        if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
                             with get_db_connection() as conn:
-                                conn.execute("UPDATE equipos SET estado='aprobado', escudo=? WHERE nombre=?", (url_escudo_ia, r['nombre']))
+                                conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
                                 conn.commit()
                             st.rerun()
                     st.markdown("---") 
@@ -929,55 +917,80 @@ if rol == "admin":
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA ---
-        opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True)
+        # --- 2. SELECCIÓN DE TAREA (Con persistencia de estado) ---
+        # Usamos 'key' para que Streamlit recuerde la selección al recargar la página
+        opcion_admin = st.radio(
+            "Selecciona Tarea:", 
+            ["⚽ Resultados", "🛠️ Directorio de Equipos"], 
+            horizontal=True,
+            key="admin_tab_selected" 
+        )
+        st.divider()
 
         if opcion_admin == "⚽ Resultados":
-            st.subheader("🏁 Marcadores")
-            # ... Lógica de resultados se mantiene igual ...
-            st.write("Panel de resultados listo.")
+            st.subheader("🏁 Gestión de Marcadores")
+            with get_db_connection() as conn:
+                df_adm = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
+            
+            if df_adm.empty:
+                st.info("El calendario aún no ha sido generado.")
+            else:
+                jornadas = sorted(df_adm['jornada'].unique())
+                mini_tabs = st.tabs([f"J{j}" for j in jornadas])
+                for i, j_num in enumerate(jornadas):
+                    with mini_tabs[i]:
+                        partidos_j = df_adm[df_adm['jornada'] == j_num]
+                        for _, p in partidos_j.iterrows():
+                            with st.expander(f"{p['local']} vs {p['visitante']}"):
+                                # Aquí va tu lógica de marcadores (inputs y botón guardar)
+                                pass
 
-        elif opcion_admin == "🛠️ Directorio":
+        elif opcion_admin == "🛠️ Directorio de Equipos":
             st.subheader("📋 Directorio de Equipos")
             try:
                 with get_db_connection() as conn:
-                    df_maestro = pd.read_sql_query("SELECT * FROM equipos WHERE estado='aprobado'", conn)
+                    df_maestro = pd.read_sql_query("SELECT * FROM equipos", conn)
                 
                 if df_maestro.empty:
-                    st.warning("No hay equipos aprobados.")
+                    st.warning("No hay equipos registrados.")
                 else:
                     for _, eq in df_maestro.iterrows():
-                        # Mostramos datos limpios sin HTML complejo que pueda romperse
-                        st.markdown(f"**{eq['nombre']}** | 🔑 PIN: `{eq['pin']}`")
-                        st.caption(f"📞 {eq['prefijo']} {eq['celular']}")
+                        pref = str(eq.get('prefijo', ''))
+                        cel = str(eq.get('celular', ''))
+                        pin = str(eq.get('pin', 'N/A'))
+                        wa_url = f"https://wa.me/{pref.replace('+','')}{cel}"
+                        
+                        # PIN estilizado para evitar el fondo negro
+                        pin_html = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{pin}</span>'
+                        
+                        st.markdown(f"""
+                        **{eq['nombre']}** | 🔑 PIN: {pin_html}  
+                        📞 {pref} {cel} | [💬 WhatsApp DT]({wa_url})
+                        """, unsafe_allow_html=True)
                         st.markdown("---")
                     
-                    st.subheader("✏️ Corregir / Quitar Escudo")
-                    equipo_sel = st.selectbox("Seleccionar equipo:", df_maestro['nombre'].tolist())
+                    st.subheader("✏️ Corregir Datos")
+                    equipo_sel = st.selectbox("Selecciona equipo:", df_maestro['nombre'].tolist())
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
                     
                     with st.form("edit_master_form"):
                         c1, c2 = st.columns(2)
                         new_name = st.text_input("Nombre", datos_sel['nombre'])
-                        new_pin = st.text_input("PIN", str(datos_sel['pin']))
-                        
-                        # NUEVA LÓGICA: Quitar escudo
-                        tiene_escudo = datos_sel['escudo'] is not None
-                        quitar_escudo = st.checkbox("❌ Quitar escudo actual", value=False) if tiene_escudo else st.info("Este equipo no tiene escudo.")
+                        new_pref = c1.text_input("Prefijo", str(datos_sel.get('prefijo', '')))
+                        new_cel = c2.text_input("Celular", str(datos_sel.get('celular', '')))
+                        new_pin = st.text_input("PIN", str(datos_sel.get('pin', '')))
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-                            # Si marca quitar_escudo, el link en la DB pasa a ser None
-                            link_final = None if (tiene_escudo and quitar_escudo) else datos_sel['escudo']
-                            
                             with get_db_connection() as conn:
                                 conn.execute("""
-                                    UPDATE equipos SET nombre=?, pin=?, escudo=? WHERE nombre=?
-                                """, (new_name, new_pin, link_final, equipo_sel))
+                                    UPDATE equipos SET nombre=?, prefijo=?, celular=?, pin=? WHERE nombre=?
+                                """, (new_name, new_pref, new_cel, new_pin, equipo_sel))
                                 conn.commit()
-                            st.success("Cambios guardados correctamente")
+                            st.success("Cambios guardados")
                             st.rerun()
             except Exception as e:
-                st.error(f"Error en Directorio: {e}")
+                st.error(f"Error: {e}")
+
                 
 
 
@@ -995,6 +1008,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
