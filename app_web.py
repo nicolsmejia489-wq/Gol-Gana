@@ -16,6 +16,7 @@ import os
 import streamlit as st
 
 
+
 #PROVISIONAL PARA HACER PRUEBAS DE DESARROLLO
 # Nombre del archivo donde se guardará todo
 DB_FILE = "data_torneo.json"
@@ -255,9 +256,37 @@ inicializar_db() # 1. Crea lo básico
 migrar_db()      # 2. Asegura que lo nuevo esté ahí
 
 
+
+
+
+
 ##### ALGORITMO IA #####
+##NORMALIZAR Y SUBIR ESCUDO##
 
 
+def procesar_y_subir_escudo(archivo_imagen, nombre_equipo):
+    try:
+        # Subir a Cloudinary pidiendo eliminación de fondo (IA)
+        # 'background_removal': 'cloudinary_ai' hace la magia
+        resultado = cloudinary.uploader.upload(
+            archivo_imagen,
+            folder="escudos_torneo",
+            public_id=f"escudo_{nombre_equipo.replace(' ', '_')}",
+            background_removal="cloudinary_ai", 
+            format="png" # Forzamos PNG para mantener la transparencia
+        )
+        # Retornamos la URL de la imagen ya procesada
+        return resultado['secure_url']
+    except Exception as e:
+        st.error(f"Error procesando imagen con IA: {e}")
+        # Si falla la IA, intentamos subirla normal sin procesar
+        resultado_fallback = cloudinary.uploader.upload(archivo_imagen)
+        return resultado_fallback['secure_url']
+
+
+
+
+##LEER MARCADOR
 def limpiar_nombre(nombre):
     """Elimina sufijos comunes para quedarse con la raíz del nombre."""
     palabras_basura = ["FC", "MX", "CLUB", "REAL", "DEPORTIVO", "10", "A", "B"]
@@ -853,7 +882,7 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Versión Final Pulida) ---
+# --- TAB: GESTIÓN ADMIN (Versión Final Pulida con IA de Escudos) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
@@ -873,14 +902,34 @@ if rol == "admin":
                     wa_link = f"https://wa.me/{prefijo}{r['celular']}"
                     
                     with col_data:
-                        # Link con emoji verde
                         st.markdown(f"**{r['nombre']}** \n<a href='{wa_link}' style='color: #25D366; text-decoration: none; font-weight: bold;'>🟢 📞 Contactar DT</a>", unsafe_allow_html=True)
+                        
+                        # --- Lógica de Escudo para el Admin ---
+                        # Buscamos si hay un archivo cargado en el estado temporal
+                        escudo_a_procesar = None
+                        if 'datos_temp' in st.session_state and st.session_state.datos_temp.get('n') == r['nombre']:
+                            escudo_a_procesar = st.session_state.datos_temp.get('escudo_obj')
                     
                     with col_btn:
-                        if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
+                        # Botón Único: Aprueba y limpia el escudo con IA
+                        if st.button(f"✅ Aprobar Equipo", key=f"aprob_{r['nombre']}", use_container_width=True):
+                            url_escudo_ia = None
+                            
+                            # Si hay un archivo, lo pasamos por la IA de Cloudinary
+                            if escudo_a_procesar:
+                                with st.spinner(f"🤖 IA Procesando escudo de {r['nombre']}..."):
+                                    url_escudo_ia = procesar_y_subir_escudo(escudo_a_procesar, r['nombre'])
+                            
                             with get_db_connection() as conn:
-                                conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
+                                # Actualizamos estado y guardamos el link de Cloudinary (o None si no hubo foto)
+                                conn.execute("""
+                                    UPDATE equipos 
+                                    SET estado='aprobado', escudo=? 
+                                    WHERE nombre=?
+                                """, (url_escudo_ia, r['nombre']))
                                 conn.commit()
+                            
+                            st.success(f"¡{r['nombre']} aprobado con éxito!")
                             st.rerun()
                     st.markdown("---") 
         else:
@@ -888,8 +937,7 @@ if rol == "admin":
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA (Con persistencia de estado) ---
-        # Usamos 'key' para que Streamlit recuerde la selección al recargar la página
+        # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio(
             "Selecciona Tarea:", 
             ["⚽ Resultados", "🛠️ Directorio de Equipos"], 
@@ -913,7 +961,7 @@ if rol == "admin":
                         partidos_j = df_adm[df_adm['jornada'] == j_num]
                         for _, p in partidos_j.iterrows():
                             with st.expander(f"{p['local']} vs {p['visitante']}"):
-                                # Aquí va tu lógica de marcadores (inputs y botón guardar)
+                                # Espacio para el formulario de marcadores (a desarrollar)
                                 pass
 
         elif opcion_admin == "🛠️ Directorio de Equipos":
@@ -929,15 +977,22 @@ if rol == "admin":
                         pref = str(eq.get('prefijo', ''))
                         cel = str(eq.get('celular', ''))
                         pin = str(eq.get('pin', 'N/A'))
+                        escudo_url = eq.get('escudo')
                         wa_url = f"https://wa.me/{pref.replace('+','')}{cel}"
                         
-                        # PIN estilizado para evitar el fondo negro
                         pin_html = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{pin}</span>'
                         
-                        st.markdown(f"""
-                        **{eq['nombre']}** | 🔑 PIN: {pin_html}  
-                        📞 {pref} {cel} | [💬 WhatsApp DT]({wa_url})
-                        """, unsafe_allow_html=True)
+                        # Mostramos el escudo en el directorio si existe
+                        col_text, col_img = st.columns([4, 1])
+                        with col_text:
+                            st.markdown(f"**{eq['nombre']}** ({eq['estado'].upper()}) | 🔑 PIN: {pin_html}")
+                            st.markdown(f"📞 {pref} {cel} | [💬 WhatsApp DT]({wa_url})")
+                        
+                        with col_img:
+                            if escudo_url:
+                                st.image(escudo_url, width=50)
+                            else:
+                                st.write("🚫🛡️")
                         st.markdown("---")
                     
                     st.subheader("✏️ Corregir Datos")
@@ -950,17 +1005,24 @@ if rol == "admin":
                         new_pref = c1.text_input("Prefijo", str(datos_sel.get('prefijo', '')))
                         new_cel = c2.text_input("Celular", str(datos_sel.get('celular', '')))
                         new_pin = st.text_input("PIN", str(datos_sel.get('pin', '')))
+                        new_escudo = st.text_input("Link Escudo (Cloudinary)", str(datos_sel.get('escudo', '')))
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             with get_db_connection() as conn:
                                 conn.execute("""
-                                    UPDATE equipos SET nombre=?, prefijo=?, celular=?, pin=? WHERE nombre=?
-                                """, (new_name, new_pref, new_cel, new_pin, equipo_sel))
+                                    UPDATE equipos 
+                                    SET nombre=?, prefijo=?, celular=?, pin=?, escudo=? 
+                                    WHERE nombre=?
+                                """, (new_name, new_pref, new_cel, new_pin, new_escudo, equipo_sel))
                                 conn.commit()
                             st.success("Cambios guardados")
                             st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
+
+
+                
+
 
         # --- 3. ACCIONES FINALES ---
         st.divider()
@@ -976,6 +1038,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
