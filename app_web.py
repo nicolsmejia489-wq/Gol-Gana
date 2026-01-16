@@ -884,6 +884,9 @@ if rol == "dt":
   
 # --- TAB: GESTIÓN ADMIN (Versión Final Pulida con IA de Escudos) ---
 
+if rol == "admin":
+    with tabs[2]:
+        st.header("⚙️ Panel de Control Admin")
         
         # --- 1. SECCIÓN DE APROBACIONES ---
         st.subheader("📩 Equipos por Aprobar")
@@ -1036,6 +1039,7 @@ if rol == "dt":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
