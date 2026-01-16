@@ -623,8 +623,7 @@ if fase_actual == "inscripcion":
                 st.rerun()
 
                 
-         
-        else:
+  
         else:
             # --- ESTILO PARA CAJA DE SUBIDA BLANCA ---
             st.markdown("""
@@ -976,6 +975,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
