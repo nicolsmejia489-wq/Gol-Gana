@@ -709,7 +709,21 @@ if fase_actual == "inscripcion":
                     if not nom or not tel or len(pin_r) < 4: 
                         st.error("Datos incompletos.")
                     else:
-                        with get_db
+                        with get_db_connection() as conn:
+                            cur = conn.cursor()
+                            cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR celular=?", (nom, tel))
+                            if cur.fetchone(): 
+                                st.error("❌ Equipo o teléfono ya registrados.")
+                            else:
+                                st.session_state.datos_temp = {
+                                    "n": nom, "wa": tel, "pin": pin_r, 
+                                    "pref": pais_sel.split('(')[-1].replace(')', ''),
+                                    "escudo_obj": archivo_escudo
+                                }
+                                st.session_state.reg_estado = "confirmar"
+                                st.rerun()
+
+                                
 ### FIN DESARROLLO
     
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
@@ -977,6 +991,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
