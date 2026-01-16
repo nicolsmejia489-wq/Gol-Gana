@@ -571,54 +571,92 @@ with tabs[0]:
 
             
 
-# TAB: REGISTRO (CON FIX DEFINITIVO)
+# TAB: REGISTRO ## en desarrollo
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
             st.success("✅ ¡Inscripción recibida!")
-            if st.button("Nuevo Registro"): st.session_state.reg_estado = "formulario"; st.rerun()
+            if st.button("Nuevo Registro"): 
+                st.session_state.reg_estado = "formulario"
+                st.rerun()
         
         elif st.session_state.reg_estado == "confirmar":
             d = st.session_state.datos_temp
             st.warning("⚠️ **Confirma tus datos:**")
-            st.write(f"**Equipo:** {d['n']}\n\n**WA:** {d['pref']} {d['wa']}\n\n**PIN:** {d['pin']}")
+            
+            # Layout de confirmación con Escudo
+            col_info, col_img = st.columns([2, 1])
+            with col_info:
+                st.write(f"**Equipo:** {d['n']}")
+                st.write(f"**WA:** {d['pref']} {d['wa']}")
+                st.write(f"**PIN:** {d['pin']}")
+            
+            with col_img:
+                if d['escudo_obj']:
+                    st.image(d['escudo_obj'], caption="Tu Escudo", width=100)
+                else:
+                    st.write("🛡️ Sin escudo")
+
             c1, c2 = st.columns(2)
             
             if c1.button("✅ Confirmar"):
                 registro_ok = False
+                # Aquí es donde en el futuro procesaremos la IA y Cloudinary
+                # Por ahora, guardamos el campo 'escudo' como None o vacío
                 with get_db_connection() as conn:
                     try:
-                        conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin) VALUES (?,?,?,?)", (d['n'], d['wa'], d['pref'], d['pin']))
+                        conn.execute("""
+                            INSERT INTO equipos (nombre, celular, prefijo, pin, escudo) 
+                            VALUES (?,?,?,?,?)
+                        """, (d['n'], d['wa'], d['pref'], d['pin'], None))
                         conn.commit()
                         registro_ok = True
                     except sqlite3.Error as e:
-                        st.error(f"Error real de base de datos: {e}")
+                        st.error(f"Error de base de datos: {e}")
                 
-                if registro_ok: # Rerun FUERA del try-except
+                if registro_ok:
                     st.session_state.reg_estado = "exito"
                     st.rerun()
 
-            if c2.button("✏️ Editar"): st.session_state.reg_estado = "formulario"; st.rerun()
+            if c2.button("✏️ Editar"): 
+                st.session_state.reg_estado = "formulario"
+                st.rerun()
         
         else:
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
-                paises = {"Colombia": "+57",    "EEUU": "+1",    "México": "+52",    "Canadá": "+1",    "Costa Rica": "+506",    "Ecuador": "+593",    "Panamá": "+507",    "Perú": "+51",    "Uruguay": "+598",    "Argentina": "+54",    "Bolivia": "+591", "Brasil": "+55",    "Chile": "+56",    "Venezuela": "+58",    "Belice": "+501",    "Guatemala": "+502",    "El Salvador": "+503",    "Honduras": "+504",    "Nicaragua": "+505"}
+                
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Canadá": "+1", "Costa Rica": "+506", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Uruguay": "+598", "Argentina": "+54", "Bolivia": "+591", "Brasil": "+55", "Chile": "+56", "Venezuela": "+58", "Belice": "+501", "Guatemala": "+502", "El Salvador": "+503", "Honduras": "+504", "Nicaragua": "+505"}
                 pais_sel = st.selectbox("País", [f"{p} ({pref})" for p, pref in paises.items()])
+                
                 tel = st.text_input("WhatsApp").strip()
                 pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
+                
+                # --- NUEVO CAMPO DE ESCUDO ---
+                archivo_escudo = st.file_uploader("🛡️ Subir Escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
+                
                 if st.form_submit_button("Siguiente"):
-                    if not nom or not tel or len(pin_r) < 4: st.error("Datos incompletos.")
+                    if not nom or not tel or len(pin_r) < 4: 
+                        st.error("Datos incompletos.")
                     else:
                         with get_db_connection() as conn:
                             cur = conn.cursor()
                             cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR pin=? OR celular=?", (nom, pin_r, tel))
-                            if cur.fetchone(): st.error("❌ Nombre, PIN o Teléfono ya registrados.")
+                            if cur.fetchone(): 
+                                st.error("❌ Nombre, PIN o Teléfono ya registrados.")
                             else:
-                                st.session_state.datos_temp = {"n": nom, "wa": tel, "pin": pin_r, "pref": pais_sel.split('(')[-1].replace(')', '')}
-                                st.session_state.reg_estado = "confirmar"; st.rerun()
+                                # Guardamos los datos y el objeto del archivo temporalmente
+                                st.session_state.datos_temp = {
+                                    "n": nom, 
+                                    "wa": tel, 
+                                    "pin": pin_r, 
+                                    "pref": pais_sel.split('(')[-1].replace(')', ''),
+                                    "escudo_obj": archivo_escudo
+                                }
+                                st.session_state.reg_estado = "confirmar"
+                                st.rerun()
 
-
+### FIN DESARROLLO
     
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
 elif fase_actual == "clasificacion":
@@ -907,6 +945,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
