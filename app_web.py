@@ -569,16 +569,15 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN (Estrategia de Renderizado Garantizado) ---
+# --- TAB: CLASIFICACIÓN (Manteniendo tu estructura original) ---
 with tabs[0]:
     with get_db_connection() as conn:
-        # 1. Obtenemos datos incluyendo la columna escudo
+        # 1. Aseguramos traer el escudo
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
         if df_eq.empty: 
             st.info("No hay equipos todavía.")
         else:
-            # Mapa de escudos {Nombre: URL}
             mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
             
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
@@ -600,50 +599,25 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # --- ESTRATEGIA CSS PARA IMÁGENES EN TABLA ---
-            st.markdown("""
-                <style>
-                .img-escudo {
-                    width: 22px !important;
-                    height: 22px !important;
-                    margin-right: 10px;
-                    vertical-align: middle;
-                    object-fit: contain;
-                    border-radius: 2px;
-                }
-                .team-name {
-                    display: flex;
-                    align-items: center;
-                    font-weight: 500;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-
-            # 2. Construcción del HTML
-            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQUIPO</th><th>PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
+            # --- ESTRUCTURA ORIGINAL MANTENIDA ---
+            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
             
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
                 
-                # Estrategia: Si hay URL de Cloudinary se pone <img>, si no, un placeholder vacío
+                # Definimos el prefijo (imagen o escudo vacío)
+                # Usamos estilos en línea simples para no romper la celda
                 if url:
-                    img_tag = f'<img src="{url}" class="img-escudo">'
+                    prefijo_img = f'<img src="{url}" style="width:20px; vertical-align:middle; margin-right:5px;">'
                 else:
-                    img_tag = '<span style="margin-right:10px;">🛡️</span>'
+                    prefijo_img = '<span style="margin-right:5px;">🛡️</span>'
                 
-                html += f"""
-                <tr>
-                    <td>{r['POS']}</td>
-                    <td class='team-cell' style='text-align:left;'>
-                        <div class="team-name">{img_tag} {r['EQ']}</div>
-                    </td>
-                    <td><b>{r['PTS']}</b></td>
-                    <td>{r['PJ']}</td>
-                    <td>{r['DG']}</td>
-                </tr>
-                """
+                # Esta línea es la clave: concatenamos directamente en la celda original
+                html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{prefijo_img}{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
+            
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
+            
 
 
             
@@ -1072,6 +1046,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
