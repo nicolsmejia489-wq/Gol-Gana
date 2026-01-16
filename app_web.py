@@ -624,34 +624,48 @@ if fase_actual == "inscripcion":
 
                 
   
-        else:
-            # --- ESTILO PARA CAJA DE SUBIDA BLANCA ---
+      else:
+            # --- CSS AVANZADO PARA BOTÓN DE SUBIDA LIMPIO ---
             st.markdown("""
                 <style>
-                /* Contenedor principal del uploader */
-                [data-testid="stFileUploader"] {
-                    background-color: white;
-                    padding: 15px;
-                    border-radius: 10px;
-                    border: 1px dashed #ced4da;
-                }
-                /* Texto de 'Drag and drop' y etiquetas */
+                /* 1. Ocultamos el texto de instrucciones y el borde de la caja */
                 [data-testid="stFileUploader"] section {
-                    color: #212529 !important;
+                    padding: 0;
+                    background-color: transparent !important;
                 }
-                /* Ajuste para el botón de examinar archivos */
+                [data-testid="stFileUploader"] section > div:first-child {
+                    display: none;
+                }
+                
+                /* 2. Estilo del botón de subida */
                 [data-testid="stFileUploader"] button {
-                    background-color: #f8f9fa;
+                    width: 100%;
+                    background-color: white;
                     color: black;
-                    border: 1px solid #ddd;
+                    border: 2px solid #FFD700; /* Borde dorado como el banner */
+                    padding: 10px;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    text-transform: uppercase;
                 }
-                /* Color del nombre del archivo una vez cargado */
-                [data-testid="stFileUploader"] [role="text"] {
-                    color: #212529 !important;
+
+                /* 3. Cambiar el texto 'Browse files' por 'SUBIR ESCUDO' */
+                [data-testid="stFileUploader"] button::before {
+                    content: "🛡️ SELECCIONAR ESCUDO";
+                }
+                [data-testid="stFileUploader"] button div {
+                    display: none;
+                }
+
+                /* 4. Ocultar el texto de 'Limit 200MB...' */
+                [data-testid="stFileUploader"] small {
+                    display: none;
                 }
                 </style>
             """, unsafe_allow_html=True)
 
+            with st.form("reg_preventivo"):
+                # ... resto de tu código de formulario ...
             
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
@@ -975,6 +989,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
