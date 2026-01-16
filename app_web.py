@@ -208,6 +208,19 @@ def get_db_connection():
     try: yield conn
     finally: conn.close()
 
+
+# --- EJECUTAR UNA SOLA VEZ PARA ACTUALIZAR DB ---
+try:
+    with get_db_connection() as conn:
+        conn.execute("ALTER TABLE equipos ADD COLUMN escudo TEXT")
+        conn.commit()
+    st.success("Base de datos actualizada: Columna 'escudo' añadida.")
+except Exception as e:
+    # Si ya existe la columna, dará error, así que lo ignoramos
+    pass
+
+###borrar
+
 def inicializar_db():
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -534,13 +547,22 @@ with tabs[2]:
 
 
 
-# TAB: CLASIFICACIÓN
+
+
+
+# --- TAB: CLASIFICACIÓN (Con Escudos) ---
 with tabs[0]:
     with get_db_connection() as conn:
-        df_eq = pd.read_sql_query("SELECT nombre FROM equipos WHERE estado = 'aprobado'", conn)
-        if df_eq.empty: st.info("No hay equipos todavía.")
+        # 1. Traemos también la columna 'escudo'
+        df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
+        
+        if df_eq.empty: 
+            st.info("No hay equipos todavía.")
         else:
+            # Diccionario para estadísticas y otro para guardar la URL del escudo
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
+            escudos_dict = dict(zip(df_eq['nombre'], df_eq['escudo'])) # Mapeo Equipo -> Link Escudo
+
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             for _, f in df_p.iterrows():
                 l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
@@ -551,15 +573,58 @@ with tabs[0]:
                     if gl > gv: stats[l]['PTS']+=3
                     elif gv > gl: stats[v]['PTS']+=3
                     else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
+
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-            df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
+            df_f.columns = ['Equipo', 'PJ', 'PTS', 'GF', 'GC'] # Cambiado 'EQ' por 'Equipo'
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
-            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
+
+            # --- GENERACIÓN DE HTML CON ESCUDOS ---
+            html = """
+            <style>
+                .img-escudo { width: 25px; height: 25px; object-fit: contain; margin-right: 10px; vertical-align: middle; }
+                .team-cell { text-align: left; display: flex; align-items: center; }
+            </style>
+            <table class="mobile-table">
+                <thead>
+                    <tr>
+                        <th>POS</th>
+                        <th style="text-align:left">Equipo</th>
+                        <th>PTS</th>
+                        <th>PJ</th>
+                        <th>GF</th>
+                        <th>GC</th>
+                        <th>DG</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
             for _, r in df_f.iterrows():
-                html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
+                # Buscamos el escudo en nuestro diccionario
+                url_escudo = escudos_dict.get(r['Equipo'])
+                img_tag = f'<img src="{url_escudo}" class="img-escudo">' if url_escudo else '<span style="margin-left:35px;"></span>'
+                
+                html += f"""
+                <tr>
+                    <td>{r['POS']}</td>
+                    <td><div class='team-cell'>{img_tag} {r['Equipo']}</div></td>
+                    <td><b>{r['PTS']}</b></td>
+                    <td>{r['PJ']}</td>
+                    <td>{r['GF']}</td>
+                    <td>{r['GC']}</td>
+                    <td>{r['DG']}</td>
+                </tr>
+                """
+            
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
+
+
+
+
+
+            
 
 # TAB: REGISTRO (CON FIX DEFINITIVO)
 if fase_actual == "inscripcion":
@@ -897,6 +962,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
