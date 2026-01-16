@@ -354,64 +354,68 @@ if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
 st.title("⚽ Gol Gana")
 
-# --- NAVEGACIÓN (Botones en paralelo) ---
+# --- NAVEGACIÓN (Botones originales) ---
 c_nav1, c_nav2 = st.columns(2)
 with c_nav1:
-    if st.button("🔙 Inicio", use_container_width=True):
+    if st.button("🔙 Inicio"):
         st.session_state.reg_estado = "formulario"
         st.session_state.pin_usuario = ""
         st.rerun()
 with c_nav2:
-    if st.button("🔄 Refrescar", use_container_width=True): 
+    if st.button("🔄 Refrescar"): 
         st.rerun()
 
-# --- BLOQUE DE ACCESO CON FORMULARIO (Evita errores y limpia la caja) ---
-with st.form("login_form", clear_on_submit=True):
-    # El valor inicial es lo que esté en session_state (vacio por defecto)
-    pin_ingresado = st.text_input("🔑 PIN de Acceso", type="password", help="Introduce tu PIN y presiona Entrar")
-    btn_entrar = st.form_submit_button("🔓 Entrar", use_container_width=True)
+# --- CAMPO DE PIN Y BOTÓN DE ENTRAR ---
+pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
+btn_entrar = st.button("🔓 Entrar", use_container_width=True)
 
-# Obtener fase actual antes de validar
+# Actualizamos el estado con lo que se escriba
+st.session_state.pin_usuario = pin_input
+
 with get_db_connection() as conn:
     cur = conn.cursor()
     cur.execute("SELECT valor FROM config WHERE llave = 'fase'")
     fase_actual = cur.fetchone()[0]
 
-# --- LÓGICA DE VALIDACIÓN ---
 rol = "espectador"
 equipo_usuario = None
 
-# Solo procesamos si se presionó el botón del formulario
+# --- LÓGICA DE VALIDACIÓN (Solo al dar click en Entrar) ---
 if btn_entrar:
-    if pin_ingresado == ADMIN_PIN:
-        st.session_state.pin_usuario = pin_ingresado
+    if st.session_state.pin_usuario == ADMIN_PIN:
+        rol = "admin"
         st.rerun()
-    elif pin_ingresado:
+    elif st.session_state.pin_usuario:
         with get_db_connection() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (pin_ingresado,))
+            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
             res = cur.fetchone()
             
             if res:
-                st.session_state.pin_usuario = pin_ingresado
+                rol = "dt"
+                equipo_usuario = res[0]
                 st.rerun()
             else:
-                # Aviso superior personalizado (Fondo blanco, Letras negras)
+                # ACCIÓN DEFINITIVA: Aviso + Limpieza + Rerun (Como botón Inicio)
                 st.markdown("""
-                    <div style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+                    <div style="position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
                                 background-color: white; color: black; padding: 12px 24px;
                                 border-radius: 8px; border: 2px solid #ff4b4b;
                                 box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
-                                font-weight: bold; animation: fadeout 4s forwards;">
+                                font-weight: bold;">
                         ⚠️ PIN no registrado o no aprobado
                     </div>
-                    <style>
-                    @keyframes fadeout { 0% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
-                    </style>
                 """, unsafe_allow_html=True)
-                # Al NO haber rerun aquí, el código sigue con pin_usuario vacío y muestra el error
+                
+                # Forzamos la limpieza y el reinicio al estado inicial
+                st.session_state.pin_usuario = ""
+                st.session_state.reg_estado = "formulario"
+                # Opcional: un pequeño delay para que alcancen a leer el mensaje antes del rerun
+                import time
+                time.sleep(1.5) 
+                st.rerun()
 
-# Si ya hay un PIN guardado en la sesión (porque pasó el login), asignamos el rol
+# Mantener la sesión activa si el PIN ya es correcto
 if st.session_state.pin_usuario:
     if st.session_state.pin_usuario == ADMIN_PIN:
         rol = "admin"
@@ -422,7 +426,7 @@ if st.session_state.pin_usuario:
             res = cur.fetchone()
             if res:
                 rol = "dt"
-                equipo_usuario = res
+                equipo_usuario = res[0]
 
 
 
@@ -843,6 +847,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
