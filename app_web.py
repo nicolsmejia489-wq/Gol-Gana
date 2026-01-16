@@ -621,8 +621,39 @@ if fase_actual == "inscripcion":
             if c2.button("✏️ Editar"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
-        
+
+                
+         
         else:
+        else:
+            # --- ESTILO PARA CAJA DE SUBIDA BLANCA ---
+            st.markdown("""
+                <style>
+                /* Contenedor principal del uploader */
+                [data-testid="stFileUploader"] {
+                    background-color: white;
+                    padding: 15px;
+                    border-radius: 10px;
+                    border: 1px dashed #ced4da;
+                }
+                /* Texto de 'Drag and drop' y etiquetas */
+                [data-testid="stFileUploader"] section {
+                    color: #212529 !important;
+                }
+                /* Ajuste para el botón de examinar archivos */
+                [data-testid="stFileUploader"] button {
+                    background-color: #f8f9fa;
+                    color: black;
+                    border: 1px solid #ddd;
+                }
+                /* Color del nombre del archivo una vez cargado */
+                [data-testid="stFileUploader"] [role="text"] {
+                    color: #212529 !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
+            
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
                 
@@ -945,6 +976,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
