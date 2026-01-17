@@ -28,20 +28,24 @@ DB_FILE = "data_torneo.json"
 # --- CONFIGURACIÓN DE BASE DE DATOS (Supabase) ---
 
 def get_db_connection():
-    """Establece la conexión con la base de datos PostgreSQL de Supabase"""
-    return st.connection("postgresql", type="sql")
+    # Intentamos obtener la URL de los secrets
+    db_url = st.secrets["connections"]["postgresql"]["url"]
+    
+    # Creamos el motor de base de datos directamente
+    # pool_pre_ping ayuda a reconectar si la conexión se cae
+    engine = create_engine(db_url, pool_pre_ping=True)
+    return engine
 
 def obtener_fase_actual():
-    """Consulta la fase actual del torneo en la base de datos"""
-    conn = get_db_connection()
-    try:
-        # ttl=0 para asegurar que siempre lea el dato más reciente de la nube
-        df = conn.query("SELECT valor FROM config WHERE clave = 'fase_actual'", ttl=0)
-        if not df.empty:
-            return df.iloc[0]['valor']
-    except Exception:
-        pass
-    return "inscripcion" # Valor por defecto si hay error
+    engine = get_db_connection()
+    with engine.connect() as conn:
+        # IMPORTANTE: Cambiamos 'llave' por 'clave' para que coincida con inicializar_db
+        query = text("SELECT valor FROM config WHERE clave = 'fase_actual'")
+        result = conn.execute(query).fetchone()
+        return result[0] if result else "inscripcion"
+
+
+
 
 
 
@@ -505,8 +509,7 @@ st.session_state.pin_usuario = pin_input
 conn = get_db_connection()
 
 # Obtener fase actual (ttl=0 para que sea tiempo real)
-df_fase = conn.query("SELECT valor FROM config WHERE clave = 'fase'", ttl=0)
-fase_actual = df_fase.iloc[0]['valor'] if not df_fase.empty else "inscripcion"
+fase_actual = obtener_fase_actual()
 
 rol = "espectador"
 equipo_usuario = None
@@ -1183,6 +1186,7 @@ if rol == "admin":
                     s.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
