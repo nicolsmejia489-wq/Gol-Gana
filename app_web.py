@@ -444,9 +444,9 @@ with c_nav1:
         st.session_state.reg_estado = "formulario"
         st.session_state.pin_usuario = ""
         st.rerun()
-with c_nav2:
-    if st.button("🔄 Refrescar"): 
-        st.rerun()
+#with c_nav2:
+ #   if st.button("🔄 Refrescar"): 
+  #      st.rerun()
 
 # --- CAMPO DE PIN Y BOTÓN DE ENTRAR ---
 pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
