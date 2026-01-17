@@ -28,21 +28,31 @@ DB_FILE = "data_torneo.json"
 # --- CONFIGURACIÓN DE BASE DE DATOS (Supabase) ---
 
 def get_db_connection():
-    # Intentamos obtener la URL de los secrets
-    db_url = st.secrets["connections"]["postgresql"]["url"]
-    
-    # Creamos el motor de base de datos directamente
-    # pool_pre_ping ayuda a reconectar si la conexión se cae
-    engine = create_engine(db_url, pool_pre_ping=True)
-    return engine
+    # Obtenemos la URL directamente de los secrets
+    # Asegúrate de que en Secrets sea: [connections] (sin el .postgresql)
+    # O simplemente [db] para evitar conflictos con el estándar de Streamlit
+    try:
+        url = st.secrets["connections"]["postgresql"]["url"]
+        # Creamos el motor con pool_pre_ping para asegurar que la conexión esté viva
+        engine = create_engine(url, pool_pre_ping=True)
+        return engine
+    except Exception as e:
+        st.error(f"Error cargando URL de Secrets: {e}")
+        return None
 
 def obtener_fase_actual():
     engine = get_db_connection()
-    with engine.connect() as conn:
-        # IMPORTANTE: Cambiamos 'llave' por 'clave' para que coincida con inicializar_db
-        query = text("SELECT valor FROM config WHERE clave = 'fase_actual'")
-        result = conn.execute(query).fetchone()
-        return result[0] if result else "inscripcion"
+    if engine is None: return "inscripcion"
+    
+    try:
+        with engine.connect() as conn:
+            # Ejecutamos la consulta y obtenemos el primer resultado
+            res = conn.execute(text("SELECT valor FROM config WHERE clave = 'fase_actual'")).fetchone()
+            return res[0] if res else "inscripcion"
+    except Exception as e:
+        # Si la tabla no existe aún, devolvemos 'inscripcion' por defecto
+        return "inscripcion"
+        
 
 
 
@@ -1186,6 +1196,7 @@ if rol == "admin":
                     s.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
