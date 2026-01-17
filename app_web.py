@@ -198,8 +198,12 @@ if "datos_cargados" not in st.session_state:
 
 # Conexión profesional a Supabase (Postgres)
 def get_db_connection():
-    # Streamlit maneja el pool de conexiones automáticamente aquí
-    return st.connection("postgresql", type="sql")
+    try:
+        # Esto utiliza la configuración de .streamlit/secrets.toml
+        return st.connection("postgresql", type="sql")
+    except Exception as e:
+        st.error(f"Error de conexión a la base de datos: {e}")
+        return None
 
 def inicializar_db():
     conn = get_db_connection()
@@ -1157,6 +1161,7 @@ if rol == "admin":
                     s.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
