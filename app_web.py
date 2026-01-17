@@ -524,25 +524,28 @@ fase_actual = obtener_fase_actual()
 rol = "espectador"
 equipo_usuario = None
 
-# --- LÓGICA DE VALIDACIÓN (Solo al dar click en Entrar) ---
+# --- LÓGICA DE VALIDACIÓN (Actualizada para SQLAlchemy/Supabase) ---
 if btn_entrar:
     if st.session_state.pin_usuario == ADMIN_PIN:
         rol = "admin"
         st.rerun()
     elif st.session_state.pin_usuario:
-        # Consulta parametrizada en Postgres
-        df_equipo = conn.query(
-            "SELECT nombre FROM equipos WHERE pin = :p AND estado = 'aprobado'",
-            params={"p": st.session_state.pin_usuario},
-            ttl=0
-        )
+        # 1. Preparamos la consulta con sintaxis de SQLAlchemy (:p)
+        query_pin = text("SELECT nombre FROM equipos WHERE pin = :p AND estado = 'aprobado'")
+        
+        # 2. Ejecutamos usando el motor (conn)
+        with conn.connect() as connection:
+            df_equipo = pd.read_sql_query(query_pin, connection, params={"p": st.session_state.pin_usuario})
         
         if not df_equipo.empty:
             rol = "dt"
             equipo_usuario = df_equipo.iloc[0]['nombre']
+            # Guardamos en session_state para persistencia entre tabs
+            st.session_state.rol = "dt"
+            st.session_state.equipo_usuario = equipo_usuario
             st.rerun()
         else:
-            # Aviso visual de error
+            # Aviso visual de error (Mantenemos tu HTML exacto)
             st.markdown("""
                 <div style="position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
                             background-color: white; color: black; padding: 12px 24px;
@@ -559,73 +562,110 @@ if btn_entrar:
             time.sleep(1.5) 
             st.rerun()
 
-# --- MANTENER LA SESIÓN ACTIVA ---
+
+            
+
+# --- MANTENER LA SESIÓN ACTIVA (Actualizado para SQLAlchemy) ---
 if st.session_state.pin_usuario:
     if st.session_state.pin_usuario == ADMIN_PIN:
         rol = "admin"
     else:
-        df_session = conn.query(
-            "SELECT nombre FROM equipos WHERE pin = :p AND estado = 'aprobado'",
-            params={"p": st.session_state.pin_usuario},
-            ttl=0
-        )
-        if not df_session.empty:
-            rol = "dt"
-            equipo_usuario = df_session.iloc[0]['nombre']
+        # 1. Definimos la consulta con parámetros para Postgres
+        query_session = text("SELECT nombre FROM equipos WHERE pin = :p AND estado = 'aprobado'")
+        
+        # 2. Ejecutamos la consulta usando el motor 'conn'
+        try:
+            with conn.connect() as connection:
+                df_session = pd.read_sql_query(query_session, connection, params={"p": st.session_state.pin_usuario})
+            
+            if not df_session.empty:
+                rol = "dt"
+                equipo_usuario = df_session.iloc[0]['nombre']
+            else:
+                # Si por alguna razón el PIN ya no es válido, reseteamos
+                rol = "espectador"
+                st.session_state.pin_usuario = ""
+        except Exception as e:
+            # En caso de error de conexión, mantenemos como espectador para no romper la app
+            rol = "espectador"
 
 
+            
 
 
-# --- DEFINICIÓN DINÁMICA DE PESTAÑAS ---
-# 'fase_actual' ya viene de la consulta a Supabase que hicimos en el bloque anterior
+# --- DEFINICIÓN DINÁMICA DE PESTAÑAS (Actualizado para Supabase) ---
+
 if fase_actual == "inscripcion":
     titulos = ["📊 Posiciones", "📝 Inscripción", "⚙️ Gestión"]
 else:
     titulos = ["📊 Posiciones", "📅 Partidos", "⚙️ Gestión"]
 
 tabs = st.tabs(titulos)
-conn = get_db_connection()
 
-# --- PESTAÑA 0: POSICIONES (Siempre igual) ---
+# Usamos el motor que ya tenemos configurado
+engine = get_db_connection()
+
+# --- PESTAÑA 0: POSICIONES ---
 with tabs[0]:
     st.subheader("🏆 Tabla de Clasificación")
     
-    # Consulta a Supabase para obtener equipos aprobados
-    df_posiciones = conn.query(
-        "SELECT nombre, escudo, estado FROM equipos WHERE estado = 'aprobado'", 
-        ttl=0
-    )
+    # Consulta a Supabase usando el nuevo motor
+    query_pos = text("SELECT nombre, escudo, puntos, pj, pg, pe, pp, gf, gc, dg FROM equipos WHERE estado = 'aprobado' ORDER BY puntos DESC, dg DESC")
     
-    if df_posiciones.empty:
-        st.info("Esperando a que se aprueben los primeros equipos para generar la tabla.")
-    else:
-        # Aquí irá tu lógica de cálculo de puntos (PG, PE, PP, etc.)
-        st.dataframe(df_posiciones, use_container_width=True)
+    try:
+        with engine.connect() as connection:
+            df_posiciones = pd.read_sql_query(query_pos, connection)
+        
+        if df_posiciones.empty:
+            st.info("Esperando a que se aprueben los primeros equipos para generar la tabla.")
+        else:
+            # Aquí ya tienes los datos listos para mostrar
+            st.dataframe(df_posiciones, use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.error(f"Error al cargar posiciones: {e}")
 
 # --- PESTAÑA 1: INSCRIPCIÓN O PARTIDOS (Dinámica) ---
 with tabs[1]:
     if fase_actual == "inscripcion":
         st.subheader("📝 Registro de Equipos")
-        # Aquí se insertará el bloque del Formulario de Inscripción que usa s.commit()
+        # (Aquí va el formulario que ya tienes con s.commit())
         
         st.divider()
         st.markdown("### 📋 Equipos Inscritos")
-        # Mostramos todos los equipos (pendientes y aprobados) desde Supabase
-        df_inscritos = conn.query("SELECT nombre, estado FROM equipos", ttl=0)
-        if not df_inscritos.empty:
-            st.table(df_inscritos)
+        
+        query_inscritos = text("SELECT nombre, estado FROM equipos ORDER BY id DESC")
+        try:
+            with engine.connect() as connection:
+                df_inscritos = pd.read_sql_query(query_inscritos, connection)
+            
+            if not df_inscritos.empty:
+                st.table(df_inscritos)
+            else:
+                st.write("Aún no hay equipos inscritos.")
+        except Exception as e:
+            st.error(f"Error al cargar inscritos: {e}")
+            
     else:
         st.subheader("📅 Calendario de Juegos")
-        # Aquí se insertará el bloque de Partidos/Jornadas con diseño de tarjetas
-        df_partidos = conn.query("SELECT * FROM partidos ORDER BY jornada ASC", ttl=0)
-        if df_partidos.empty:
-            st.warning("El administrador aún no ha generado el calendario.")
+        
+        query_partidos = text("SELECT * FROM partidos ORDER BY jornada ASC, id ASC")
+        try:
+            with engine.connect() as connection:
+                df_partidos = pd.read_sql_query(query_partidos, connection)
+            
+            if df_partidos.empty:
+                st.warning("El administrador aún no ha generado el calendario.")
+            else:
+                # Aquí se despliega la lógica de tarjetas de partidos que ya diseñaste
+                st.write("Calendario cargado correctamente.") # Marcador de posición
+        except Exception as e:
+            st.error(f"Error al cargar partidos: {e}")
 
 # --- PESTAÑA 2: GESTIÓN (ADMIN O DT) ---
 with tabs[2]:
     if rol == "admin":
         st.header("👑 Panel de Administración")
-        # Aquí pegaremos el bloque de aprobación de equipos y control de fase
+        # Bloque de Admin (Aprobaciones, etc.)
         
     elif rol == "dt":
         st.header(f"⚽ Gestión: {equipo_usuario}")
@@ -633,98 +673,105 @@ with tabs[2]:
             st.info(f"👋 ¡Hola DT de **{equipo_usuario}**! Tu equipo ya está aprobado. El torneo aún no comienza, espera a que el administrador genere el calendario.")
         else:
             st.success(f"✅ Torneo en curso para **{equipo_usuario}**. Aquí podrás reportar tus marcadores.")
-            # Aquí irá el formulario de reporte de resultados para el DT
+            # Bloque de reporte de resultados del DT
             
     else:
         st.markdown("### 🔒 Acceso Restringido")
         st.info("Esta sección es solo para **Administradores** o **Directores Técnicos** registrados.")
         st.write("Por favor, ingresa tu PIN en la parte superior para acceder.")
 
+        
 
 
 
-# --- TAB: CLASIFICACIÓN (Versión Supabase / Postgres) ---
+
+# --- TAB: CLASIFICACIÓN (Versión SQLAlchemy / Supabase) ---
 with tabs[0]:
-    # 1. Obtenemos la conexión establecida arriba
-    conn = get_db_connection()
+    # 1. Obtenemos el motor de conexión
+    engine = get_db_connection()
     
-    # 2. Traemos equipos aprobados (usamos ttl=0 para datos frescos)
-    df_eq = conn.query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", ttl=0)
+    # 2. Traemos equipos aprobados usando pandas + text
+    query_eq = text("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'")
     
-    if df_eq.empty: 
-        st.info("No hay equipos aprobados todavía.")
-    else:
-        # Mapeo de escudos para acceso rápido
-        mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
+    try:
+        with engine.connect() as connection:
+            df_eq = pd.read_sql_query(query_eq, connection)
         
-        # Inicializamos estadísticas
-        stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
-        
-        # 3. Traemos partidos jugados (con goles registrados)
-        df_p = conn.query("SELECT local, visitante, goles_l, goles_v FROM partidos WHERE goles_l IS NOT NULL", ttl=0)
-        
-        # Procesamos resultados para la tabla
-        if not df_p.empty:
-            for _, f in df_p.iterrows():
-                l, v = f['local'], f['visitante']
-                # Convertimos a int por seguridad
-                gl, gv = int(f['goles_l']), int(f['goles_v'])
+        if df_eq.empty: 
+            st.info("No hay equipos aprobados todavía.")
+        else:
+            # Mapeo de escudos para acceso rápido (Tu lógica original)
+            mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
+            
+            # Inicializamos estadísticas
+            stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
+            
+            # 3. Traemos partidos jugados (donde ya hay goles registrados)
+            query_partidos = text("SELECT local, visitante, goles_l, goles_v FROM partidos WHERE goles_l IS NOT NULL")
+            
+            with engine.connect() as connection:
+                df_p = pd.read_sql_query(query_partidos, connection)
+            
+            # Procesamos resultados para la tabla (Tu lógica de cálculo intacta)
+            if not df_p.empty:
+                for _, f in df_p.iterrows():
+                    l, v = f['local'], f['visitante']
+                    # Verificamos que ambos equipos existan en nuestra lista de aprobados
+                    if l in stats and v in stats:
+                        gl, gv = int(f['goles_l']), int(f['goles_v'])
+                        
+                        stats[l]['PJ'] += 1
+                        stats[v]['PJ'] += 1
+                        stats[l]['GF'] += gl
+                        stats[l]['GC'] += gv
+                        stats[v]['GF'] += gv
+                        stats[v]['GC'] += gl
+                        
+                        if gl > gv: stats[l]['PTS'] += 3
+                        elif gv > gl: stats[v]['PTS'] += 3
+                        else:
+                            stats[l]['PTS'] += 1
+                            stats[v]['PTS'] += 1
+            
+            # Convertimos diccionario a DataFrame para ordenar
+            df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
+            df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
+            df_f['DG'] = df_f['GF'] - df_f['GC']
+            
+            # Ordenamos (Tu lógica de desempate original)
+            df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
+            df_f.insert(0, 'POS', range(1, len(df_f) + 1))
+
+            # --- RENDERIZADO HTML (Tu diseño original conservado) ---
+            st.markdown("""
+                <style>
+                .mobile-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+                .mobile-table th { background-color: #f0f2f6; padding: 8px; text-align: center; }
+                .mobile-table td { padding: 8px; border-bottom: 1px solid #ddd; text-align: center; }
+                .team-cell { text-align: left !important; display: flex; align-items: center; }
+                </style>
+            """, unsafe_allow_html=True)
+
+            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
+            
+            for _, r in df_f.iterrows():
+                url = mapa_escudos.get(r['EQ'])
+                prefijo_img = f'<img src="{url}" style="width:22px; height:22px; object-fit:contain; margin-right:8px;">' if url else '<span style="margin-right:8px;">🛡️</span>'
                 
-                if l in stats and v in stats:
-                    stats[l]['PJ'] += 1
-                    stats[v]['PJ'] += 1
-                    stats[l]['GF'] += gl
-                    stats[l]['GC'] += gv
-                    stats[v]['GF'] += gv
-                    stats[v]['GC'] += gl
-                    
-                    if gl > gv: stats[l]['PTS'] += 3
-                    elif gv > gl: stats[v]['PTS'] += 3
-                    else:
-                        stats[l]['PTS'] += 1
-                        stats[v]['PTS'] += 1
-        
-        # Convertimos diccionario a DataFrame para ordenar
-        df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-        df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
-        df_f['DG'] = df_f['GF'] - df_f['GC']
-        
-        # Ordenamos por Puntos, luego Diferencia de Goles, luego Goles a Favor
-        df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
-        df_f.insert(0, 'POS', range(1, len(df_f) + 1))
-
-        # --- RENDERIZADO HTML (Mantenemos tu diseño original) ---
-        # CSS para asegurar que no se rompa en móvil
-        st.markdown("""
-            <style>
-            .mobile-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-            .mobile-table th { background-color: #f0f2f6; padding: 8px; text-align: center; }
-            .mobile-table td { padding: 8px; border-bottom: 1px solid #ddd; text-align: center; }
-            .team-cell { text-align: left !important; display: flex; align-items: center; }
-            </style>
-        """, unsafe_allow_html=True)
-
-        html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
-        
-        for _, r in df_f.iterrows():
-            url = mapa_escudos.get(r['EQ'])
+                html += f"""
+                    <tr>
+                        <td>{r['POS']}</td>
+                        <td class='team-cell'>{prefijo_img} {r['EQ']}</td>
+                        <td><b>{r['PTS']}</b></td>
+                        <td>{r['PJ']}</td>
+                        <td>{r['DG']}</td>
+                    </tr>
+                """
             
-            if url:
-                prefijo_img = f'<img src="{url}" style="width:22px; height:22px; object-fit:contain; margin-right:8px;">'
-            else:
-                prefijo_img = '<span style="margin-right:8px;">🛡️</span>'
+            st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
             
-            html += f"""
-                <tr>
-                    <td>{r['POS']}</td>
-                    <td class='team-cell'>{prefijo_img} {r['EQ']}</td>
-                    <td><b>{r['PTS']}</b></td>
-                    <td>{r['PJ']}</td>
-                    <td>{r['DG']}</td>
-                </tr>
-            """
-        
-        st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Error cargando la tabla de posiciones: {e}")
             
 
 
@@ -767,10 +814,10 @@ if fase_actual == "inscripcion":
                         except Exception as e:
                             st.error(f"Error en Cloudinary: {e}")
                 
-                # INSERCIÓN EN SUPABASE
-                conn = get_db_connection()
+                # --- CAMBIO IMPORTANTE: INSERCIÓN EN SUPABASE CON ENGINE ---
+                engine = get_db_connection()
                 try:
-                    with conn.session as s:
+                    with engine.connect() as s:
                         s.execute(text("""
                             INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) 
                             VALUES (:n, :c, :pre, :p, :e, 'pendiente')
@@ -781,7 +828,7 @@ if fase_actual == "inscripcion":
                             "p": d['pin'], 
                             "e": url_temporal
                         })
-                        s.commit()
+                        s.commit() # Asegura que se guarde el registro
                     st.session_state.reg_estado = "exito"
                     st.rerun()
                 except Exception as e:
@@ -827,26 +874,25 @@ if fase_actual == "inscripcion":
                     if not nom or not tel or len(pin_r) < 4: 
                         st.error("Datos incompletos.")
                     else:
-                        # VALIDACIÓN DE DUPLICADOS EN SUPABASE
-                        conn = get_db_connection()
-                        df_check = conn.query(
-                            text("SELECT 1 FROM equipos WHERE nombre = :n OR celular = :c"),
-                            params={"n": nom, "c": tel},
-                            ttl=0
-                        )
-                        
-                        if not df_check.empty: 
-                            st.error("❌ Equipo o teléfono ya registrados.")
-                        else:
-                            st.session_state.datos_temp = {
-                                "n": nom, "wa": tel, "pin": pin_r, 
-                                "pref": pais_sel.split('(')[-1].replace(')', ''),
-                                "escudo_obj": archivo_escudo
-                            }
-                            st.session_state.reg_estado = "confirmar"
-                            st.rerun()
-                                
-
+                        # --- CAMBIO IMPORTANTE: VALIDACIÓN DE DUPLICADOS CON ENGINE ---
+                        engine = get_db_connection()
+                        try:
+                            with engine.connect() as connection:
+                                query_check = text("SELECT 1 FROM equipos WHERE nombre = :n OR celular = :c")
+                                df_check = pd.read_sql_query(query_check, connection, params={"n": nom, "c": tel})
+                            
+                            if not df_check.empty: 
+                                st.error("❌ Equipo o teléfono ya registrados.")
+                            else:
+                                st.session_state.datos_temp = {
+                                    "n": nom, "wa": tel, "pin": pin_r, 
+                                    "pref": pais_sel.split('(')[-1].replace(')', ''),
+                                    "escudo_obj": archivo_escudo
+                                }
+                                st.session_state.reg_estado = "confirmar"
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error de conexión: {e}")
 
 
 
@@ -854,89 +900,97 @@ if fase_actual == "inscripcion":
 
 
     
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (Versión SQLAlchemy / Supabase) ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
         st.subheader("📅 Calendario Oficial")
         
-        conn = get_db_connection()
+        # 1. Obtenemos el motor
+        engine = get_db_connection()
         
-        # Consultas optimizadas a Supabase
-        df_p = conn.query("SELECT * FROM partidos ORDER BY jornada ASC", ttl=0)
-        df_escudos = conn.query("SELECT nombre, escudo FROM equipos", ttl=0)
-        
-        # Diccionario de escudos para acceso rápido (Fallback a icono genérico si no hay escudo)
-        GENERIC_SHIELD = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-        escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
-        
-        # Determinamos cuántas jornadas mostrar dinámicamente
-        max_jornada = int(df_p['jornada'].max()) if not df_p.empty else 3
-        jornadas_lista = [f"J{i+1}" for i in range(max_jornada)]
-        
-        j_tabs = st.tabs(jornadas_lista)
-        
-        for i, jt in enumerate(j_tabs):
-            with jt:
-                # Filtramos partidos de la jornada actual
-                df_j = df_p[df_p['jornada'] == (i + 1)]
+        try:
+            # 2. Consultas optimizadas con pandas
+            with engine.connect() as connection:
+                df_p = pd.read_sql_query(text("SELECT * FROM partidos ORDER BY jornada ASC"), connection)
+                df_escudos = pd.read_sql_query(text("SELECT nombre, escudo FROM equipos"), connection)
+            
+            # Diccionario de escudos (Tu lógica de Fallback intacta)
+            GENERIC_SHIELD = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+            escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
+            
+            if df_p.empty:
+                st.warning("El administrador aún no ha generado el calendario.")
+            else:
+                # Determinamos jornadas dinámicamente
+                max_jornada = int(df_p['jornada'].max())
+                jornadas_lista = [f"J{i+1}" for i in range(max_jornada)]
                 
-                if df_j.empty:
-                    st.info(f"No hay partidos programados para la Jornada {i+1}")
-                    continue
+                j_tabs = st.tabs(jornadas_lista)
                 
-                for _, p in df_j.iterrows():
-                    # Lógica de marcador
-                    res_text = "vs"
-                    if p['goles_l'] is not None and p['goles_v'] is not None:
-                        try:
-                            res_text = f"{int(p['goles_l'])}-{int(p['goles_v'])}"
-                        except: 
+                for i, jt in enumerate(j_tabs):
+                    with jt:
+                        # Filtramos partidos de la jornada actual (i+1)
+                        df_j = df_p[df_p['jornada'] == (i + 1)]
+                        
+                        if df_j.empty:
+                            st.info(f"No hay partidos programados para la Jornada {i+1}")
+                            continue
+                        
+                        for _, p in df_j.iterrows():
+                            # Lógica de marcador (vs o resultado)
                             res_text = "vs"
-                    
-                    # Obtener URLs de escudos
-                    esc_l = escudos_dict.get(p['local']) or GENERIC_SHIELD
-                    esc_v = escudos_dict.get(p['visitante']) or GENERIC_SHIELD
+                            # En Postgres/Supabase 'None' se maneja con pd.isna o comparando con None
+                            if pd.notna(p['goles_l']) and pd.notna(p['goles_v']):
+                                try:
+                                    res_text = f"{int(p['goles_l'])}-{int(p['goles_v'])}"
+                                except: 
+                                    res_text = "vs"
+                            
+                            # Obtener URLs de escudos
+                            esc_l = escudos_dict.get(p['local']) or GENERIC_SHIELD
+                            esc_v = escudos_dict.get(p['visitante']) or GENERIC_SHIELD
 
-                    # --- DISEÑO DE FILA ULTRA COMPACTA ---
-                    with st.container():
-                        col_izq, col_cnt, col_der = st.columns([1, 0.8, 1])
-                        
-                        # Local
-                        with col_izq:
-                            st.markdown(f"""
-                                <div style='display: flex; align-items: center; gap: 5px; font-size: 11px;'> 
-                                    <img src='{esc_l}' width='22' height='22' style='object-fit: contain;'> 
-                                    <b>{p['local'][:8]}</b> 
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Marcador
-                        with col_cnt:
-                            st.markdown(f"""
-                                <div style='text-align: center; background: #31333F; color: white; border-radius: 4px; font-weight: bold; font-size: 12px; padding: 2px 0;'>
-                                    {res_text}
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Visitante
-                        with col_der:
-                            st.markdown(f"""
-                                <div style='display: flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 11px;'> 
-                                    <b>{p['visitante'][:8]}</b> 
-                                    <img src='{esc_v}' width='22' height='22' style='object-fit: contain;'> 
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Evidencias (Fotos de reporte)
-                        if p.get('url_foto_l') or p.get('url_foto_v'):
-                            with st.expander(f"📷 Ver evidencias"):
-                                c_ev1, c_ev2 = st.columns(2)
-                                if p['url_foto_l']: 
-                                    c_ev1.image(p['url_foto_l'], caption="Local")
-                                if p['url_foto_v']: 
-                                    c_ev2.image(p['url_foto_v'], caption="Visitante")
-                    
-                    st.divider()
+                            # --- DISEÑO DE FILA ULTRA COMPACTA (Tu HTML intacto) ---
+                            with st.container():
+                                col_izq, col_cnt, col_der = st.columns([1, 0.8, 1])
+                                
+                                with col_izq:
+                                    st.markdown(f"""
+                                        <div style='display: flex; align-items: center; gap: 5px; font-size: 11px;'> 
+                                            <img src='{esc_l}' width='22' height='22' style='object-fit: contain;'> 
+                                            <b>{p['local'][:8]}</b> 
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                with col_cnt:
+                                    st.markdown(f"""
+                                        <div style='text-align: center; background: #31333F; color: white; border-radius: 4px; font-weight: bold; font-size: 12px; padding: 2px 0;'>
+                                            {res_text}
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                with col_der:
+                                    st.markdown(f"""
+                                        <div style='display: flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 11px;'> 
+                                            <b>{p['visitante'][:8]}</b> 
+                                            <img src='{esc_v}' width='22' height='22' style='object-fit: contain;'> 
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                # Evidencias (Fotos de reporte)
+                                # Usamos .get() porque en pandas a veces las columnas faltantes dan error
+                                if p.get('url_foto_l') or p.get('url_foto_v'):
+                                    with st.expander(f"📷 Ver evidencias"):
+                                        c_ev1, c_ev2 = st.columns(2)
+                                        if pd.notna(p.get('url_foto_l')): 
+                                            c_ev1.image(p['url_foto_l'], caption="Local")
+                                        if pd.notna(p.get('url_foto_v')): 
+                                            c_ev2.image(p['url_foto_v'], caption="Visitante")
+                            
+                            st.divider()
+                            
+        except Exception as e:
+            st.error(f"Error cargando el calendario: {e}")
                     
 
 
@@ -950,117 +1004,117 @@ if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
         
-        conn = get_db_connection()
+        engine = get_db_connection()
         
-        # Consultar partidos donde participa el DT (usando sintaxis Postgres)
-        mis_partidos = conn.query(
-            text("SELECT * FROM partidos WHERE (local = :eq OR visitante = :eq) ORDER BY jornada ASC"),
-            params={"eq": equipo_usuario},
-            ttl=0
-        )
+        # 1. Consultar partidos donde participa el DT usando el motor directo
+        query_mis_p = text("SELECT * FROM partidos WHERE (local = :eq OR visitante = :eq) ORDER BY jornada ASC")
         
-        if mis_partidos.empty:
-            st.info("Aún no tienes partidos asignados en el calendario.")
-        
-        for _, p in mis_partidos.iterrows():
-            es_local = (p['local'] == equipo_usuario)
-            rival = p['visitante'] if es_local else p['local']
+        try:
+            with engine.connect() as connection:
+                mis_partidos = pd.read_sql_query(query_mis_p, connection, params={"eq": equipo_usuario})
             
-            with st.container():
-                # Caja visual del encuentro
-                st.markdown(f"""
-                    <div style='background: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #FFD700; margin-bottom: 10px;'>
-                        <small>JORNADA {p['jornada']}</small><br>
-                        <span style='font-size: 18px;'>🆚 Rival: <b>{rival}</b></span>
-                    </div>
-                """, unsafe_allow_html=True)
+            if mis_partidos.empty:
+                st.info("Aún no tienes partidos asignados en el calendario.")
+            
+            for _, p in mis_partidos.iterrows():
+                es_local = (p['local'] == equipo_usuario)
+                rival = p['visitante'] if es_local else p['local']
                 
-                # --- CONTACTO WHATSAPP ---
-                # Buscamos el teléfono del rival en la tabla de equipos
-                df_rival = conn.query(
-                    text("SELECT prefijo, celular FROM equipos WHERE nombre = :r"),
-                    params={"r": rival},
-                    ttl=3600 # El teléfono no cambia seguido, podemos cachear 1 hora
-                )
-                
-                if not df_rival.empty:
-                    row = df_rival.iloc[0]
-                    num_wa = f"{str(row['prefijo']).replace('+', '')}{row['celular']}"
+                with st.container():
+                    # Caja visual del encuentro (Tu diseño intacto)
                     st.markdown(f"""
-                        <a href='https://wa.me/{num_wa}' target='_blank' style='text-decoration: none;'>
-                            <div style='background-color: #25D366; color: white; text-align: center; padding: 8px; border-radius: 5px; font-weight: bold; margin-bottom: 15px;'>
-                                💬 Contactar DT Rival
-                            </div>
-                        </a>
+                        <div style='background: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #FFD700; margin-bottom: 10px;'>
+                            <small>JORNADA {p['jornada']}</small><br>
+                            <span style='font-size: 18px;'>🆚 Rival: <b>{rival}</b></span>
+                        </div>
                     """, unsafe_allow_html=True)
+                    
+                    # --- CONTACTO WHATSAPP ---
+                    query_rival = text("SELECT prefijo, celular FROM equipos WHERE nombre = :r")
+                    with engine.connect() as connection:
+                        df_rival = pd.read_sql_query(query_rival, connection, params={"r": rival})
+                    
+                    if not df_rival.empty:
+                        row = df_rival.iloc[0]
+                        num_wa = f"{str(row['prefijo']).replace('+', '')}{row['celular']}"
+                        st.markdown(f"""
+                            <a href='https://wa.me/{num_wa}' target='_blank' style='text-decoration: none;'>
+                                <div style='background-color: #25D366; color: white; text-align: center; padding: 8px; border-radius: 5px; font-weight: bold; margin-bottom: 15px;'>
+                                    💬 Contactar DT Rival
+                                </div>
+                            </a>
+                        """, unsafe_allow_html=True)
 
-                # --- EXPANDER PARA REPORTE CON IA ---
-                with st.expander(f"📸 Reportar Resultado J{p['jornada']}", expanded=False):
-                    opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"src_{p['id']}", horizontal=True)
-                    
-                    foto = st.camera_input("Capturar marcador", key=f"cam_{p['id']}") if opcion == "Cámara" else \
-                           st.file_uploader("Cargar imagen", type=['png', 'jpg', 'jpeg'], key=f"file_{p['id']}")
-                    
-                    if foto:
-                        if st.button("🔍 Validar con IA y Enviar", key=f"btn_ia_{p['id']}", use_container_width=True):
-                            with st.spinner("Analizando marcador..."):
-                                # 1. Análisis de IA (Función externa definida al inicio)
-                                res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
-                                
-                                if res_ia is None:
-                                    st.error(f"Error de lectura: {mensaje_ia}")
-                                else:
-                                    gl_ia, gv_ia = res_ia
-                                    st.info(f"🤖 IA detectó: {gl_ia} - {gv_ia}")
+                    # --- EXPANDER PARA REPORTE CON IA ---
+                    with st.expander(f"📸 Reportar Resultado J{p['jornada']}", expanded=False):
+                        opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"src_{p['id']}", horizontal=True)
+                        
+                        foto = st.camera_input("Capturar marcador", key=f"cam_{p['id']}") if opcion == "Cámara" else \
+                               st.file_uploader("Cargar imagen", type=['png', 'jpg', 'jpeg'], key=f"file_{p['id']}")
+                        
+                        if foto:
+                            if st.button("🔍 Validar con IA y Enviar", key=f"btn_ia_{p['id']}", use_container_width=True):
+                                with st.spinner("Analizando marcador..."):
+                                    # Análisis de IA
+                                    res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
                                     
-                                    try:
-                                        # 2. Subida a Cloudinary
-                                        foto.seek(0)
-                                        res_cloud = cloudinary.uploader.upload(foto, folder="reportes_partidos")
-                                        url_nueva = res_cloud['secure_url']
+                                    if res_ia is None:
+                                        st.error(f"Error de lectura: {mensaje_ia}")
+                                    else:
+                                        gl_ia, gv_ia = res_ia
+                                        st.info(f"🤖 IA detectó: {gl_ia} - {gv_ia}")
                                         
-                                        col_foto_db = "url_foto_l" if es_local else "url_foto_v"
-                                        
-                                        # 3. Lógica de Consenso / Conflicto en Supabase
-                                        with conn.session as s:
-                                            # Verificamos si ya hay goles reportados por el otro DT
-                                            # (Usamos datos del DataFrame actual 'p')
-                                            if p['goles_l'] is not None:
-                                                if int(p['goles_l']) != gl_ia or int(p['goles_v']) != gv_ia:
-                                                    # HAY CONFLICTO
-                                                    s.execute(text(f"""
-                                                        UPDATE partidos SET 
-                                                        conflicto = 1, {col_foto_db} = :url,
-                                                        ia_goles_l = :gl, ia_goles_v = :gv
-                                                        WHERE id = :pid
-                                                    """), {"url": url_nueva, "gl": gl_ia, "gv": gv_ia, "pid": p['id']})
-                                                    st.warning("⚠️ Marcador diferente al reportado por el rival. El administrador revisará.")
-                                                else:
-                                                    # HAY CONSENSO
-                                                    s.execute(text(f"""
-                                                        UPDATE partidos SET 
-                                                        {col_foto_db} = :url, conflicto = 0, estado = 'Finalizado'
-                                                        WHERE id = :pid
-                                                    """), {"url": url_nueva, "pid": p['id']})
-                                                    st.success("✅ ¡Coincidencia total! Partido finalizado.")
-                                            else:
-                                                # PRIMER REPORTE
-                                                s.execute(text(f"""
-                                                    UPDATE partidos SET 
-                                                    goles_l = :gl, goles_v = :gv, {col_foto_db} = :url,
-                                                    ia_goles_l = :gl, ia_goles_v = :gv, estado = 'Revision'
-                                                    WHERE id = :pid
-                                                """), {"gl": gl_ia, "gv": gv_ia, "url": url_nueva, "pid": p['id']})
-                                                st.success("⚽ Reporte enviado. Esperando confirmación del rival.")
+                                        try:
+                                            # Subida a Cloudinary
+                                            foto.seek(0)
+                                            res_cloud = cloudinary.uploader.upload(foto, folder="reportes_partidos")
+                                            url_nueva = res_cloud['secure_url']
                                             
-                                            s.commit()
-                                        st.rerun()
-                                        
-                                    except Exception as e:
-                                        st.error(f"Error técnico: {e}")
-                
-                st.divider()
+                                            col_foto_db = "url_foto_l" if es_local else "url_foto_v"
+                                            
+                                            # Lógica de Consenso / Conflicto en Supabase
+                                            with engine.connect() as conn_sync:
+                                                # Verificamos si ya hay goles reportados
+                                                if pd.notna(p['goles_l']):
+                                                    if int(p['goles_l']) != gl_ia or int(p['goles_v']) != gv_ia:
+                                                        # HAY CONFLICTO
+                                                        conn_sync.execute(text(f"""
+                                                            UPDATE partidos SET 
+                                                            conflicto = 1, {col_foto_db} = :url,
+                                                            ia_goles_l = :gl, ia_goles_v = :gv
+                                                            WHERE id = :pid
+                                                        """), {"url": url_nueva, "gl": gl_ia, "gv": gv_ia, "pid": p['id']})
+                                                        st.warning("⚠️ Marcador en conflicto. El administrador revisará.")
+                                                    else:
+                                                        # HAY CONSENSO
+                                                        conn_sync.execute(text(f"""
+                                                            UPDATE partidos SET 
+                                                            {col_foto_db} = :url, conflicto = 0, estado = 'Finalizado'
+                                                            WHERE id = :pid
+                                                        """), {"url": url_nueva, "pid": p['id']})
+                                                        st.success("✅ ¡Coincidencia total! Partido finalizado.")
+                                                else:
+                                                    # PRIMER REPORTE
+                                                    conn_sync.execute(text(f"""
+                                                        UPDATE partidos SET 
+                                                        goles_l = :gl, goles_v = :gv, {col_foto_db} = :url,
+                                                        ia_goles_l = :gl, ia_goles_v = :gv, estado = 'Revision'
+                                                        WHERE id = :pid
+                                                    """), {"gl": gl_ia, "gv": gv_ia, "url": url_nueva, "pid": p['id']})
+                                                    st.success("⚽ Reporte enviado. Esperando confirmación del rival.")
+                                                
+                                                conn_sync.commit()
+                                            st.rerun()
+                                            
+                                        except Exception as e:
+                                            st.error(f"Error técnico: {e}")
+                    st.divider()
+        except Exception as e:
+            st.error(f"Error de conexión con la base de datos: {e}")
 
+
+
+            
 
 
 
@@ -1071,62 +1125,61 @@ if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        conn = get_db_connection()
+        engine = get_db_connection()
         
         # --- 1. SECCIÓN DE APROBACIONES ---
         st.subheader("📩 Equipos por Aprobar")
         
-        # Consultamos pendientes y conteo de aprobados
-        df_pendientes = conn.query("SELECT * FROM equipos WHERE estado='pendiente'", ttl=0)
-        df_aprobados = conn.query("SELECT nombre FROM equipos WHERE estado='aprobado'", ttl=0)
-        aprobados_count = len(df_aprobados)
-        
-        st.write(f"**Progreso: {aprobados_count} Equipos Aprobados**")
-        
-        if not df_pendientes.empty:
-            for _, r in df_pendientes.iterrows():
-                with st.container():
-                    col_data, col_btn = st.columns([2, 1])
-                    prefijo = str(r.get('prefijo', '')).replace('+', '')
-                    wa_link = f"https://wa.me/{prefijo}{r['celular']}"
-                    
-                    with col_data:
-                        st.markdown(f"**{r['nombre']}**")
-                        st.markdown(f"<a href='{wa_link}' target='_blank' style='color: #25D366; text-decoration: none;'>🟢 Contactar DT</a>", unsafe_allow_html=True)
-                    
-                    with col_btn:
-                        if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
-                            url_final = r['escudo']
-                            
-                            # Si tiene escudo, usamos la IA de Cloudinary para quitar el fondo
-                            if url_final and "res.cloudinary.com" in url_final:
-                                with st.spinner("🤖 IA Limpiando Fondo..."):
-                                    try:
-                                        # background_removal="cloudinary_ai" quita el fondo automáticamente
-                                        res_ia = cloudinary.uploader.upload(
-                                            url_final,
-                                            background_removal="cloudinary_ai",
-                                            folder="escudos_limpios",
-                                            format="png"
-                                        )
-                                        url_final = res_ia['secure_url']
-                                        # Agregamos timestamp para evitar que el navegador use la imagen vieja (Cache Busting)
-                                        url_final = f"{url_final}?v={int(time.time())}"
-                                    except Exception as e:
-                                        st.error(f"Error IA Cloudinary: {e}")
-                            
-                            # Actualizamos en Supabase usando SQL puro (SQLAlchemy)
-                            with conn.session as s:
-                                s.execute(
-                                    text("UPDATE equipos SET estado='aprobado', escudo=:esc WHERE nombre=:nom"),
-                                    {"esc": url_final, "nom": r['nombre']}
-                                )
-                                s.commit()
-                            st.success(f"¡{r['nombre']} aprobado!")
-                            st.rerun()
-                st.divider()
-        else:
-            st.info("No hay equipos pendientes de aprobación.")
+        try:
+            with engine.connect() as connection:
+                df_pendientes = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), connection)
+                df_aprobados = pd.read_sql_query(text("SELECT nombre FROM equipos WHERE estado='aprobado'"), connection)
+            
+            aprobados_count = len(df_aprobados)
+            st.write(f"**Progreso: {aprobados_count} Equipos Aprobados**")
+            
+            if not df_pendientes.empty:
+                for _, r in df_pendientes.iterrows():
+                    with st.container():
+                        col_data, col_btn = st.columns([2, 1])
+                        prefijo = str(r.get('prefijo', '')).replace('+', '')
+                        wa_link = f"https://wa.me/{prefijo}{r['celular']}"
+                        
+                        with col_data:
+                            st.markdown(f"**{r['nombre']}**")
+                            st.markdown(f"<a href='{wa_link}' target='_blank' style='color: #25D366; text-decoration: none;'>🟢 Contactar DT</a>", unsafe_allow_html=True)
+                        
+                        with col_btn:
+                            if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
+                                url_final = r['escudo']
+                                
+                                if url_final and "res.cloudinary.com" in url_final:
+                                    with st.spinner("🤖 IA Limpiando Fondo..."):
+                                        try:
+                                            res_ia = cloudinary.uploader.upload(
+                                                url_final,
+                                                background_removal="cloudinary_ai",
+                                                folder="escudos_limpios",
+                                                format="png"
+                                            )
+                                            url_final = f"{res_ia['secure_url']}?v={int(time.time())}"
+                                        except Exception as e:
+                                            st.error(f"Error IA Cloudinary: {e}")
+                                
+                                # Actualización segura en Supabase
+                                with engine.connect() as conn_sync:
+                                    conn_sync.execute(
+                                        text("UPDATE equipos SET estado='aprobado', escudo=:esc WHERE nombre=:nom"),
+                                        {"esc": url_final, "nom": r['nombre']}
+                                    )
+                                    conn_sync.commit()
+                                st.success(f"¡{r['nombre']} aprobado!")
+                                st.rerun()
+                    st.divider()
+            else:
+                st.info("No hay equipos pendientes de aprobación.")
+        except Exception as e:
+            st.error(f"Error en sección de aprobaciones: {e}")
 
         # --- 2. GESTIÓN DE RESULTADOS Y CONFLICTOS ---
         st.divider()
@@ -1134,69 +1187,76 @@ if rol == "admin":
         
         if opcion_admin == "⚽ Resolver Conflictos":
             st.subheader("⚠️ Conflictos detectados por IA")
-            df_conf = conn.query("SELECT * FROM partidos WHERE conflicto=1", ttl=0)
-            
-            if df_conf.empty:
-                st.success("No hay conflictos de resultados pendientes.")
-            else:
-                for _, p in df_conf.iterrows():
-                    with st.expander(f"Conflicto J{p['jornada']}: {p['local']} vs {p['visitante']}"):
-                        st.write("La IA leyó cosas distintas o los DT reportaron diferente.")
-                        c1, c2 = st.columns(2)
-                        if p['url_foto_l']: c1.image(p['url_foto_l'], caption="Foto Local")
-                        if p['url_foto_v']: c2.image(p['url_foto_v'], caption="Foto Visitante")
-                        
-                        # Formulario manual para el Admin
-                        with st.form(f"f_conf_{p['id']}"):
-                            nl = st.number_input("Goles Local", value=0, min_value=0)
-                            nv = st.number_input("Goles Visitante", value=0, min_value=0)
-                            if st.form_submit_button("🔨 Dictar Sentencia Final"):
-                                with conn.session as s:
-                                    s.execute(text("""
-                                        UPDATE partidos SET 
-                                        goles_l=:gl, goles_v=:gv, conflicto=0, estado='Finalizado' 
-                                        WHERE id=:pid
-                                    """), {"gl": nl, "gv": nv, "pid": p['id']})
-                                    s.commit()
-                                st.rerun()
+            try:
+                with engine.connect() as connection:
+                    df_conf = pd.read_sql_query(text("SELECT * FROM partidos WHERE conflicto=1"), connection)
+                
+                if df_conf.empty:
+                    st.success("No hay conflictos de resultados pendientes.")
+                else:
+                    for _, p in df_conf.iterrows():
+                        with st.expander(f"Conflicto J{p['jornada']}: {p['local']} vs {p['visitante']}"):
+                            c1, c2 = st.columns(2)
+                            if p['url_foto_l']: c1.image(p['url_foto_l'], caption="Foto Local")
+                            if p['url_foto_v']: c2.image(p['url_foto_v'], caption="Foto Visitante")
+                            
+                            with st.form(f"f_conf_{p['id']}"):
+                                nl = st.number_input("Goles Local", value=int(p['goles_l'] or 0), min_value=0)
+                                nv = st.number_input("Goles Visitante", value=int(p['goles_v'] or 0), min_value=0)
+                                if st.form_submit_button("🔨 Dictar Sentencia Final"):
+                                    with engine.connect() as conn_sync:
+                                        conn_sync.execute(text("""
+                                            UPDATE partidos SET 
+                                            goles_l=:gl, goles_v=:gv, conflicto=0, estado='Finalizado' 
+                                            WHERE id=:pid
+                                        """), {"gl": nl, "gv": nv, "pid": p['id']})
+                                        conn_sync.commit()
+                                    st.rerun()
+            except Exception as e:
+                st.error(f"Error en conflictos: {e}")
 
         elif opcion_admin == "🛠️ Directorio de Equipos":
             st.subheader("📋 Base de Datos de Equipos")
-            df_maestro = conn.query("SELECT * FROM equipos ORDER BY nombre ASC", ttl=0)
-            st.dataframe(df_maestro[['nombre', 'pin', 'estado', 'celular']])
-            
-            equipo_a_borrar = st.selectbox("Eliminar Equipo:", [""] + df_maestro['nombre'].tolist())
-            if equipo_a_borrar != "" and st.button("🚨 ELIMINAR EQUIPO DEFINITIVAMENTE"):
-                with conn.session as s:
-                    s.execute(text("DELETE FROM equipos WHERE nombre=:n"), {"n": equipo_a_borrar})
-                    s.commit()
-                st.rerun()
+            try:
+                with engine.connect() as connection:
+                    df_maestro = pd.read_sql_query(text("SELECT * FROM equipos ORDER BY nombre ASC"), connection)
+                st.dataframe(df_maestro[['nombre', 'pin', 'estado', 'celular']], use_container_width=True)
+                
+                equipo_a_borrar = st.selectbox("Eliminar Equipo:", [""] + df_maestro['nombre'].tolist())
+                if equipo_a_borrar != "" and st.button("🚨 ELIMINAR EQUIPO DEFINITIVAMENTE"):
+                    with engine.connect() as conn_sync:
+                        conn_sync.execute(text("DELETE FROM equipos WHERE nombre=:n"), {"n": equipo_a_borrar})
+                        conn_sync.commit()
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Error en directorio: {e}")
 
         # --- 3. ACCIONES MAESTRAS ---
         st.divider()
         st.subheader("🚀 Control del Torneo")
-        
         col_torneo, col_reset = st.columns(2)
         
         with col_torneo:
             if fase_actual == "inscripcion":
-                if st.button("🏁 CERRAR INSCRIPCIÓN Y GENERAR CALENDARIO", type="primary", use_container_width=True):
+                if st.button("🏁 GENERAR CALENDARIO", type="primary", use_container_width=True):
                     if aprobados_count >= 2:
-                        generar_calendario() # Esta función debe estar definida al inicio
+                        generar_calendario() # Esta función debe usar engine + commit
                         st.rerun()
                     else:
-                        st.error("Necesitas al menos 2 equipos aprobados.")
+                        st.error("Mínimo 2 equipos.")
         
         with col_reset:
-            if st.button("🚨 REINICIAR TODO EL SISTEMA", use_container_width=True, help="Borra equipos y partidos"):
-                with conn.session as s:
-                    s.execute(text("DELETE FROM partidos"))
-                    s.execute(text("DELETE FROM equipos"))
-                    s.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
-                    s.commit()
-                st.session_state.clear()
-                st.rerun()
-
+            if st.button("🚨 REINICIAR SISTEMA", use_container_width=True):
+                try:
+                    with engine.connect() as conn_sync:
+                        conn_sync.execute(text("DELETE FROM partidos"))
+                        conn_sync.execute(text("DELETE FROM equipos"))
+                        conn_sync.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
+                        conn_sync.commit()
+                    st.session_state.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al reiniciar: {e}")
 
 
 
