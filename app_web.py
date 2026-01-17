@@ -29,16 +29,15 @@ DB_FILE = "data_torneo.json"
 
 @st.cache_resource
 def get_db_connection():
-    # Asegúrate de que la URL en secrets use el puerto 5432
-    db_url = st.secrets["connections"]["supabase"]["url"]
+    # Usamos la URL del secret
+    db_url = st.secrets["connections"]["postgresql"]["url"]
     
-    # Añadimos pool_size y max_overflow para que SQLAlchemy reutilice conexiones
     engine = create_engine(
         db_url,
-        pool_size=5,          # Mantiene 5 conexiones abiertas listas para usar
-        max_overflow=10,      # Permite hasta 10 adicionales si hay mucho tráfico
-        pool_timeout=30,      # Espera 30 segundos antes de dar error
-        pool_recycle=1800,    # Reinicia conexiones cada 30 min para evitar bloqueos
+        # Estas 3 líneas son VITALES para evitar el error de 'Cannot assign address'
+        pool_size=3,          # Pocas conexiones persistentes
+        max_overflow=0,       # No permitir que se creen más de la cuenta
+        pool_recycle=300,     # Cerrar conexiones viejas cada 5 minutos
     )
     return engine
 
@@ -1261,6 +1260,7 @@ if rol == "admin":
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al reiniciar: {e}")
+
 
 
 
