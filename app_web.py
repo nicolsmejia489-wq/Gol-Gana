@@ -622,7 +622,7 @@ with tabs[0]:
 
             
 
-# --- TAB: REGISTRO (Versión CSS Corregida) ---
+# --- TAB: REGISTRO (Versión Final con CSS Blindado) ---
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
@@ -632,77 +632,129 @@ if fase_actual == "inscripcion":
                 st.rerun()
         
         elif st.session_state.reg_estado == "confirmar":
-            # (Lógica de confirmación se mantiene igual que la anterior)
             d = st.session_state.datos_temp
             st.warning("⚠️ **Confirma tus datos:**")
+            
             col_info, col_img = st.columns([2, 1])
             with col_info:
                 st.write(f"**Equipo:** {d['n']}")
                 st.write(f"**WA:** {d['pref']} {d['wa']}")
                 st.write(f"**PIN:** {d['pin']}")
-            with col_img:
-                if d['escudo_obj']: st.image(d['escudo_obj'], width=100)
             
-            if st.button("✅ Confirmar"):
+            with col_img:
+                if d['escudo_obj']:
+                    st.image(d['escudo_obj'], caption="Tu Escudo", width=100)
+                else:
+                    st.write("🛡️ Sin escudo")
+
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Confirmar"):
                 url_temporal = None
                 if d['escudo_obj']:
-                    with st.spinner("Subiendo..."):
+                    with st.spinner("Subiendo imagen..."):
                         try:
                             res = cloudinary.uploader.upload(d['escudo_obj'], folder="escudos_pendientes")
                             url_temporal = res['secure_url']
                         except: pass
+                
                 with get_db_connection() as conn:
-                    conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) VALUES (?,?,?,?,?, 'pendiente')",
-                                (d['n'], d['wa'], d['pref'], d['pin'], url_temporal))
+                    conn.execute("""
+                        INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) 
+                        VALUES (?,?,?,?,?, 'pendiente')
+                    """, (d['n'], d['wa'], d['pref'], d['pin'], url_temporal))
                     conn.commit()
                 st.session_state.reg_estado = "exito"
                 st.rerun()
-            if st.button("✏️ Editar"): 
+
+            if c2.button("✏️ Editar"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
         else:
-            # --- CSS CORREGIDO PARA EVITAR DOBLE BOTÓN ---
+            # --- CSS ACTUALIZADO: Forzado de colores para evitar caja negra ---
             st.markdown("""
                 <style>
-                [data-testid="stFileUploader"] section { padding: 0; background-color: transparent !important; }
-                [data-testid="stFileUploader"] section > div:first-child { display: none; }
-                /* Solo afecta al botón de 'Browse files' cuando está vacío */
-                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] { 
-                    width: 100%; background-color: white; color: black; border: 2px solid #FFD700; 
-                    padding: 10px; border-radius: 8px; font-weight: bold;
+                /* Contenedor general del uploader */
+                [data-testid="stFileUploader"] {
+                    background-color: #f8f9fa !important;
+                    padding: 10px !important;
+                    border-radius: 10px !important;
+                    border: 1px solid #ddd !important;
                 }
-                /* Evita que el botón de 'X' (quitar) tenga el texto 'Subir Escudo' */
+                
+                /* Esconder el texto nativo 'Drag and drop' y decoraciones */
+                [data-testid="stFileUploader"] section { 
+                    padding: 0 !important; 
+                    background-color: transparent !important; 
+                }
+                [data-testid="stFileUploader"] section > div:first-child { display: none !important; }
+                [data-testid="stFileUploader"] small { display: none !important; }
+
+                /* Botón de selección personalizado */
+                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] { 
+                    width: 100% !important; 
+                    background-color: #ffffff !important; 
+                    color: #000000 !important; 
+                    border: 2px solid #FFD700 !important; 
+                    padding: 12px !important; 
+                    border-radius: 8px !important; 
+                    font-weight: bold !important;
+                    text-transform: uppercase !important;
+                }
+
+                /* Forzar el texto del botón */
                 [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] div p {
-                    display: none;
+                    display: none !important;
                 }
                 [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"]::before { 
                     content: "🛡️ SELECCIONAR ESCUDO"; 
+                    color: #000000 !important;
                 }
-                /* Estilo para el archivo ya subido */
-                [data-testid="stFileUploaderFileName"] { color: #FFD700; font-weight: bold; }
+
+                /* Texto del nombre del archivo una vez subido */
+                [data-testid="stFileUploaderFileName"] { 
+                    color: #2e7d32 !important; 
+                    font-weight: bold !important; 
+                }
+                
+                /* Widget de 'archivo listo' (evitar que se ponga negro al subir) */
+                [data-testid="stFileUploaderFileData"] {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    border-radius: 5px !important;
+                    padding: 5px !important;
+                }
                 </style>
             """, unsafe_allow_html=True)
 
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
-                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52"}
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507"}
                 pais_sel = st.selectbox("País", [f"{p} ({pref})" for p, pref in paises.items()])
                 tel = st.text_input("WhatsApp").strip()
                 pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
+                
+                st.markdown("---")
                 archivo_escudo = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
                 
                 if st.form_submit_button("Siguiente"):
-                    if not nom or not tel or len(pin_r) < 4: st.error("Incompleto")
+                    if not nom or not tel or len(pin_r) < 4: 
+                        st.error("Por favor completa todos los datos.")
                     else:
-                        st.session_state.datos_temp = {
-                            "n": nom, "wa": tel, "pin": pin_r, 
-                            "pref": pais_sel.split('(')[-1].replace(')', ''),
-                            "escudo_obj": archivo_escudo
-                        }
-                        st.session_state.reg_estado = "confirmar"
-                        st.rerun()
-
+                        with get_db_connection() as conn:
+                            cur = conn.cursor()
+                            cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR celular=?", (nom, tel))
+                            if cur.fetchone(): 
+                                st.error("❌ El nombre o teléfono ya están registrados.")
+                            else:
+                                st.session_state.datos_temp = {
+                                    "n": nom, "wa": tel, "pin": pin_r, 
+                                    "pref": pais_sel.split('(')[-1].replace(')', ''),
+                                    "escudo_obj": archivo_escudo
+                                }
+                                st.session_state.reg_estado = "confirmar"
+                                st.rerun()
+                                
                                 
 ### FIN DESARROLLO
     
@@ -988,6 +1040,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
