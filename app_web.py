@@ -622,7 +622,7 @@ with tabs[0]:
 
             
 
-# --- TAB: REGISTRO (Versión con Persistencia en Nube) ---
+# --- TAB: REGISTRO (Versión Final Corregida) ---
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
@@ -643,27 +643,19 @@ if fase_actual == "inscripcion":
             
             with col_img:
                 if d['escudo_obj']:
-                    st.image(d['escudo_obj'], caption="Tu Escudo", width=100)
+                    st.image(d['escudo_obj'], width=100)
                 else:
                     st.write("🛡️ Sin escudo")
 
             c1, c2 = st.columns(2)
-            
             if c1.button("✅ Confirmar"):
                 url_temporal = None
-                # SUBIDA INMEDIATA A CLOUDINARY (Persistencia)
                 if d['escudo_obj']:
-                    with st.spinner("Subiendo imagen a la nube..."):
+                    with st.spinner("Subiendo..."):
                         try:
-                            # Subida simple sin IA
-                            res = cloudinary.uploader.upload(
-                                d['escudo_obj'], 
-                                folder="escudos_pendientes",
-                                public_id=f"temp_{d['n']}"
-                            )
+                            res = cloudinary.uploader.upload(d['escudo_obj'], folder="escudos_pendientes")
                             url_temporal = res['secure_url']
-                        except Exception as e:
-                            st.error(f"Error al subir: {e}")
+                        except: pass
                 
                 with get_db_connection() as conn:
                     try:
@@ -675,37 +667,54 @@ if fase_actual == "inscripcion":
                         st.session_state.reg_estado = "exito"
                         st.rerun()
                     except sqlite3.Error as e:
-                        st.error(f"Error de base de datos: {e}")
+                        st.error(f"Error: {e}")
 
             if c2.button("✏️ Editar"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
         else:
-            # --- CSS DEL UPLOADER MANTENIDO ---
+            # --- CSS REFINADO: Colores claros y botón de eliminar protegido ---
             st.markdown("""
                 <style>
                 [data-testid="stFileUploader"] section { padding: 0; background-color: transparent !important; }
                 [data-testid="stFileUploader"] section > div:first-child { display: none; }
-                [data-testid="stFileUploader"] button { 
-                    width: 100%; background-color: white; color: black; border: 2px solid #FFD700; 
-                    padding: 10px; border-radius: 8px; font-weight: bold;
+                
+                /* Solo personalizamos el botón de CARGA inicial */
+                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] { 
+                    width: 100%; background-color: white !important; color: black !important; 
+                    border: 2px solid #FFD700 !important; padding: 10px; border-radius: 8px; font-weight: bold;
                 }
-                [data-testid="stFileUploader"] button::before { content: "🛡️ SUBIR ESCUDO - "; }
+                
+                /* El botón de 'Eliminar' (X) suele aparecer diferente, 
+                   si el contenedor tiene un archivo, evitamos que el ::before lo tape */
+                [data-testid="stFileUploaderFileData"] button { width: auto !important; border: none !important; }
+                
+                /* Texto del botón solo cuando no hay archivo */
+                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"]::before { 
+                    content: "🛡️ SELECCIONAR ESCUDO"; 
+                }
                 [data-testid="stFileUploader"] button div { display: none; }
                 [data-testid="stFileUploader"] small { display: none; }
+                
+                /* Asegurar que el nombre del archivo subido sea negro/visible */
+                [data-testid="stFileUploaderFileName"], [data-testid="stFileUploaderFileData"] p {
+                    color: black !important;
+                }
                 </style>
             """, unsafe_allow_html=True)
 
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
-                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507"} # Acortado por espacio
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507"}
                 pais_sel = st.selectbox("País", [f"{p} ({pref})" for p, pref in paises.items()])
                 tel = st.text_input("WhatsApp").strip()
                 pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
-                archivo_escudo = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
                 
-                if st.form_submit_button("Siguiente"):
+                st.markdown("**🛡️ Sube el escudo de tu equipo** (Opcional)")
+                archivo_escudo = st.file_uploader("", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+                
+                if st.form_submit_button("Siguiente", use_container_width=True):
                     if not nom or not tel or len(pin_r) < 4: 
                         st.error("Datos incompletos.")
                     else:
@@ -1008,6 +1017,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
