@@ -734,19 +734,25 @@ if fase_actual == "inscripcion":
                                 
                                 
 ### FIN DESARROLLO
+
+
+
+
+
+
     
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (Versión Estética Tarjetas) ---
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (Versión Nativa con Escudos) ---
 elif fase_actual == "clasificacion":
     # Pestaña de Calendario (tabs[1])
     with tabs[1]:
         st.subheader("📅 Calendario Oficial")
         
         with get_db_connection() as conn:
-            # Traemos los partidos y también un diccionario de escudos para no hacer mil consultas
             df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
+            # Diccionario rápido de escudos para evitar consultas lentas
             df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
             escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
-
+        
         j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
         
         for i, jt in enumerate(j_tabs):
@@ -754,62 +760,42 @@ elif fase_actual == "clasificacion":
                 df_j = df_p[df_p['jornada'] == (i + 1)]
                 
                 for _, p in df_j.iterrows():
-                    # 1. Preparar datos de la tarjeta
-                    marcador = "vs"
+                    # Preparar el marcador
+                    res_text = "vs"
                     if p['goles_l'] is not None and p['goles_v'] is not None:
                         try:
-                            marcador = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
-                        except: marcador = "vs"
+                            res_text = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                        except: res_text = "vs"
                     
-                    # Obtener URLs de escudos (si no hay, usar un escudo genérico)
-                    escudo_l = escudos_dict.get(p['local']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                    escudo_v = escudos_dict.get(p['visitante']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                    # Definir escudos (placeholder si no hay uno)
+                    esc_l = escudos_dict.get(p['local']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                    esc_v = escudos_dict.get(p['visitante']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
-                    # 2. Renderizar Tarjeta Visual
-                    st.markdown(f"""
-                        <div style="
-                            background-color: white;
-                            border-radius: 12px;
-                            padding: 12px;
-                            margin-bottom: 15px;
-                            border: 1px solid #eef0f3;
-                            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-                        ">
-                            <div style="display: flex; align-items: center; justify-content: space-between; text-align: center;">
-                                <div style="flex: 1;">
-                                    <img src="{escudo_l}" style="width: 45px; height: 45px; object-fit: contain;">
-                                    <div style="font-weight: bold; color: #1e1e1e; font-size: 0.85em; margin-top: 5px;">{p['local']}</div>
-                                </div>
-                                
-                                <div style="flex: 0.6; display: flex; flex-direction: column; align-items: center;">
-                                    <div style="
-                                        background: #f0f2f6;
-                                        color: #31333f;
-                                        padding: 3px 10px;
-                                        border-radius: 15px;
-                                        font-weight: 800;
-                                        font-size: 0.75em;
-                                        letter-spacing: 1px;
-                                    ">
-                                        {marcador}
-                                    </div>
-                                </div>
-                                
-                                <div style="flex: 1;">
-                                    <img src="{escudo_v}" style="width: 45px; height: 45px; object-fit: contain;">
-                                    <div style="font-weight: bold; color: #1e1e1e; font-size: 0.85em; margin-top: 5px;">{p['visitante']}</div>
-                                </div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                    # 3. Botón de Evidencias (se mantiene debajo de la tarjeta)
-                    if p['url_foto_l'] or p['url_foto_v']:
-                        if st.button(f"👁️ Ver Evidencia", key=f"view_{p['id']}", use_container_width=True):
-                            if p['url_foto_l']: st.image(p['url_foto_l'], caption=f"Evidencia {p['local']}")
-                            if p['url_foto_v']: st.image(p['url_foto_v'], caption=f"Evidencia {p['visitante']}")
-
-
+                    # --- DISEÑO DE FILA CON COLUMNAS NATIVAS ---
+                    # Estructura: [Escudo L | Nombre L | VS/Goles | Nombre V | Escudo V]
+                    with st.container():
+                        c_esc_l, c_nom_l, c_vs, c_nom_v, c_esc_v = st.columns([0.15, 0.25, 0.2, 0.25, 0.15])
+                        
+                        with c_esc_l:
+                            st.image(esc_l, width=35)
+                        with c_nom_l:
+                            st.markdown(f"**{p['local']}**")
+                        with c_vs:
+                            # Estilo visual para el VS/Marcador sin HTML complejo
+                            st.markdown(f"<p style='text-align: center; background: #f0f2f6; border-radius: 10px; font-weight: bold;'>{res_text}</p>", unsafe_allow_html=True)
+                        with c_nom_v:
+                            st.markdown(f"<p style='text-align: right;'><b>{p['visitante']}</b></p>", unsafe_allow_html=True)
+                        with c_esc_v:
+                            st.image(esc_v, width=35)
+                        
+                        # Botón de evidencia justo debajo de la fila si existe
+                        if p['url_foto_l'] or p['url_foto_v']:
+                            if st.button(f"👁️ Ver Evidencia", key=f"v_{p['id']}", use_container_width=True):
+                                col_ev1, col_ev2 = st.columns(2)
+                                if p['url_foto_l']: col_ev1.image(p['url_foto_l'], caption=f"Local")
+                                if p['url_foto_v']: col_ev2.image(p['url_foto_v'], caption=f"Visita")
+                    
+                    st.markdown("---") # Separador entre partidos
 
 
 
@@ -1090,6 +1076,7 @@ if rol == "admin":
                     conn.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
