@@ -741,61 +741,57 @@ if fase_actual == "inscripcion":
 
 
     
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (Versión Nativa con Escudos) ---
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (Versión Ultra-Compacta Móvil) ---
 elif fase_actual == "clasificacion":
-    # Pestaña de Calendario (tabs[1])
     with tabs[1]:
         st.subheader("📅 Calendario Oficial")
         
         with get_db_connection() as conn:
             df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
-            # Diccionario rápido de escudos para evitar consultas lentas
             df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
             escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
         
-        j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
+        j_tabs = st.tabs(["J1", "J2", "J3"]) # Nombres cortos para ahorrar espacio en móvil
         
         for i, jt in enumerate(j_tabs):
             with jt:
                 df_j = df_p[df_p['jornada'] == (i + 1)]
                 
                 for _, p in df_j.iterrows():
-                    # Preparar el marcador
                     res_text = "vs"
                     if p['goles_l'] is not None and p['goles_v'] is not None:
                         try:
-                            res_text = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                            res_text = f"{int(p['goles_l'])}-{int(p['goles_v'])}"
                         except: res_text = "vs"
                     
-                    # Definir escudos (placeholder si no hay uno)
                     esc_l = escudos_dict.get(p['local']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
                     esc_v = escudos_dict.get(p['visitante']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
-                    # --- DISEÑO DE FILA CON COLUMNAS NATIVAS ---
-                    # Estructura: [Escudo L | Nombre L | VS/Goles | Nombre V | Escudo V]
+                    # --- DISEÑO DE FILA ULTRA COMPACTA ---
+                    # Reducimos a 3 columnas principales para evitar que Streamlit las apile en el celular
                     with st.container():
-                        c_esc_l, c_nom_l, c_vs, c_nom_v, c_esc_v = st.columns([0.15, 0.25, 0.2, 0.25, 0.15])
+                        col_izq, col_cnt, col_der = st.columns([1, 0.8, 1])
                         
-                        with c_esc_l:
-                            st.image(esc_l, width=35)
-                        with c_nom_l:
-                            st.markdown(f"**{p['local']}**")
-                        with c_vs:
-                            # Estilo visual para el VS/Marcador sin HTML complejo
-                            st.markdown(f"<p style='text-align: center; background: #f0f2f6; border-radius: 10px; font-weight: bold;'>{res_text}</p>", unsafe_allow_html=True)
-                        with c_nom_v:
-                            st.markdown(f"<p style='text-align: right;'><b>{p['visitante']}</b></p>", unsafe_allow_html=True)
-                        with c_esc_v:
-                            st.image(esc_v, width=35)
+                        # Local: Escudo + Nombre (Markdown pegado)
+                        with col_izq:
+                            st.markdown(f"<div style='display: flex; align-items: center; gap: 5px; font-size: 12px;'> <img src='{esc_l}' width='25'> <b>{p['local'][:8]}</b> </div>", unsafe_allow_html=True)
                         
-                        # Botón de evidencia justo debajo de la fila si existe
+                        # Marcador: Centro
+                        with col_cnt:
+                            st.markdown(f"<div style='text-align: center; background: #31333F; color: white; border-radius: 5px; font-weight: bold; font-size: 12px;'>{res_text}</div>", unsafe_allow_html=True)
+                        
+                        # Visitante: Nombre + Escudo (Markdown pegado)
+                        with col_der:
+                            st.markdown(f"<div style='display: flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 12px;'> <b>{p['visitante'][:8]}</b> <img src='{esc_v}' width='25'> </div>", unsafe_allow_html=True)
+                        
+                        # Evidencias: Botón minimalista
                         if p['url_foto_l'] or p['url_foto_v']:
-                            if st.button(f"👁️ Ver Evidencia", key=f"v_{p['id']}", use_container_width=True):
-                                col_ev1, col_ev2 = st.columns(2)
-                                if p['url_foto_l']: col_ev1.image(p['url_foto_l'], caption=f"Local")
-                                if p['url_foto_v']: col_ev2.image(p['url_foto_v'], caption=f"Visita")
+                            if st.button(f"📷 Ver", key=f"v_{p['id']}", use_container_width=True):
+                                c_ev1, c_ev2 = st.columns(2)
+                                if p['url_foto_l']: c_ev1.image(p['url_foto_l'])
+                                if p['url_foto_v']: c_ev2.image(p['url_foto_v'])
                     
-                    st.markdown("---") # Separador entre partidos
+                    st.divider() # Línea más delgada que st.markdown("---")
 
 
 
@@ -1076,6 +1072,7 @@ if rol == "admin":
                     conn.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
