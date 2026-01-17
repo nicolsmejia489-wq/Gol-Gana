@@ -899,7 +899,7 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Consolidado) ---
+# --- TAB: GESTIÓN ADMIN (Consolidado Final) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
@@ -935,7 +935,6 @@ if rol == "admin":
                                             format="png"
                                         )
                                         url_final = res_ia['secure_url']
-                                        # Cache Buster para evitar ver el fondo viejo en el móvil
                                         import time
                                         url_final = f"{url_final}?v={int(time.time())}"
                                     except Exception as e:
@@ -965,60 +964,48 @@ if rol == "admin":
                     pin_h = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{eq["pin"]}</span>'
                     st.markdown(f"{estado_icon} **{eq['nombre']}** | 🔑 PIN: {pin_h} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
                 
-                # --- SUB-SECCIÓN: GESTIÓN Y EDICIÓN (Dentro de tabs[2]) ---
-st.markdown("---")
-st.subheader("✏️ Gestión y Edición")
-equipo_sel = st.selectbox("Selecciona equipo para editar o eliminar:", df_maestro['nombre'].tolist())
-datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
+                # --- SUB-SECCIÓN: GESTIÓN Y EDICIÓN ---
+                st.markdown("---")
+                st.subheader("✏️ Gestión y Edición")
+                equipo_sel = st.selectbox("Selecciona equipo para editar o eliminar:", df_maestro['nombre'].tolist())
+                datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
-with st.form("edit_master_form"):
-    col1, col2 = st.columns(2)
-    new_name = col1.text_input("Nombre del Equipo", datos_sel['nombre'])
-    new_pin = col2.text_input("PIN de acceso", str(datos_sel['pin']))
-    
-    st.write("**🛡️ Actualizar Escudo**")
-    nuevo_escudo_img = st.file_uploader("Subir nuevo escudo (reemplaza el anterior)", type=['png', 'jpg', 'jpeg'])
-    
-    quitar_escudo = st.checkbox("❌ Eliminar escudo actual (dejar sin imagen)")
-    
-    if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-        url_final = datos_sel['escudo']
-        
-        # Lógica de procesamiento de imagen
-        if quitar_escudo:
-            url_final = None
-        elif nuevo_escudo_img:
-            with st.spinner("🤖 Procesando imagen con IA..."):
-                try:
-                    # 1. Subida y limpieza directa con IA
-                    res_ia = cloudinary.uploader.upload(
-                        nuevo_escudo_img,
-                        background_removal="cloudinary_ai",
-                        folder="escudos_limpios",
-                        format="png"
-                    )
-                    url_final = res_ia['secure_url']
+                with st.form("edit_master_form"):
+                    col1, col2 = st.columns(2)
+                    new_name = col1.text_input("Nombre del Equipo", datos_sel['nombre'])
+                    new_pin = col2.text_input("PIN de acceso", str(datos_sel['pin']))
                     
-                    # 2. Cache Buster para ver el cambio de inmediato
-                    import time
-                    url_final = f"{url_final}?v={int(time.time())}"
-                except Exception as e:
-                    st.error(f"Error al procesar: {e}")
-                    # Si falla la IA, intentamos subida normal
-                    res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
-                    url_final = res_std['secure_url']
+                    st.write("**🛡️ Actualizar Escudo**")
+                    nuevo_escudo_img = st.file_uploader("Subir nuevo escudo (reemplaza el anterior)", type=['png', 'jpg', 'jpeg'])
+                    quitar_escudo = st.checkbox("❌ Eliminar escudo actual (dejar sin imagen)")
+                    
+                    if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                        url_final = datos_sel['escudo']
+                        
+                        if quitar_escudo:
+                            url_final = None
+                        elif nuevo_escudo_img:
+                            with st.spinner("🤖 Procesando imagen con IA..."):
+                                try:
+                                    res_ia = cloudinary.uploader.upload(
+                                        nuevo_escudo_img,
+                                        background_removal="cloudinary_ai",
+                                        folder="escudos_limpios",
+                                        format="png"
+                                    )
+                                    url_final = res_ia['secure_url']
+                                    import time
+                                    url_final = f"{url_final}?v={int(time.time())}"
+                                except Exception as e:
+                                    st.error(f"Error al procesar: {e}")
+                                    res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
+                                    url_final = res_std['secure_url']
 
-        # Actualización en BD
-        with get_db_connection() as conn:
-            conn.execute("""
-                UPDATE equipos 
-                SET nombre=?, pin=?, escudo=? 
-                WHERE nombre=?
-            """, (new_name, new_pin, url_final, equipo_sel))
-            conn.commit()
-            
-        st.success(f"✅ ¡{new_name} actualizado correctamente!")
-        st.rerun()
+                        with get_db_connection() as conn:
+                            conn.execute("UPDATE equipos SET nombre=?, pin=?, escudo=? WHERE nombre=?", (new_name, new_pin, url_final, equipo_sel))
+                            conn.commit()
+                        st.success(f"✅ ¡{new_name} actualizado!")
+                        st.rerun()
 
                 # --- SECCIÓN DE PELIGRO: BAJAR EQUIPO ---
                 if st.button(f"✖️ Bajar equipo: {equipo_sel}", use_container_width=True):
@@ -1039,20 +1026,20 @@ with st.form("edit_master_form"):
         with col_torneo:
             if fase_actual == "inscripcion":
                 if st.button("🏁 INICIAR TORNEO", use_container_width=True, type="primary"):
-                    if aprobados_count >= 2: # Mínimo para un torneo
+                    if aprobados_count >= 2:
                         generar_calendario()
                         st.rerun()
                     else:
                         st.error("Se necesitan más equipos aprobados.")
         
         with col_reset:
-            if st.button("🚨 REINICIAR TODO", use_container_width=True, help="Borra todos los datos y vuelve a inscripción"):
+            if st.button("🚨 REINICIAR TODO", use_container_width=True, help="Borra todo y vuelve a inscripción"):
                 with get_db_connection() as conn:
                     conn.execute("DROP TABLE IF EXISTS equipos")
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.execute("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'")
                     conn.commit()
-                # Limpiar session_state para evitar conflictos
                 st.session_state.clear()
                 st.rerun()
+
 
