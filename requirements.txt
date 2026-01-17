@@ -9,4 +9,6 @@ thefuzz
 opencv-python-headless
 psycopg2-binary
 sqlalchemy
+openai
+
 
