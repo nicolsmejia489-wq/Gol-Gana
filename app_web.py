@@ -52,11 +52,12 @@ st.set_page_config(page_title="Gol-Gana Pro", layout="centered", initial_sidebar
 st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
 
 
-# Configura credenciales (Cloudinary) Base de datos en Nube
+# --- CONFIGURACIÓN DE CLOUDINARY (Usando Secrets) ---
+# Esto lee los datos que acabas de guardar en el panel de Streamlit
 cloudinary.config( 
-  cloud_name = "dlvczeqlp", 
-  api_key = "276694391654197", 
-  api_secret = "j-_6AaUam_Acwng0GGr8tmb8Zyk",
+  cloud_name = st.secrets["cloudinary"]["cloud_name"], 
+  api_key = st.secrets["cloudinary"]["api_key"], 
+  api_secret = st.secrets["cloudinary"]["api_secret"],
   secure = True
 )
 
@@ -1157,6 +1158,7 @@ if rol == "admin":
                     s.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
