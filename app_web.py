@@ -899,12 +899,12 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Versión Final con IA, Cache Buster y Bajar Equipo) ---
+# --- TAB: GESTIÓN ADMIN (Consolidado) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        # --- 1. SECCIÓN DE APROBACIONES ---
+        # --- 1. SECCIÓN DE APROBACIONES (Con IA y Cache Buster) ---
         st.subheader("📩 Equipos por Aprobar")
         with get_db_connection() as conn:
             pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
@@ -920,35 +920,26 @@ if rol == "admin":
                     
                     with col_data:
                         st.markdown(f"**{r['nombre']}** \n<a href='{wa_link}' style='color: #25D366; text-decoration: none; font-weight: bold;'>🟢 📞 Contactar DT</a>", unsafe_allow_html=True)
-                        if r['escudo']:
-                            st.caption("🖼️ Escudo recibido (listo para IA)")
-                        else:
-                            st.caption("⚠️ Sin escudo")
+                        st.caption("🖼️ Escudo recibido (listo para IA)" if r['escudo'] else "⚠️ Sin escudo")
                     
                     with col_btn:
                         if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
                             url_final = r['escudo']
-                            
-                            # --- PROCESAMIENTO IA (Normalización y Transparencia) ---
                             if url_final:
                                 with st.spinner("🤖 IA Limpiando Escudo..."):
                                     try:
-                                        # Forzamos PNG y IA para asegurar transparencia
                                         res_ia = cloudinary.uploader.upload(
                                             url_final,
                                             background_removal="cloudinary_ai",
                                             folder="escudos_limpios",
                                             format="png"
                                         )
-                                        # Capturamos la nueva URL procesada
                                         url_final = res_ia['secure_url']
-                                        
-                                        # CACHE BUSTER para Celulares (evita ver la imagen vieja con fondo)
+                                        # Cache Buster para evitar ver el fondo viejo en el móvil
                                         import time
                                         url_final = f"{url_final}?v={int(time.time())}"
-                                        
                                     except Exception as e:
-                                        st.error(f"Error IA: Se usará original. ({e})")
+                                        st.error(f"Error IA: {e}")
                             
                             with get_db_connection() as conn:
                                 conn.execute("UPDATE equipos SET estado='aprobado', escudo=? WHERE nombre=?", (url_final, r['nombre']))
@@ -960,7 +951,7 @@ if rol == "admin":
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA ---
+        # --- 2. SELECCIÓN DE TAREA (Resultados / Directorio) ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos"], horizontal=True, key="adm_tab")
         
         if opcion_admin == "🛠️ Directorio de Equipos":
@@ -971,8 +962,8 @@ if rol == "admin":
             if not df_maestro.empty:
                 for _, eq in df_maestro.iterrows():
                     estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                    pin_html = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{eq["pin"]}</span>'
-                    st.markdown(f"{estado_icon} **{eq['nombre']}** | 🔑 PIN: {pin_html} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
+                    pin_h = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{eq["pin"]}</span>'
+                    st.markdown(f"{estado_icon} **{eq['nombre']}** | 🔑 PIN: {pin_h} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
                 
                 st.markdown("---")
                 st.subheader("✏️ Gestión y Edición")
@@ -998,81 +989,33 @@ if rol == "admin":
                     with get_db_connection() as conn:
                         conn.execute("DELETE FROM equipos WHERE nombre = ?", (equipo_sel,))
                         conn.commit()
-                    st.error(f"El equipo {equipo_sel} ha sido eliminado del sistema.")
+                    st.error(f"El equipo {equipo_sel} ha sido eliminado.")
                     st.rerun()
             else:
-                st.info("No hay equipos registrados en el directorio.")
+                st.info("No hay equipos registrados.")
 
-
-
- # SECCIÓN ADMIN (INFERIOR)
-if rol == "admin":
-    st.divider()
-    if fase_actual == "inscripcion":
-        with get_db_connection() as conn:
-            pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
-            st.write(f"Aprobados: {len(pd.read_sql_query('SELECT 1 FROM equipos WHERE estado=\'aprobado\'', conn))}/32")
-            for _, r in pend.iterrows():
-                if st.button(f"Aprobar {r['nombre']}"):
-                    conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
-                    conn.commit(); st.rerun()
-        if st.button("🚀 INICIAR TORNEO"): generar_calendario(); st.rerun()
-    if st.button("🚨 REINICIAR TODO"):
-        with get_db_connection() as conn:
-            conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
-            conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
-        st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        # --- 3. ACCIONES MAESTRAS (Solo visibles en Gestión para Admin) ---
+        st.divider()
+        st.subheader("🚀 Control Global del Torneo")
+        
+        col_torneo, col_reset = st.columns(2)
+        
+        with col_torneo:
+            if fase_actual == "inscripcion":
+                if st.button("🏁 INICIAR TORNEO", use_container_width=True, type="primary"):
+                    if aprobados_count >= 2: # Mínimo para un torneo
+                        generar_calendario()
+                        st.rerun()
+                    else:
+                        st.error("Se necesitan más equipos aprobados.")
+        
+        with col_reset:
+            if st.button("🚨 REINICIAR TODO", use_container_width=True, help="Borra todos los datos y vuelve a inscripción"):
+                with get_db_connection() as conn:
+                    conn.execute("DROP TABLE IF EXISTS equipos")
+                    conn.execute("DROP TABLE IF EXISTS partidos")
+                    conn.execute("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'")
+                    conn.commit()
+                # Limpiar session_state para evitar conflictos
+                st.session_state.clear()
+                st.rerun()
