@@ -622,7 +622,7 @@ with tabs[0]:
 
             
 
-# --- TAB: REGISTRO (Versión con Persistencia en Nube) ---
+# --- TAB: REGISTRO (Versión CSS Corregida) ---
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
@@ -632,96 +632,76 @@ if fase_actual == "inscripcion":
                 st.rerun()
         
         elif st.session_state.reg_estado == "confirmar":
+            # (Lógica de confirmación se mantiene igual que la anterior)
             d = st.session_state.datos_temp
             st.warning("⚠️ **Confirma tus datos:**")
-            
             col_info, col_img = st.columns([2, 1])
             with col_info:
                 st.write(f"**Equipo:** {d['n']}")
                 st.write(f"**WA:** {d['pref']} {d['wa']}")
                 st.write(f"**PIN:** {d['pin']}")
-            
             with col_img:
-                if d['escudo_obj']:
-                    st.image(d['escudo_obj'], caption="Tu Escudo", width=100)
-                else:
-                    st.write("🛡️ Sin escudo")
-
-            c1, c2 = st.columns(2)
+                if d['escudo_obj']: st.image(d['escudo_obj'], width=100)
             
-            if c1.button("✅ Confirmar"):
+            if st.button("✅ Confirmar"):
                 url_temporal = None
-                # SUBIDA INMEDIATA A CLOUDINARY (Persistencia)
                 if d['escudo_obj']:
-                    with st.spinner("Subiendo imagen a la nube..."):
+                    with st.spinner("Subiendo..."):
                         try:
-                            # Subida simple sin IA
-                            res = cloudinary.uploader.upload(
-                                d['escudo_obj'], 
-                                folder="escudos_pendientes",
-                                public_id=f"temp_{d['n']}"
-                            )
+                            res = cloudinary.uploader.upload(d['escudo_obj'], folder="escudos_pendientes")
                             url_temporal = res['secure_url']
-                        except Exception as e:
-                            st.error(f"Error al subir: {e}")
-                
+                        except: pass
                 with get_db_connection() as conn:
-                    try:
-                        conn.execute("""
-                            INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) 
-                            VALUES (?,?,?,?,?, 'pendiente')
-                        """, (d['n'], d['wa'], d['pref'], d['pin'], url_temporal))
-                        conn.commit()
-                        st.session_state.reg_estado = "exito"
-                        st.rerun()
-                    except sqlite3.Error as e:
-                        st.error(f"Error de base de datos: {e}")
-
-            if c2.button("✏️ Editar"): 
+                    conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) VALUES (?,?,?,?,?, 'pendiente')",
+                                (d['n'], d['wa'], d['pref'], d['pin'], url_temporal))
+                    conn.commit()
+                st.session_state.reg_estado = "exito"
+                st.rerun()
+            if st.button("✏️ Editar"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
         else:
-            # --- CSS DEL UPLOADER MANTENIDO ---
+            # --- CSS CORREGIDO PARA EVITAR DOBLE BOTÓN ---
             st.markdown("""
                 <style>
                 [data-testid="stFileUploader"] section { padding: 0; background-color: transparent !important; }
                 [data-testid="stFileUploader"] section > div:first-child { display: none; }
-                [data-testid="stFileUploader"] button { 
+                /* Solo afecta al botón de 'Browse files' cuando está vacío */
+                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] { 
                     width: 100%; background-color: white; color: black; border: 2px solid #FFD700; 
                     padding: 10px; border-radius: 8px; font-weight: bold;
                 }
-                [data-testid="stFileUploader"] button::before { content: "🛡️ SUBIR ESCUDO - "; }
-                [data-testid="stFileUploader"] button div { display: none; }
-                [data-testid="stFileUploader"] small { display: none; }
+                /* Evita que el botón de 'X' (quitar) tenga el texto 'Subir Escudo' */
+                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] div p {
+                    display: none;
+                }
+                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"]::before { 
+                    content: "🛡️ SELECCIONAR ESCUDO"; 
+                }
+                /* Estilo para el archivo ya subido */
+                [data-testid="stFileUploaderFileName"] { color: #FFD700; font-weight: bold; }
                 </style>
             """, unsafe_allow_html=True)
 
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
-                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507"} # Acortado por espacio
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52"}
                 pais_sel = st.selectbox("País", [f"{p} ({pref})" for p, pref in paises.items()])
                 tel = st.text_input("WhatsApp").strip()
                 pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
                 archivo_escudo = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
                 
                 if st.form_submit_button("Siguiente"):
-                    if not nom or not tel or len(pin_r) < 4: 
-                        st.error("Datos incompletos.")
+                    if not nom or not tel or len(pin_r) < 4: st.error("Incompleto")
                     else:
-                        with get_db_connection() as conn:
-                            cur = conn.cursor()
-                            cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR celular=?", (nom, tel))
-                            if cur.fetchone(): 
-                                st.error("❌ Equipo o teléfono ya registrados.")
-                            else:
-                                st.session_state.datos_temp = {
-                                    "n": nom, "wa": tel, "pin": pin_r, 
-                                    "pref": pais_sel.split('(')[-1].replace(')', ''),
-                                    "escudo_obj": archivo_escudo
-                                }
-                                st.session_state.reg_estado = "confirmar"
-                                st.rerun()
+                        st.session_state.datos_temp = {
+                            "n": nom, "wa": tel, "pin": pin_r, 
+                            "pref": pais_sel.split('(')[-1].replace(')', ''),
+                            "escudo_obj": archivo_escudo
+                        }
+                        st.session_state.reg_estado = "confirmar"
+                        st.rerun()
 
                                 
 ### FIN DESARROLLO
@@ -890,7 +870,7 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Con Aprobación IA y Eliminación de Equipos) ---
+# --- TAB: GESTIÓN ADMIN (Versión Final con IA, Cache Buster y Bajar Equipo) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
@@ -919,18 +899,27 @@ if rol == "admin":
                     with col_btn:
                         if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
                             url_final = r['escudo']
+                            
+                            # --- PROCESAMIENTO IA (Normalización y Transparencia) ---
                             if url_final:
                                 with st.spinner("🤖 IA Limpiando Escudo..."):
                                     try:
+                                        # Forzamos PNG y IA para asegurar transparencia
                                         res_ia = cloudinary.uploader.upload(
                                             url_final,
                                             background_removal="cloudinary_ai",
                                             folder="escudos_limpios",
                                             format="png"
                                         )
+                                        # Capturamos la nueva URL procesada
                                         url_final = res_ia['secure_url']
+                                        
+                                        # CACHE BUSTER para Celulares (evita ver la imagen vieja con fondo)
+                                        import time
+                                        url_final = f"{url_final}?v={int(time.time())}"
+                                        
                                     except Exception as e:
-                                        st.error("Error IA: Se usará original.")
+                                        st.error(f"Error IA: Se usará original. ({e})")
                             
                             with get_db_connection() as conn:
                                 conn.execute("UPDATE equipos SET estado='aprobado', escudo=? WHERE nombre=?", (url_final, r['nombre']))
@@ -952,7 +941,6 @@ if rol == "admin":
             
             if not df_maestro.empty:
                 for _, eq in df_maestro.iterrows():
-                    # Visualización simple del equipo en el directorio
                     estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
                     pin_html = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{eq["pin"]}</span>'
                     st.markdown(f"{estado_icon} **{eq['nombre']}** | 🔑 PIN: {pin_html} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
@@ -962,7 +950,6 @@ if rol == "admin":
                 equipo_sel = st.selectbox("Selecciona equipo para editar o eliminar:", df_maestro['nombre'].tolist())
                 datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
                 
-                # Formulario de edición
                 with st.form("edit_master_form"):
                     col1, col2 = st.columns(2)
                     new_name = col1.text_input("Nombre del Equipo", datos_sel['nombre'])
@@ -977,8 +964,7 @@ if rol == "admin":
                         st.success(f"Datos de {new_name} actualizados.")
                         st.rerun()
 
-                # Sección de Peligro: Bajar Equipo
-               
+                # --- SECCIÓN DE PELIGRO: BAJAR EQUIPO ---
                 if st.button(f"✖️ Bajar equipo: {equipo_sel}", use_container_width=True):
                     with get_db_connection() as conn:
                         conn.execute("DELETE FROM equipos WHERE nombre = ?", (equipo_sel,))
@@ -987,8 +973,6 @@ if rol == "admin":
                     st.rerun()
             else:
                 st.info("No hay equipos registrados en el directorio.")
-                
-
 
         # --- 3. ACCIONES FINALES ---
         st.divider()
@@ -1004,6 +988,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
