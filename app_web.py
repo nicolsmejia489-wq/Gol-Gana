@@ -1003,20 +1003,26 @@ if rol == "admin":
             else:
                 st.info("No hay equipos registrados en el directorio.")
 
-        # --- 3. ACCIONES FINALES ---
-        st.divider()
-        c_ini, c_res = st.columns(2)
-        with c_ini:
-            if st.button("🚀 INICIAR TORNEO", use_container_width=True):
-                # Tu función generar_calendario()
-                st.rerun()
-        with c_res:
-            if st.button("🚨 REINICIAR", use_container_width=True):
-                with get_db_connection() as conn:
-                    conn.execute("DROP TABLE IF EXISTS equipos")
-                    conn.execute("DROP TABLE IF EXISTS partidos")
-                    conn.commit()
-                st.rerun()
+
+
+ # SECCIÓN ADMIN (INFERIOR)
+if rol == "admin":
+    st.divider()
+    if fase_actual == "inscripcion":
+        with get_db_connection() as conn:
+            pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
+            st.write(f"Aprobados: {len(pd.read_sql_query('SELECT 1 FROM equipos WHERE estado=\'aprobado\'', conn))}/32")
+            for _, r in pend.iterrows():
+                if st.button(f"Aprobar {r['nombre']}"):
+                    conn.execute("UPDATE equipos SET estado='aprobado' WHERE nombre=?", (r['nombre'],))
+                    conn.commit(); st.rerun()
+        if st.button("🚀 INICIAR TORNEO"): generar_calendario(); st.rerun()
+    if st.button("🚨 REINICIAR TODO"):
+        with get_db_connection() as conn:
+            conn.execute("DROP TABLE IF EXISTS equipos"); conn.execute("DROP TABLE IF EXISTS partidos")
+            conn.execute("UPDATE config SET valor='inscripcion'"); conn.commit()
+        st.rerun()
+
 
 
 
