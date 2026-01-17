@@ -622,7 +622,7 @@ with tabs[0]:
 
             
 
-# --- TAB: REGISTRO (Versión Corregida con Subtítulo y Visibilidad Total) ---
+# --- TAB: REGISTRO (Versión con Persistencia en Nube) ---
 if fase_actual == "inscripcion":
     with tabs[1]:
         if st.session_state.reg_estado == "exito":
@@ -643,95 +643,77 @@ if fase_actual == "inscripcion":
             
             with col_img:
                 if d['escudo_obj']:
-                    st.image(d['escudo_obj'], width=100)
+                    st.image(d['escudo_obj'], caption="Tu Escudo", width=100)
                 else:
                     st.write("🛡️ Sin escudo")
 
             c1, c2 = st.columns(2)
+            
             if c1.button("✅ Confirmar"):
                 url_temporal = None
+                # SUBIDA INMEDIATA A CLOUDINARY (Persistencia)
                 if d['escudo_obj']:
-                    with st.spinner("Subiendo..."):
+                    with st.spinner("Subiendo imagen a la nube..."):
                         try:
-                            res = cloudinary.uploader.upload(d['escudo_obj'], folder="escudos_pendientes")
+                            # Subida simple sin IA
+                            res = cloudinary.uploader.upload(
+                                d['escudo_obj'], 
+                                folder="escudos_pendientes",
+                                public_id=f"temp_{d['n']}"
+                            )
                             url_temporal = res['secure_url']
-                        except: pass
+                        except Exception as e:
+                            st.error(f"Error al subir: {e}")
                 
                 with get_db_connection() as conn:
-                    conn.execute("INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) VALUES (?,?,?,?,?, 'pendiente')",
-                                (d['n'], d['wa'], d['pref'], d['pin'], url_temporal))
-                    conn.commit()
-                st.session_state.reg_estado = "exito"
-                st.rerun()
+                    try:
+                        conn.execute("""
+                            INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) 
+                            VALUES (?,?,?,?,?, 'pendiente')
+                        """, (d['n'], d['wa'], d['pref'], d['pin'], url_temporal))
+                        conn.commit()
+                        st.session_state.reg_estado = "exito"
+                        st.rerun()
+                    except sqlite3.Error as e:
+                        st.error(f"Error de base de datos: {e}")
 
             if c2.button("✏️ Editar"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
         else:
-            # --- CSS RECONSTRUIDO: FOCO EN VISIBILIDAD Y TEXTOS ---
+            # --- CSS DEL UPLOADER MANTENIDO ---
             st.markdown("""
                 <style>
-                /* Caja principal del uploader */
-                [data-testid="stFileUploader"] {
-                    background-color: white !important;
-                    border: 1px solid #ddd !important;
-                    padding: 15px !important;
-                    border-radius: 10px !important;
+                [data-testid="stFileUploader"] section { padding: 0; background-color: transparent !important; }
+                [data-testid="stFileUploader"] section > div:first-child { display: none; }
+                [data-testid="stFileUploader"] button { 
+                    width: 100%; background-color: white; color: black; border: 2px solid #FFD700; 
+                    padding: 10px; border-radius: 8px; font-weight: bold;
                 }
-                
-                /* Forzar color de TODOS los textos dentro del uploader (Label, nombres, etc) */
-                [data-testid="stFileUploader"] label, 
-                [data-testid="stFileUploader"] p, 
-                [data-testid="stFileUploaderFileName"] {
-                    color: black !important;
-                    font-weight: 500 !important;
-                }
-
-                /* Botón de selección */
-                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] { 
-                    width: 100% !important; 
-                    background-color: white !important; 
-                    color: black !important; 
-                    border: 2px solid #FFD700 !important; 
-                    height: 45px !important;
-                    border-radius: 8px !important;
-                }
-                
-                /* Quitar el texto por defecto del botón y poner el nuestro */
-                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] div p { display: none !important; }
-                [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"]::before { 
-                    content: "🛡️ SELECCIONAR ESCUDO"; 
-                    font-weight: bold;
-                }
-
-                /* Ocultar decoraciones innecesarias que ensucian el diseño móvil */
-                [data-testid="stFileUploader"] section > div:first-child { display: none !important; }
-                [data-testid="stFileUploader"] small { display: none !important; }
+                [data-testid="stFileUploader"] button::before { content: "🛡️ SUBIR ESCUDO - "; }
+                [data-testid="stFileUploader"] button div { display: none; }
+                [data-testid="stFileUploader"] small { display: none; }
                 </style>
             """, unsafe_allow_html=True)
 
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo").strip()
-                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507"}
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507"} # Acortado por espacio
                 pais_sel = st.selectbox("País", [f"{p} ({pref})" for p, pref in paises.items()])
                 tel = st.text_input("WhatsApp").strip()
                 pin_r = st.text_input("PIN (4 dígitos)", max_chars=4, type="password").strip()
+                archivo_escudo = st.file_uploader("", type=['png', 'jpg', 'jpeg'])
                 
-                st.markdown("---")
-                # Recuperamos el subtítulo explícito
-                st.markdown("**🛡️ Sube el escudo de tu equipo** (Opcional)")
-                archivo_escudo = st.file_uploader("", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
-                
-                if st.form_submit_button("Siguiente", use_container_width=True):
+                if st.form_submit_button("Siguiente"):
                     if not nom or not tel or len(pin_r) < 4: 
-                        st.error("Por favor completa los campos obligatorios.")
+                        st.error("Datos incompletos.")
                     else:
                         with get_db_connection() as conn:
                             cur = conn.cursor()
                             cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR celular=?", (nom, tel))
                             if cur.fetchone(): 
-                                st.error("❌ Nombre o teléfono ya registrados.")
+                                st.error("❌ Equipo o teléfono ya registrados.")
                             else:
                                 st.session_state.datos_temp = {
                                     "n": nom, "wa": tel, "pin": pin_r, 
@@ -1026,6 +1008,7 @@ if rol == "admin":
                     conn.execute("DROP TABLE IF EXISTS partidos")
                     conn.commit()
                 st.rerun()
+
 
 
 
