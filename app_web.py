@@ -272,7 +272,32 @@ def migrar_db():
                 continue
 
 # --- EJECUCIÓN ---
-inicializar_db() # 1. Crea lo básico en Supabase
+def inicializar_db():
+    conn = get_db_connection()
+    # Usar el motor directamente para evitar problemas de sesión
+    with conn.engine.connect() as s:
+        try:
+            s.execute(text("""
+                CREATE TABLE IF NOT EXISTS equipos (
+                    nombre TEXT PRIMARY KEY,
+                    pin TEXT NOT NULL,
+                    celular TEXT,
+                    prefijo TEXT,
+                    escudo TEXT,
+                    puntos INTEGER DEFAULT 0,
+                    pj INTEGER DEFAULT 0,
+                    pg INTEGER DEFAULT 0,
+                    pe INTEGER DEFAULT 0,
+                    pp INTEGER DEFAULT 0,
+                    gf INTEGER DEFAULT 0,
+                    gc INTEGER DEFAULT 0,
+                    dg INTEGER DEFAULT 0,
+                    estado TEXT DEFAULT 'pendiente'
+                );
+            """))
+            s.commit() # Importante confirmar
+        except Exception as e:
+            st.warning(f"Aviso en DB: {e}")
 migrar_db()      # 2. Asegura que la estructura esté al día
 
 
@@ -1158,6 +1183,7 @@ if rol == "admin":
                     s.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
