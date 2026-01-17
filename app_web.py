@@ -735,36 +735,85 @@ if fase_actual == "inscripcion":
                                 
 ### FIN DESARROLLO
     
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (Versión Estética Tarjetas) ---
 elif fase_actual == "clasificacion":
-    # 1. Pestaña de Calendario (tabs[1])
+    # Pestaña de Calendario (tabs[1])
     with tabs[1]:
         st.subheader("📅 Calendario Oficial")
-        with get_db_connection() as conn:
-            df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
         
+        with get_db_connection() as conn:
+            # Traemos los partidos y también un diccionario de escudos para no hacer mil consultas
+            df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
+            df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
+            escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
+
         j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
+        
         for i, jt in enumerate(j_tabs):
             with jt:
                 df_j = df_p[df_p['jornada'] == (i + 1)]
+                
                 for _, p in df_j.iterrows():
-                    # Manejo de marcadores
+                    # 1. Preparar datos de la tarjeta
+                    marcador = "vs"
                     if p['goles_l'] is not None and p['goles_v'] is not None:
                         try:
-                            res_text = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
-                        except:
-                            res_text = "vs"
-                    else:
-                        res_text = "vs"
+                            marcador = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                        except: marcador = "vs"
                     
-                    c1, c2 = st.columns([0.8, 0.2])
-                    c1.write(f"**{p['local']}** {res_text} **{p['visitante']}**")
-                    
+                    # Obtener URLs de escudos (si no hay, usar un escudo genérico)
+                    escudo_l = escudos_dict.get(p['local']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                    escudo_v = escudos_dict.get(p['visitante']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+
+                    # 2. Renderizar Tarjeta Visual
+                    st.markdown(f"""
+                        <div style="
+                            background-color: white;
+                            border-radius: 12px;
+                            padding: 12px;
+                            margin-bottom: 15px;
+                            border: 1px solid #eef0f3;
+                            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+                        ">
+                            <div style="display: flex; align-items: center; justify-content: space-between; text-align: center;">
+                                <div style="flex: 1;">
+                                    <img src="{escudo_l}" style="width: 45px; height: 45px; object-fit: contain;">
+                                    <div style="font-weight: bold; color: #1e1e1e; font-size: 0.85em; margin-top: 5px;">{p['local']}</div>
+                                </div>
+                                
+                                <div style="flex: 0.6; display: flex; flex-direction: column; align-items: center;">
+                                    <div style="
+                                        background: #f0f2f6;
+                                        color: #31333f;
+                                        padding: 3px 10px;
+                                        border-radius: 15px;
+                                        font-weight: 800;
+                                        font-size: 0.75em;
+                                        letter-spacing: 1px;
+                                    ">
+                                        {marcador}
+                                    </div>
+                                </div>
+                                
+                                <div style="flex: 1;">
+                                    <img src="{escudo_v}" style="width: 45px; height: 45px; object-fit: contain;">
+                                    <div style="font-weight: bold; color: #1e1e1e; font-size: 0.85em; margin-top: 5px;">{p['visitante']}</div>
+                                </div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    # 3. Botón de Evidencias (se mantiene debajo de la tarjeta)
                     if p['url_foto_l'] or p['url_foto_v']:
-                        if c2.button("👁️", key=f"view_{p['id']}"):
+                        if st.button(f"👁️ Ver Evidencia", key=f"view_{p['id']}", use_container_width=True):
                             if p['url_foto_l']: st.image(p['url_foto_l'], caption=f"Evidencia {p['local']}")
                             if p['url_foto_v']: st.image(p['url_foto_v'], caption=f"Evidencia {p['visitante']}")
 
+
+
+
+
+                            ###PARTIDOS
 
 # --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
 if rol == "dt":
@@ -1041,5 +1090,6 @@ if rol == "admin":
                     conn.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
