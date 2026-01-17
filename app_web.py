@@ -14,7 +14,7 @@ from thefuzz import fuzz # Para comparación flexible de nombres
 import json
 import os
 import streamlit as st
-from sqlalchemy import create_url
+from sqlalchemy.engine import make_url
 from sqlalchemy import text
 from contextlib import contextmanager
 import streamlit as st
@@ -1157,6 +1157,7 @@ if rol == "admin":
                     s.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
