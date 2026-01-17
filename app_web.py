@@ -27,18 +27,22 @@ DB_FILE = "data_torneo.json"
 
 # --- CONFIGURACIÓN DE BASE DE DATOS (Supabase) ---
 
+@st.cache_resource
 def get_db_connection():
-    # Obtenemos la URL directamente de los secrets
-    # Asegúrate de que en Secrets sea: [connections] (sin el .postgresql)
-    # O simplemente [db] para evitar conflictos con el estándar de Streamlit
-    try:
-        url = st.secrets["connections"]["postgresql"]["url"]
-        # Creamos el motor con pool_pre_ping para asegurar que la conexión esté viva
-        engine = create_engine(url, pool_pre_ping=True)
-        return engine
-    except Exception as e:
-        st.error(f"Error cargando URL de Secrets: {e}")
-        return None
+    # Asegúrate de que la URL en secrets use el puerto 5432
+    db_url = st.secrets["connections"]["supabase"]["url"]
+    
+    # Añadimos pool_size y max_overflow para que SQLAlchemy reutilice conexiones
+    engine = create_engine(
+        db_url,
+        pool_size=5,          # Mantiene 5 conexiones abiertas listas para usar
+        max_overflow=10,      # Permite hasta 10 adicionales si hay mucho tráfico
+        pool_timeout=30,      # Espera 30 segundos antes de dar error
+        pool_recycle=1800,    # Reinicia conexiones cada 30 min para evitar bloqueos
+    )
+    return engine
+
+
 
 def obtener_fase_actual():
     engine = get_db_connection()
@@ -1257,6 +1261,7 @@ if rol == "admin":
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al reiniciar: {e}")
+
 
 
 
