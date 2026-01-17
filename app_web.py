@@ -505,7 +505,7 @@ st.session_state.pin_usuario = pin_input
 conn = get_db_connection()
 
 # Obtener fase actual (ttl=0 para que sea tiempo real)
-df_fase = conn.query("SELECT valor FROM config WHERE llave = 'fase'", ttl=0)
+df_fase = conn.query("SELECT valor FROM config WHERE clave = 'fase'", ttl=0)
 fase_actual = df_fase.iloc[0]['valor'] if not df_fase.empty else "inscripcion"
 
 rol = "espectador"
@@ -1183,6 +1183,7 @@ if rol == "admin":
                     s.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
