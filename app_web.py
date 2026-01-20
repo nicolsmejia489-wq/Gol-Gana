@@ -27,7 +27,8 @@ st.set_page_config(
 )
 
 # Estilo para móviles y tema claro forzado
-st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
+#st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
+
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 20px; font-weight: bold; }
@@ -1052,6 +1053,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
