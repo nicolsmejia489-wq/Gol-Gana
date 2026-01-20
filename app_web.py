@@ -549,8 +549,6 @@ with tabs[2]:
 
 # --- TAB: CLASIFICACIÓN ---
 with tabs[0]:
-    # Usamos la variable global 'conn' directamente.
-
     try:
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
@@ -583,58 +581,57 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # --- ESTILOS CSS "INTELIGENTES" ---
+            # --- ESTILOS CSS ---
+            # Ajustamos: Encabezados (th) MUY PEQUEÑOS (10px) y Celdas (td) GRANDES (20px)
             estilo_tabla = """
             <style>
                 .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; } 
                 
-                /* ENCABEZADOS (TH): Pequeños y compactos para no robar espacio */
                 .big-table th { 
                     background-color: #333; 
-                    color: #ddd; 
-                    padding: 4px 1px;  /* Muy poco padding lateral */
+                    color: #aaa; 
+                    padding: 2px 1px;
                     text-align: center; 
-                    font-size: 11px !important; /* Letra pequeña solo para los títulos */
-                    overflow: hidden;
+                    font-size: 10px !important; /* Encabezado diminuto para ahorrar espacio */
+                    font-weight: normal;
+                    letter-spacing: 1px;
                 }
                 
-                /* CELDAS DE DATOS (TD): Grandes y legibles */
                 .big-table td { 
-                    padding: 5px 1px; 
+                    padding: 8px 1px; 
                     text-align: center; 
                     vertical-align: middle !important; 
                     border-bottom: 1px solid #444; 
-                    font-size: 20px !important; /* NÚMEROS GRANDES */
+                    font-size: 20px !important; /* Datos grandes */
                     color: white;
                 }
                 
-                /* Columna del Equipo: Alineada a la izquierda y negrita */
                 .big-table .team-cell { 
                     text-align: left; 
                     font-weight: bold;
-                    padding-left: 5px;
-                    white-space: nowrap; /* Intenta que no se parta si cabe */
-                    overflow: hidden;
-                    text-overflow: ellipsis;
+                    padding-left: 8px;
+                    font-size: 18px !important; /* Nombre equipo ligeramente menor que números para que quepa */
+                    white-space: nowrap; 
+                    overflow: hidden; 
+                    text-overflow: ellipsis; 
                 }
             </style>
             """
             st.markdown(estilo_tabla, unsafe_allow_html=True)
 
-            # --- DEFINICIÓN DE ANCHOS (WIDTHS) ---
-            # Aquí forzamos que las columnas de números sean delgadas (7-9%)
-            # Y le damos el resto (50% aprox) al Equipo para que respire.
-            html = '''
+            # --- CONSTRUCCIÓN HTML ---
+            # Iniciamos la tabla
+            html_table = '''
             <table class="mobile-table big-table">
                 <thead>
                     <tr>
-                        <th style="width:8%">POS</th>
-                        <th style="width:52%; text-align:left; padding-left:5px">EQUIPO</th>
-                        <th style="width:9%">PTS</th>
-                        <th style="width:8%">PJ</th>
-                        <th style="width:8%">GF</th>
-                        <th style="width:8%">GC</th>
-                        <th style="width:7%">DG</th>
+                        <th style="width:10%">POS</th>
+                        <th style="width:45%; text-align:left; padding-left:8px">EQUIPO</th>
+                        <th style="width:10%">PTS</th>
+                        <th style="width:9%">PJ</th>
+                        <th style="width:9%">GF</th>
+                        <th style="width:9%">GC</th>
+                        <th style="width:8%">DG</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -643,28 +640,30 @@ with tabs[0]:
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
                 
-                # Escudo ajustado a 35px para equilibrar con el espacio ganado
                 if url:
-                    prefijo_img = f'<img src="{url}" style="width:35px; height:35px; object-fit:contain; vertical-align:middle; margin-right:8px;">'
+                    prefijo_img = f'<img src="{url}" style="width:30px; height:30px; object-fit:contain; vertical-align:middle; margin-right:8px;">'
                 else:
-                    prefijo_img = '<span style="font-size:25px; vertical-align:middle; margin-right:8px;">🛡️</span>'
+                    prefijo_img = '<span style="font-size:20px; vertical-align:middle; margin-right:8px;">🛡️</span>'
                 
-                # Renderizado de filas
-                html += f"""
+                # Filas
+                html_table += f"""
                 <tr>
                     <td>{r['POS']}</td>
                     <td class='team-cell'>{prefijo_img}{r['EQ']}</td>
-                    <td style="font-weight:900; color:#ffd700;">{r['PTS']}</td> <td>{r['PJ']}</td>
+                    <td style="font-weight:900; color:#ffd700; font-size:22px !important;">{r['PTS']}</td>
+                    <td>{r['PJ']}</td>
                     <td>{r['GF']}</td>
                     <td>{r['GC']}</td>
-                    <td style="font-size:16px; color:#aaa;">{r['DG']}</td> </tr>
+                    <td style="font-size:14px !important; color:#888;">{r['DG']}</td>
+                </tr>
                 """
             
-            st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
+            # Cierre de tabla y RENDERIZADO FINAL
+            html_table += "</tbody></table>"
+            st.markdown(html_table, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error cargando tabla de posiciones: {e}")
-
             
 
 # --- TAB: REGISTRO (Versión Neon / SQLAlchemy) ---
@@ -1190,6 +1189,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
