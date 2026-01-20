@@ -582,10 +582,10 @@ with tabs[0]:
 
             
 
-# --- TAB: REGISTRO (Versión Corregida con PIN Visible y Validación) ---
+# --- TAB: REGISTRO (Versión Restaurada con Guardado Real en Neon) ---
 if fase_actual == "inscripcion":
     with tabs[1]:
-        # 1. Inicialización de datos temporales
+        # 1. Inicialización de estados
         if "datos_temp" not in st.session_state:
             st.session_state.datos_temp = {"n": "", "wa": "", "pin": "", "pref": "+57", "escudo_obj": None}
         if "reg_estado" not in st.session_state:
@@ -593,13 +593,13 @@ if fase_actual == "inscripcion":
 
         # --- ESTADO: ÉXITO ---
         if st.session_state.reg_estado == "exito":
-            st.success("✅ ¡Inscripción recibida!")
+            st.success("✅ ¡Inscripción recibida! El administrador revisará tu solicitud.")
             if st.button("Nuevo Registro"): 
                 st.session_state.datos_temp = {"n": "", "wa": "", "pin": "", "pref": "+57", "escudo_obj": None}
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
-        # --- ESTADO: CONFIRMAR (PIN VISIBLE) ---
+        # --- ESTADO: CONFIRMAR ---
         elif st.session_state.reg_estado == "confirmar":
             d = st.session_state.datos_temp
             st.warning("⚠️ **Confirma tus datos antes de enviar:**")
@@ -607,22 +607,105 @@ if fase_actual == "inscripcion":
             col_info, col_img = st.columns([2, 1])
             with col_info:
                 st.write(f"**Equipo:** {d['n']}")
-                st.write(f"**WA:** {d['pref']} {d['wa']}")
-                st.write(f"**PIN de Acceso:** {d['pin']}") # <--- PIN ahora es visible aquí
+                st.write(f"**WhatsApp:** {d['pref']} {d['wa']}")
+                st.write(f"**PIN de Acceso:** {d['pin']}") # Visible como pediste
             
             with col_img:
                 if d['escudo_obj']: st.image(d['escudo_obj'], width=100)
                 else: st.write("🛡️ Sin escudo")
 
             c1, c2 = st.columns(2)
+            
+            # --- BOTÓN DE CONFIRMACIÓN (Aquí es donde se guarda en la DB) ---
             if c1.button("✅ Confirmar y Enviar"):
-                # Lógica de Cloudinary e INSERT aquí...
-                st.session_state.reg_estado = "exito"
-                st.rerun()
+                url_escudo = None
+                
+                # 1. Subida a Cloudinary
+                if d['escudo_obj']:
+                    with st.spinner("Subiendo escudo..."):
+                        try:
+                            res = cloudinary.uploader.upload(d['escudo_obj'], folder="escudos_pendientes")
+                            url_escudo = res['secure_url']
+                        except Exception as e: 
+                            st.error(f"Error en Cloudinary: {e}")
+                
+                # 2. Inserción en Neon (Postgres)
+                try:
+                    with conn.connect() as db:
+                        query_insert = text("""
+                            INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) 
+                            VALUES (:n, :c, :p, :pi, :e, 'pendiente')
+                        """)
+                        db.execute(query_insert, {
+                            "n": d['n'], 
+                            "c": d['wa'], 
+                            "p": d['pref'], 
+                            "pi": d['pin'], 
+                            "e": url_escudo
+                        })
+                        db.commit()
+                    
+                    st.session_state.reg_estado = "exito"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar en la base de datos: {e}")
 
             if c2.button("✏️ Editar Datos"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
+        
+        # --- ESTADO: FORMULARIO ---
+        else:
+            d = st.session_state.datos_temp
+            
+            with st.form("reg_preventivo"):
+                nom = st.text_input("Nombre Equipo", value=d['n']).strip()
+                
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54", "Chile": "+56", "Venezuela": "+58"}
+                opciones = [f"{p} ({pref})" for p, pref in paises.items()]
+                
+                try:
+                    idx_pref = [d['pref'] in opt for opt in opciones].index(True)
+                except:
+                    idx_pref = 0
+
+                pais_sel = st.selectbox("País", opciones, index=idx_pref)
+                tel = st.text_input("WhatsApp", value=d['wa']).strip()
+                # PIN Visible
+                pin_r = st.text_input("PIN de Acceso (4 dígitos)", max_chars=4, value=d['pin']).strip()
+                
+                archivo_escudo = st.file_uploader("🛡️ Escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
+                
+                if st.form_submit_button("Siguiente", use_container_width=True):
+                    if not nom or not tel or len(pin_r) < 4: 
+                        st.error("Completa todos los campos correctamente.")
+                    else:
+                        # --- VALIDACIÓN DE DUPLICADOS CONTRA EQUIPOS APROBADOS ---
+                        try:
+                            with conn.connect() as db:
+                                query = text("SELECT nombre, pin FROM equipos WHERE (nombre = :n OR pin = :p) AND estado = 'aprobado'")
+                                check = db.execute(query, {"n": nom, "p": pin_r}).fetchone()
+                                
+                                if check:
+                                    if check[0].lower() == nom.lower():
+                                        st.error(f"❌ El nombre '{nom}' ya está ocupado.")
+                                    else:
+                                        st.error("❌ Este PIN ya está en uso. Elige otro.")
+                                else:
+                                    # Guardamos temporalmente y vamos a Confirmar
+                                    st.session_state.datos_temp = {
+                                        "n": nom, "wa": tel, "pin": pin_r, 
+                                        "pref": pais_sel.split('(')[-1].replace(')', ''),
+                                        "escudo_obj": archivo_escudo if archivo_escudo else d['escudo_obj']
+                                    }
+                                    st.session_state.reg_estado = "confirmar"
+                                    st.rerun()
+                        except Exception as e:
+                            st.error(f"Error de conexión: {e}")
+
+
+
+                            
         
         # --- ESTADO: FORMULARIO ---
         else:
@@ -1068,6 +1151,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
