@@ -385,39 +385,33 @@ st.markdown(f"""
 ######FIN PRUEBA
 
 
-# --- NAVEGACIÓN ---
+# --- NAVEGACIÓN (Botones originales) ---
+
 c_nav1, c_nav2 = st.columns(2)
+
 with c_nav1:
+
     if st.button("🔙 Inicio"):
+
         st.session_state.reg_estado = "formulario"
+
         st.session_state.pin_usuario = ""
+
         st.rerun()
 
-st.markdown("---") # Separador visual
 
-# --- CAMPO DE PIN Y BOTÓN (Optimizado Móvil) ---
-# 1. Escribimos la etiqueta por fuera para evitar problemas de alineación
-st.caption("🔑 Ingresa tu PIN de Acceso")
 
-col_pin, col_btn = st.columns([3, 1])
+# --- CAMPO DE PIN Y BOTÓN DE ENTRAR ---
 
-with col_pin:
-    # 2. 'label_visibility="collapsed"' elimina el espacio superior vacío dentro del input
-    pin_input = st.text_input(
-        "PIN", 
-        value=st.session_state.pin_usuario, 
-        type="password", 
-        max_chars=4, 
-        label_visibility="collapsed",
-        placeholder="****"
-    )
+pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
 
-with col_btn:
-    # 3. El botón ocupará toda la altura disponible de la fila
-    btn_entrar = st.button("Entrar", use_container_width=True)
+btn_entrar = st.button("🔓 Entrar", use_container_width=True)
 
-# Actualizamos estado
-st.session_state.pin_usuario = pin_input
+
+
+# Actualizamos el estado con lo que se escriba
+
+st.session_state.pin_usuario = pin_input'
 
 
 
@@ -1070,6 +1064,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
