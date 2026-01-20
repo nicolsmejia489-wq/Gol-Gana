@@ -28,87 +28,66 @@ st.set_page_config(
 
 
 
-# --- SISTEMA DE DISEÑO UNIFICADO: NEGRO TOTAL, BLANCO Y ORO ---
+# --- SISTEMA DE DISEÑO UNIFICADO: NEGRO TOTAL Y ACENTOS DORADOS ---
 st.markdown("""
     <style>
         /* 1. IMPORTAR FUENTE OSWALD */
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 2. RESET GLOBAL: FONDO NEGRO ABSOLUTO Y FUENTE */
+        /* 2. RESET GLOBAL: FONDO NEGRO Y FUENTE */
         html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
             background-color: #000000 !important;
             color: #ffffff !important;
             font-family: 'Oswald', sans-serif !important;
         }
 
-        /* 3. TÍTULOS Y TEXTO */
+        /* 3. CAMBIAR EL ROJO POR DORADO (Primary Color Fix) */
+        /* Línea decorativa superior de Streamlit */
+        [data-testid="stDecoration"] {
+            background-image: linear-gradient(90deg, #FFD700, #FFA500) !important;
+        }
+
+        /* Pestañas (Tabs): Línea roja inferior ahora amarilla */
+        button[data-baseweb="tab"] {
+            color: #888 !important;
+        }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            color: #FFD700 !important;
+            border-bottom-color: #FFD700 !important; /* Aquí cambiamos el rojo */
+        }
+
+        /* 4. TÍTULOS Y TEXTOS */
         h1, h2, h3, h4, h5, h6 {
             font-family: 'Oswald', sans-serif !important;
             color: #ffffff !important;
             text-transform: uppercase;
-            letter-spacing: 1px;
         }
-        
         p, span, label, div, b, .stMarkdown, [data-testid="stWidgetLabel"] p {
             color: #ffffff !important;
         }
 
-        /* 4. PESTAÑAS (TABS) - FONDO NEGRO */
-        .stTabs [data-baseweb="tab-list"] {
-            background-color: #000000 !important;
-        }
-        button[data-baseweb="tab"] {
-            color: #888 !important; /* Inactivas en gris */
-        }
-        button[data-baseweb="tab"][aria-selected="true"] {
-            color: #FFD700 !important; /* Activa en Dorado */
-            border-bottom-color: #FFD700 !important;
-        }
-
-        /* 5. BOTONES: ESTILO PREMIUM DORADO/GRIS */
+        /* 5. BOTONES CON BORDE DORADO */
         div.stButton > button, div.stFormSubmitButton > button {
-            background-color: #1a1a1a !important; /* Gris casi negro */
+            background-color: #1a1a1a !important;
             color: white !important;
-            border: 1px solid #FFD700 !important; /* Borde dorado */
+            border: 1px solid #FFD700 !important;
             border-radius: 20px !important;
             font-weight: bold !important;
-            transition: 0.3s;
         }
-
         div.stButton > button:hover {
-            background-color: #FFD700 !important; /* Dorado al pasar mouse */
-            color: black !important;
-        }
-
-        /* 6. INPUTS Y SELECTORES */
-        input[type="text"], input[type="password"], textarea, div[data-baseweb="select"] > div {
-            background-color: #1a1a1a !important;
-            color: white !important;
-            border: 1px solid #333 !important;
-        }
-        
-        /* Dropdowns (Menús desplegables) */
-        div[data-baseweb="popover"], div[data-baseweb="menu"], ul[role="listbox"] {
-            background-color: #1a1a1a !important;
-            border: 1px solid #FFD700 !important;
-        }
-        li[role="option"]:hover {
             background-color: #FFD700 !important;
             color: black !important;
         }
 
-        /* 7. TABLA DE CLASIFICACIÓN (DIETA VISUAL) */
+        /* 6. TABLA DE CLASIFICACIÓN (DIETA VISUAL) */
         .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; background: #000000; }
-        
         .big-table th { 
             background-color: #111; 
-            color: #FFD700 !important; /* Headers en Dorado */
+            color: #FFD700 !important; 
             padding: 4px 2px; 
-            text-align: center; 
             font-size: 15px !important; 
-            border-bottom: 2px solid #333;
+            border-bottom: 2px solid #FFD700; /* Línea divisoria dorada */
         }
-        
         .big-table td { 
             padding: 8px 2px; 
             text-align: center; 
@@ -116,36 +95,21 @@ st.markdown("""
             border-bottom: 1px solid #222; 
             font-size: 20px !important; 
         }
-        
-        .big-table .team-cell { 
-            text-align: left; 
-            padding-left: 8px;
-            font-size: 17px !important; 
-        }
+        .big-table .team-cell { text-align: left; padding-left: 8px; font-size: 17px !important; }
 
-        /* 8. TARJETAS DE PARTIDOS Y EXPANDERS */
+        /* 7. TARJETAS DE PARTIDOS Y EXPANDERS */
         .match-box, [data-testid="stExpander"] {
             background-color: #111111 !important;
             border: 1px solid #333 !important;
             border-radius: 10px !important;
         }
 
-        /* BOTÓN WHATSAPP */
-        .wa-btn { 
-            background-color: #25D366; 
-            color: white !important; 
-            border-radius: 8px; 
-            text-align: center; 
-            font-weight: bold;
-            display: block;
-            padding: 10px;
-            text-decoration: none;
-        }
-
-        /* Eliminar resaltado azul en móvil */
+        /* Eliminar resaltado azul/rojo en móvil */
         * { -webkit-tap-highlight-color: transparent !important; }
     </style>
 """, unsafe_allow_html=True)
+
+
 
 
 
@@ -1174,6 +1138,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
