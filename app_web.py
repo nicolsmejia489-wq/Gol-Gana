@@ -549,9 +549,6 @@ with tabs[2]:
 
 # --- TAB: CLASIFICACIÓN ---
 with tabs[0]:
-    # Usamos la variable global 'conn' directamente.
-
-    # 1. Aseguramos traer el escudo
     try:
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
@@ -561,17 +558,12 @@ with tabs[0]:
             mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
             
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
-            
-            # Consultamos partidos jugados
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             
             for _, f in df_p.iterrows():
-                # Validación extra para evitar errores
                 if f['local'] in stats and f['visitante'] in stats:
                     l, v = f['local'], f['visitante']
-                    gl = int(f['goles_l'])
-                    gv = int(f['goles_v'])
-                    
+                    gl, gv = int(f['goles_l']), int(f['goles_v'])
                     stats[l]['PJ']+=1; stats[v]['PJ']+=1
                     stats[l]['GF']+=gl; stats[l]['GC']+=gv
                     stats[v]['GF']+=gv; stats[v]['GC']+=gl
@@ -585,24 +577,21 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # --- AQUI ESTA LA MAGIA VISUAL ---
-            # Definimos anchos fijos (table-layout: fixed)
-            # Headers (th) en 11px. Datos (td) en 20px.
+            # --- ESTILOS CSS ---
             estilo_tabla = """
             <style>
                 .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
                 
-                /* Encabezados pequeños y grises */
+                /* CAMBIO AQUÍ: Títulos más grandes (15px) y en negrita */
                 .big-table th { 
                     background-color: #333; 
-                    color: #aaa; 
-                    padding: 2px; 
+                    color: #ddd; 
+                    padding: 4px 2px; 
                     text-align: center; 
-                    font-size: 11px !important; 
-                    font-weight: normal;
+                    font-size: 15px !important;  /* Aumentado de 11px a 15px */
+                    font-weight: bold;           /* Añadido negrita */
                 }
                 
-                /* Celdas de datos grandes */
                 .big-table td { 
                     padding: 5px 2px; 
                     text-align: center; 
@@ -612,7 +601,6 @@ with tabs[0]:
                     color: white; 
                 }
                 
-                /* Nombre del equipo un poco más pequeño para que quepa */
                 .big-table .team-cell { 
                     text-align: left; 
                     font-weight: bold; 
@@ -626,8 +614,7 @@ with tabs[0]:
             """
             st.markdown(estilo_tabla, unsafe_allow_html=True)
 
-            # --- ESTRUCTURA HTML CON ANCHOS (%) ---
-            # 45% para el equipo, el resto repartido en columnas delgadas
+            # --- ESTRUCTURA HTML ---
             html = '''<table class="mobile-table big-table">
                 <thead>
                     <tr>
@@ -644,14 +631,8 @@ with tabs[0]:
             
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
+                prefijo_img = f'<img src="{url}" style="width:30px; height:30px; object-fit:contain; vertical-align:middle; margin-right:8px;">' if url else '<span style="font-size:20px; vertical-align:middle; margin-right:8px;">🛡️</span>'
                 
-                # Escudo a 30px para que equilibre con el texto
-                if url:
-                    prefijo_img = f'<img src="{url}" style="width:30px; height:30px; object-fit:contain; vertical-align:middle; margin-right:8px;">'
-                else:
-                    prefijo_img = '<span style="font-size:20px; vertical-align:middle; margin-right:8px;">🛡️</span>'
-                
-                # Filas: PTS destacado en dorado
                 html += f"""
                 <tr>
                     <td>{r['POS']}</td>
@@ -664,7 +645,6 @@ with tabs[0]:
                 </tr>
                 """
             
-            # Mantenemos tu forma original de cerrar la tabla
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
     except Exception as e:
@@ -1194,6 +1174,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
