@@ -705,64 +705,6 @@ if fase_actual == "inscripcion":
 
 
 
-                            
-        
-        # --- ESTADO: FORMULARIO ---
-        else:
-            d = st.session_state.datos_temp
-            
-            with st.form("reg_preventivo"):
-                nom = st.text_input("Nombre Equipo", value=d['n']).strip()
-                
-                # Lista de países completa
-                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Canadá": "+1", "Costa Rica": "+506", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Uruguay": "+598", "Argentina": "+54", "Bolivia": "+591", "Brasil": "+55", "Chile": "+56", "Venezuela": "+58", "Belice": "+501", "Guatemala": "+502", "El Salvador": "+503", "Honduras": "+504", "Nicaragua": "+505"}
-                opciones = [f"{p} ({pref})" for p, pref in paises.items()]
-                
-                try:
-                    idx_pref = [d['pref'] in opt for opt in opciones].index(True)
-                except:
-                    idx_pref = 0
-
-                pais_sel = st.selectbox("País", opciones, index=idx_pref)
-                tel = st.text_input("WhatsApp", value=d['wa']).strip()
-                # PIN visible durante la escritura (sin type="password")
-                pin_r = st.text_input("PIN de Acceso (4 dígitos)", max_chars=4, value=d['pin']).strip()
-                
-                archivo_escudo = st.file_uploader("🛡️ Escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
-                
-                if st.form_submit_button("Siguiente", use_container_width=True):
-                    if not nom or not tel or len(pin_r) < 4: 
-                        st.error("Por favor, completa todos los campos (el PIN debe ser de 4 dígitos).")
-                    else:
-                        # --- VALIDACIÓN CONTRA BASE DE DATOS ---
-                        try:
-                            with conn.connect() as db:
-                                query = text("""
-                                    SELECT nombre, pin FROM equipos 
-                                    WHERE (nombre = :n OR pin = :p) AND estado = 'aprobado'
-                                """)
-                                check = db.execute(query, {"n": nom, "p": pin_r}).fetchone()
-                                
-                                if check:
-                                    if check[0].lower() == nom.lower():
-                                        st.error(f"❌ El nombre '{nom}' ya está en uso por un equipo aceptado.")
-                                    else:
-                                        st.error("❌ Este PIN ya está asignado a otro equipo. Elige uno diferente.")
-                                else:
-                                    # Guardar y avanzar
-                                    st.session_state.datos_temp = {
-                                        "n": nom, "wa": tel, "pin": pin_r, 
-                                        "pref": pais_sel.split('(')[-1].replace(')', ''),
-                                        "escudo_obj": archivo_escudo if archivo_escudo else d['escudo_obj']
-                                    }
-                                    st.session_state.reg_estado = "confirmar"
-                                    st.rerun()
-                        except Exception as e:
-                            st.error(f"Error de conexión: {e}")
-
-
-
-
 
 
     
@@ -1151,6 +1093,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
