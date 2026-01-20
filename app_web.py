@@ -520,6 +520,7 @@ with tabs[0]:
             st.info("No hay equipos todavía.")
         else:
             mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
+            
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             
@@ -540,43 +541,78 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # --- CONSTRUCCIÓN DE TABLA ---
-            # 1. El CSS se inyecta una sola vez
-            st.markdown("""
-                <style>
-                    .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; background: #000; }
-                    .big-table th { background: #333; color: #FFD700; font-size: 15px; padding: 5px; text-align: center; }
-                    .big-table td { padding: 8px 2px; text-align: center; vertical-align: middle; border-bottom: 1px solid #222; font-size: 20px; color: white; }
-                    .big-table .team-cell { text-align: left; padding-left: 8px; font-size: 17px; font-weight: bold; }
-                </style>
-            """, unsafe_allow_html=True)
+            # --- ESTILOS CSS ---
+            estilo_tabla = """
+            <style>
+                .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+                
+                /* CAMBIO AQUÍ: Títulos más grandes (15px) y en negrita */
+                .big-table th { 
+                    background-color: #333; 
+                    color: #ddd; 
+                    padding: 4px 2px; 
+                    text-align: center; 
+                    font-size: 15px !important;  /* Aumentado de 11px a 15px */
+                    font-weight: bold;           /* Añadido negrita */
+                }
+                
+                .big-table td { 
+                    padding: 5px 2px; 
+                    text-align: center; 
+                    vertical-align: middle !important; 
+                    border-bottom: 1px solid #444; 
+                    font-size: 20px !important; 
+                    color: white; 
+                }
+                
+                .big-table .team-cell { 
+                    text-align: left; 
+                    font-weight: bold; 
+                    padding-left: 5px;
+                    font-size: 16px !important; 
+                    white-space: nowrap; 
+                    overflow: hidden; 
+                    text-overflow: ellipsis; 
+                }
+            </style>
+            """
+            st.markdown(estilo_tabla, unsafe_allow_html=True)
 
-            # 2. Iniciamos el HTML en una variable limpia
-            cuerpo_tabla = ""
+            # --- ESTRUCTURA HTML ---
+            html = '''<table class="mobile-table big-table">
+                <thead>
+                    <tr>
+                        <th style="width:10%">POS</th>
+                        <th style="width:45%; text-align:left; padding-left:5px">EQ</th>
+                        <th style="width:10%">PTS</th>
+                        <th style="width:9%">PJ</th>
+                        <th style="width:9%">GF</th>
+                        <th style="width:9%">GC</th>
+                        <th style="width:8%">DG</th>
+                    </tr>
+                </thead>
+                <tbody>'''
+            
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
-                img = f'<img src="{url}" style="width:30px; height:30px; object-fit:contain; vertical-align:middle; margin-right:8px;">' if url else '<span style="font-size:20px; margin-right:8px;">🛡️</span>'
+                prefijo_img = f'<img src="{url}" style="width:30px; height:30px; object-fit:contain; vertical-align:middle; margin-right:8px;">' if url else '<span style="font-size:20px; vertical-align:middle; margin-right:8px;">🛡️</span>'
                 
-                cuerpo_tabla += f"""
+                html += f"""
                 <tr>
                     <td>{r['POS']}</td>
-                    <td class='team-cell'>{img}{r['EQ']}</td>
+                    <td class='team-cell'>{prefijo_img}{r['EQ']}</td>
                     <td style="color:#ffd700; font-weight:900;">{r['PTS']}</td>
                     <td>{r['PJ']}</td>
                     <td>{r['GF']}</td>
                     <td>{r['GC']}</td>
-                    <td style="font-size:14px; color:#888;">{r['DG']}</td>
+                    <td style="font-size:14px !important; color:#888;">{r['DG']}</td>
                 </tr>
                 """
             
-            # 3. Renderizado único final (Asegúrate de copiar esta línea exacta)
-            html_final = f'<table class="big-table"><thead><tr><th style="width:10%">POS</th><th style="width:45%; text-align:left; padding-left:8px">EQ</th><th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th></tr></thead><tbody>{cuerpo_tabla}</tbody></table>'
-            st.markdown(html_final, unsafe_allow_html=True)
+            st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"Error en tabla: {e}")
-
-        
+        st.error(f"Error cargando tabla de posiciones: {e}")
             
 
 # --- TAB: REGISTRO ---
@@ -1044,6 +1080,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
