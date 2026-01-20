@@ -582,7 +582,7 @@ with tabs[0]:
 
             
 
-# --- TAB: REGISTRO (Con Validación de Duplicados y Persistencia) ---
+# --- TAB: REGISTRO (Versión Corregida con PIN Visible y Validación) ---
 if fase_actual == "inscripcion":
     with tabs[1]:
         # 1. Inicialización de datos temporales
@@ -599,7 +599,7 @@ if fase_actual == "inscripcion":
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
-        # --- ESTADO: CONFIRMAR ---
+        # --- ESTADO: CONFIRMAR (PIN VISIBLE) ---
         elif st.session_state.reg_estado == "confirmar":
             d = st.session_state.datos_temp
             st.warning("⚠️ **Confirma tus datos antes de enviar:**")
@@ -608,7 +608,7 @@ if fase_actual == "inscripcion":
             with col_info:
                 st.write(f"**Equipo:** {d['n']}")
                 st.write(f"**WA:** {d['pref']} {d['wa']}")
-                st.write(f"**PIN:** **** (Protegido)")
+                st.write(f"**PIN de Acceso:** {d['pin']}") # <--- PIN ahora es visible aquí
             
             with col_img:
                 if d['escudo_obj']: st.image(d['escudo_obj'], width=100)
@@ -616,7 +616,7 @@ if fase_actual == "inscripcion":
 
             c1, c2 = st.columns(2)
             if c1.button("✅ Confirmar y Enviar"):
-                # Aquí iría tu lógica de Cloudinary e INSERT final...
+                # Lógica de Cloudinary e INSERT aquí...
                 st.session_state.reg_estado = "exito"
                 st.rerun()
 
@@ -624,14 +624,15 @@ if fase_actual == "inscripcion":
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
-        # --- ESTADO: FORMULARIO (Con validación contra DB) ---
+        # --- ESTADO: FORMULARIO ---
         else:
             d = st.session_state.datos_temp
             
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo", value=d['n']).strip()
                 
-                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54", "Chile": "+56"}
+                # Lista de países completa
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Canadá": "+1", "Costa Rica": "+506", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Uruguay": "+598", "Argentina": "+54", "Bolivia": "+591", "Brasil": "+55", "Chile": "+56", "Venezuela": "+58", "Belice": "+501", "Guatemala": "+502", "El Salvador": "+503", "Honduras": "+504", "Nicaragua": "+505"}
                 opciones = [f"{p} ({pref})" for p, pref in paises.items()]
                 
                 try:
@@ -641,18 +642,18 @@ if fase_actual == "inscripcion":
 
                 pais_sel = st.selectbox("País", opciones, index=idx_pref)
                 tel = st.text_input("WhatsApp", value=d['wa']).strip()
-                pin_r = st.text_input("PIN de Acceso (4 dígitos)", max_chars=4, type="password", value=d['pin']).strip()
+                # PIN visible durante la escritura (sin type="password")
+                pin_r = st.text_input("PIN de Acceso (4 dígitos)", max_chars=4, value=d['pin']).strip()
                 
                 archivo_escudo = st.file_uploader("🛡️ Escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
                 
                 if st.form_submit_button("Siguiente", use_container_width=True):
                     if not nom or not tel or len(pin_r) < 4: 
-                        st.error("Por favor, completa todos los campos correctamente.")
+                        st.error("Por favor, completa todos los campos (el PIN debe ser de 4 dígitos).")
                     else:
-                        # --- VALIDACIÓN DE DUPLICADOS EN NEON ---
+                        # --- VALIDACIÓN CONTRA BASE DE DATOS ---
                         try:
                             with conn.connect() as db:
-                                # Buscamos si el nombre o el PIN ya existen en equipos ACEPTADOS
                                 query = text("""
                                     SELECT nombre, pin FROM equipos 
                                     WHERE (nombre = :n OR pin = :p) AND estado = 'aprobado'
@@ -660,13 +661,12 @@ if fase_actual == "inscripcion":
                                 check = db.execute(query, {"n": nom, "p": pin_r}).fetchone()
                                 
                                 if check:
-                                    # Determinamos qué es lo que se repite para avisar al usuario
                                     if check[0].lower() == nom.lower():
-                                        st.error(f"❌ El nombre '{nom}' ya está registrado por otro equipo.")
+                                        st.error(f"❌ El nombre '{nom}' ya está en uso por un equipo aceptado.")
                                     else:
-                                        st.error("❌ El PIN ingresado ya está en uso. Por favor elige otro.")
+                                        st.error("❌ Este PIN ya está asignado a otro equipo. Elige uno diferente.")
                                 else:
-                                    # Si todo está limpio, guardamos en memoria y avanzamos
+                                    # Guardar y avanzar
                                     st.session_state.datos_temp = {
                                         "n": nom, "wa": tel, "pin": pin_r, 
                                         "pref": pais_sel.split('(')[-1].replace(')', ''),
@@ -675,10 +675,7 @@ if fase_actual == "inscripcion":
                                     st.session_state.reg_estado = "confirmar"
                                     st.rerun()
                         except Exception as e:
-                            st.error(f"Error al verificar datos: {e}")
-                                
-                                
-### FIN DESARROLLO
+                            st.error(f"Error de conexión: {e}")
 
 
 
@@ -1071,6 +1068,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
