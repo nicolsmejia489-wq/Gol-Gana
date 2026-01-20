@@ -26,15 +26,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo para móviles y tema claro forzado
-#st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
+# Estilo para móviles y tema claro forzado #st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
 
-st.markdown("""
-    <style>
-    .stButton>button { width: 100%; border-radius: 20px; font-weight: bold; }
-    div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: bold; }
-    </style>
-""", unsafe_allow_html=True)
+
 
 # 2. CONEXIÓN A NEON (POSTGRESQL) - La parte más importante
 @st.cache_resource
@@ -88,113 +82,116 @@ ADMIN_PIN = "2025"
 
 
 
-#### TEMAS Y COLORES ####
-
+#### TEMAS Y COLORES (VERSIÓN DARK MODE) ####
 st.markdown("""
     <style>
-    /* 1. RESET GLOBAL: Fondo blanco y texto negro absoluto */
+    /* 1. RESET GLOBAL: Fondo oscuro y texto blanco */
     html, body, .stApp, [data-testid="stAppViewContainer"], .st-emotion-cache-1h9usn1 {
-        background-color: white !important;
-        color: black !important;
+        background-color: #0e1117 !important; /* Color fondo estándar oscuro */
+        color: white !important;
     }
 
-    /* 2. FORZAR LUZ EN MÓVILES (Incluso si el sistema está en Dark Mode) */
-    @media (prefers-color-scheme: dark) {
-        .stApp, [data-testid="stAppViewContainer"] {
-            background-color: white !important;
-            color: black !important;
-        }
+    /* 2. TEXTO: Todo a blanco */
+    h1, h2, h3, h4, h5, h6, p, span, label, div, b, .stMarkdown, [data-testid="stWidgetLabel"] p, .caption {
+        color: white !important;
+        -webkit-text-fill-color: white !important;
     }
 
-    /* 3. TEXTO: Blindaje para iPhone y Android */
-    h1, h2, h3, p, span, label, div, b, .stMarkdown, [data-testid="stWidgetLabel"] p {
-        color: black !important;
-        -webkit-text-fill-color: black !important;
-    }
-
-    /* 4. BOTONES: Fix para botón "Siguiente", "Aprobar" y estándar */
+    /* 3. BOTONES: Fondo gris oscuro, texto blanco */
     div.stButton > button, 
     div.stFormSubmitButton > button, 
     [data-testid="baseButton-secondary"], 
     [data-testid="baseButton-primary"] {
-        background-color: #f0f2f6 !important;
-        color: #31333f !important;
-        border: 1px solid #dcdfe4 !important;
-        border-radius: 8px !important;
+        background-color: #262730 !important;
+        color: white !important;
+        border: 1px solid #4f4f4f !important;
+        border-radius: 20px !important; /* Mantenemos tu radio de 20px */
         width: 100%;
         height: 3em;
         font-weight: bold !important;
-        -webkit-text-fill-color: #31333f !important;
+        -webkit-text-fill-color: white !important;
     }
 
     div.stButton > button:active, div.stFormSubmitButton > button:active {
-        background-color: #e0e2e6 !important;
-        border-color: #ff4b4b !important;
-    }
-
-    /* 5. INPUTS Y CAJA DEL SELECTBOX */
-    input[type="text"], input[type="password"], textarea, div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
+        background-color: #FFD700 !important; /* Dorado al pulsar */
         color: black !important;
-        border: 1px solid #ccc !important;
         -webkit-text-fill-color: black !important;
+        border-color: #FFD700 !important;
     }
 
-    /* 6. FIX DEFINITIVO PARA EL DESPLEGABLE (MENU FLOTANTE) */
-    /* Este bloque ataca la capa que flota cuando abres el país/prefijo */
+    /* 4. INPUTS Y CAJAS DE TEXTO */
+    input[type="text"], input[type="password"], textarea, div[data-baseweb="select"] > div {
+        background-color: #262730 !important;
+        color: white !important;
+        border: 1px solid #4f4f4f !important;
+        -webkit-text-fill-color: white !important;
+    }
+
+    /* 5. FIX PARA DESPLEGABLES (Menú flotante oscuro) */
     div[data-baseweb="popover"], 
     div[data-baseweb="menu"], 
     ul[role="listbox"] {
-        background-color: white !important;
-        border: 1px solid #ddd !important;
+        background-color: #262730 !important;
+        border: 1px solid #444 !important;
     }
 
     li[role="option"], 
     li[role="option"] div, 
     li[role="option"] span {
-        background-color: white !important;
+        background-color: #262730 !important;
+        color: white !important;
+        -webkit-text-fill-color: white !important;
+    }
+
+    /* Color al seleccionar opción */
+    li[role="option"]:hover, 
+    li[role="option"]:active, 
+    li[role="option"][aria-selected="true"] {
+        background-color: #FFD700 !important;
         color: black !important;
         -webkit-text-fill-color: black !important;
     }
 
-    /* Color cuando pasas el dedo o seleccionas una opción */
-    li[role="option"]:hover, 
-    li[role="option"]:active, 
-    li[role="option"][aria-selected="true"] {
-        background-color: #f0f2f6 !important;
-        color: #ff4b4b !important;
-    }
-
-    /* El ícono de la flechita del selectbox */
+    /* Flechita del selectbox en blanco */
     div[data-baseweb="select"] svg {
-        fill: black !important;
+        fill: white !important;
     }
 
-    /* 7. EXPANDERS */
+    /* 6. EXPANDERS */
     [data-testid="stExpander"] {
-        background-color: white !important;
-        border: 1px solid #eee !important;
+        background-color: #262730 !important;
+        border: 1px solid #444 !important;
+        color: white !important;
+    }
+    div[data-testid="stExpander"] div[role="button"] p { 
+        font-size: 1.1rem; 
+        font-weight: bold; 
+        color: white !important;
     }
 
-    /* 8. TABLAS Y CAJAS DE PARTIDO */
+    /* 7. TABLAS MÓVILES */
     .mobile-table { 
         width: 100%; border-collapse: collapse; font-size: 12px; 
-        background-color: white !important; color: black !important;
+        background-color: #0e1117 !important; color: white !important;
     }
-    .mobile-table th { background: #f0f2f6 !important; color: black !important; padding: 8px; }
-    .mobile-table td { padding: 8px; border-bottom: 1px solid #eee; color: black !important; }
+    .mobile-table th { background: #262730 !important; color: #FFD700 !important; padding: 8px; border-bottom: 2px solid #444; }
+    .mobile-table td { padding: 8px; border-bottom: 1px solid #333; color: white !important; }
+    .team-cell { text-align: left !important; display: flex; align-items: center; color: white !important; }
 
+    /* 8. CAJAS DE PARTIDO (Estilo tarjeta oscura) */
     .match-box { 
-        border: 1px solid #eee; padding: 15px; border-radius: 10px; 
-        margin-bottom: 15px; background: white !important; color: black !important;
+        border: 1px solid #444; padding: 15px; border-radius: 10px; 
+        margin-bottom: 15px; background: #1c1c1c !important; color: white !important;
     }
 
+    /* WHATSAPP BUTTON */
     .wa-btn { 
         display: inline-block; background-color: #25D366; color: white !important; 
         padding: 10px; border-radius: 8px; text-decoration: none; 
         font-weight: bold; width: 100%; text-align: center;
+        -webkit-text-fill-color: white !important;
     }
-
+    
     * { -webkit-tap-highlight-color: transparent !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -1053,6 +1050,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
