@@ -513,14 +513,15 @@ with tabs[2]:
 
 # --- TAB: CLASIFICACIÓN ---
 with tabs[0]:
-    try:
-        df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
-        
-        if df_eq.empty: 
-            st.info("No hay equipos todavía.")
-        else:
+    # Función interna para evitar que Streamlit imprima variables intermedias
+    def generar_tabla_posiciones():
+        try:
+            # 1. Datos
+            df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
+            if df_eq.empty:
+                return st.info("No hay equipos todavía.")
+
             mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
-            
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             
@@ -541,78 +542,46 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # --- ESTILOS CSS ---
-            estilo_tabla = """
+            # 2. Construcción de la cadena HTML (Todo en una sola variable)
+            estilos = """
             <style>
-                .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-                
-                /* CAMBIO AQUÍ: Títulos más grandes (15px) y en negrita */
-                .big-table th { 
-                    background-color: #333; 
-                    color: #ddd; 
-                    padding: 4px 2px; 
-                    text-align: center; 
-                    font-size: 15px !important;  /* Aumentado de 11px a 15px */
-                    font-weight: bold;           /* Añadido negrita */
-                }
-                
-                .big-table td { 
-                    padding: 5px 2px; 
-                    text-align: center; 
-                    vertical-align: middle !important; 
-                    border-bottom: 1px solid #444; 
-                    font-size: 20px !important; 
-                    color: white; 
-                }
-                
-                .big-table .team-cell { 
-                    text-align: left; 
-                    font-weight: bold; 
-                    padding-left: 5px;
-                    font-size: 16px !important; 
-                    white-space: nowrap; 
-                    overflow: hidden; 
-                    text-overflow: ellipsis; 
-                }
+                .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; background: #000; }
+                .big-table th { background: #111; color: #FFD700; font-size: 15px; padding: 6px 2px; text-align: center; border-bottom: 2px solid #FFD700; }
+                .big-table td { padding: 10px 2px; text-align: center; vertical-align: middle; border-bottom: 1px solid #222; font-size: 21px; color: white; }
+                .big-table .team-cell { text-align: left; padding-left: 8px; font-size: 18px; font-weight: bold; }
             </style>
             """
-            st.markdown(estilo_tabla, unsafe_allow_html=True)
-
-            # --- ESTRUCTURA HTML ---
-            html = '''<table class="mobile-table big-table">
-                <thead>
-                    <tr>
-                        <th style="width:10%">POS</th>
-                        <th style="width:45%; text-align:left; padding-left:5px">EQ</th>
-                        <th style="width:10%">PTS</th>
-                        <th style="width:9%">PJ</th>
-                        <th style="width:9%">GF</th>
-                        <th style="width:9%">GC</th>
-                        <th style="width:8%">DG</th>
-                    </tr>
-                </thead>
-                <tbody>'''
             
+            # Encabezado
+            html_final = estilos + '<table class="big-table"><thead><tr><th style="width:10%">POS</th><th style="width:45%; text-align:left; padding-left:8px">EQUIPO</th><th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th></tr></thead><tbody>'
+            
+            # Filas
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
-                prefijo_img = f'<img src="{url}" style="width:30px; height:30px; object-fit:contain; vertical-align:middle; margin-right:8px;">' if url else '<span style="font-size:20px; vertical-align:middle; margin-right:8px;">🛡️</span>'
+                escudo = f'<img src="{url}" style="width:35px; height:35px; object-fit:contain; vertical-align:middle; margin-right:8px;">' if url else '<span style="font-size:25px; vertical-align:middle; margin-right:8px;">🛡️</span>'
                 
-                html += f"""
+                html_final += f"""
                 <tr>
                     <td>{r['POS']}</td>
-                    <td class='team-cell'>{prefijo_img}{r['EQ']}</td>
+                    <td class='team-cell'>{escudo}{r['EQ']}</td>
                     <td style="color:#ffd700; font-weight:900;">{r['PTS']}</td>
                     <td>{r['PJ']}</td>
                     <td>{r['GF']}</td>
                     <td>{r['GC']}</td>
-                    <td style="font-size:14px !important; color:#888;">{r['DG']}</td>
+                    <td style="font-size:15px; color:#888;">{r['DG']}</td>
                 </tr>
                 """
             
-            st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
+            html_final += "</tbody></table>"
+            
+            # 3. ÚNICO punto de salida de texto
+            st.markdown(html_final, unsafe_allow_html=True)
 
-    except Exception as e:
-        st.error(f"Error cargando tabla de posiciones: {e}")
+        except Exception as e:
+            st.error(f"Error en tabla: {e}")
+
+    # Llamamos a la función
+    generar_tabla_posiciones()
             
 
 # --- TAB: REGISTRO ---
@@ -1080,6 +1049,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
