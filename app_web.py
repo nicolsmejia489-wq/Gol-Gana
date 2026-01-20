@@ -515,10 +515,13 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN (Manteniendo tu estructura original) ---
+# --- TAB: CLASIFICACIÓN ---
 with tabs[0]:
-    with get_db_connection() as conn:
-        # 1. Aseguramos traer el escudo
+    # YA NO usamos 'with get_db_connection() as conn:'. 
+    # Usamos la variable global 'conn' directamente.
+
+    # 1. Aseguramos traer el escudo
+    try:
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
         if df_eq.empty: 
@@ -527,11 +530,18 @@ with tabs[0]:
             mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
             
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
+            
+            # Consultamos partidos jugados
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             
             for _, f in df_p.iterrows():
-                l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
-                if l in stats and v in stats:
+                # Validación extra para evitar errores si hay datos sucios
+                if f['local'] in stats and f['visitante'] in stats:
+                    l, v = f['local'], f['visitante']
+                    # En Postgres los enteros vienen bien, pero forzamos int por seguridad
+                    gl = int(f['goles_l'])
+                    gv = int(f['goles_v'])
+                    
                     stats[l]['PJ']+=1; stats[v]['PJ']+=1
                     stats[l]['GF']+=gl; stats[l]['GC']+=gv
                     stats[v]['GF']+=gv; stats[v]['GC']+=gl
@@ -551,18 +561,18 @@ with tabs[0]:
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
                 
-                # Definimos el prefijo (imagen o escudo vacío)
-                # Usamos estilos en línea simples para no romper la celda
                 if url:
                     prefijo_img = f'<img src="{url}" style="width:20px; vertical-align:middle; margin-right:5px;">'
                 else:
                     prefijo_img = '<span style="margin-right:5px;">🛡️</span>'
                 
-                # Esta línea es la clave: concatenamos directamente en la celda original
                 html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{prefijo_img}{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
             
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
+    except Exception as e:
+        st.error(f"Error cargando tabla de posiciones: {e}")
+        
             
 
 
@@ -1018,6 +1028,7 @@ if rol == "admin":
                     conn.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
