@@ -421,52 +421,24 @@ except Exception as e:
     fase_actual = "inscripcion"
 
     
-
+# --- 1. ESTADO INICIAL ---
 rol = "espectador"
 equipo_usuario = None
 
-# --- LÓGICA DE VALIDACIÓN (Solo al dar click en Entrar) ---
+# --- 2. BOTÓN ENTRAR (Solo guarda y recarga) ---
 if btn_entrar:
-    # 1. Validación ADMIN
-    if st.session_state.pin_usuario == ADMIN_PIN:
-        rol = "admin"
-        st.rerun()
+    st.session_state.pin_usuario = pin_input
+    st.rerun()
+
+# --- 3. VALIDACIÓN CENTRALIZADA ---
+# Si hay un PIN en memoria, validamos quién es (Admin o DT)
+if st.session_state.pin_usuario:
     
-    # 2. Validación DT (Base de Datos Neon)
-    elif st.session_state.pin_usuario:
-        equipo_encontrado = None
-        
-        try:
-            # Usamos el motor global 'conn'
-            with conn.connect() as db:
-                query = text("SELECT nombre FROM equipos WHERE pin = :p AND estado = 'aprobado'")
-                result = db.execute(query, {"p": st.session_state.pin_usuario}).fetchone()
-                
-                if result:
-                    equipo_encontrado = result[0]
-        except Exception as e:
-            st.error(f"Error de conexión: {e}")
-
-        if equipo_encontrado:
-            rol = "dt"
-            equipo_usuario = equipo_encontrado
-            st.rerun()
-        else:
-            # MENSAJE RÁPIDO QUE DESAPARECE (Toast)
-            st.toast("⚠️ PIN incorrecto o equipo no aprobado", icon="❌")
-            
-            # Limpiamos el PIN para que el usuario intente de nuevo
-            st.session_state.pin_usuario = ""
-            
-            # Pequeña pausa para que se vea el efecto visual del error
-            time.sleep(1) 
-            st.rerun()
-
-# --- MANTENER SESIÓN ACTIVA (Persistencia al recargar) ---
-# Este bloque revisa si ya había un PIN válido guardado en la sesión
-if st.session_state.pin_usuario and "rol" not in locals():
+    # A. Es Admin?
     if st.session_state.pin_usuario == ADMIN_PIN:
         rol = "admin"
+
+    # B. Es DT? (Consultamos Neon)
     else:
         try:
             with conn.connect() as db:
@@ -477,10 +449,17 @@ if st.session_state.pin_usuario and "rol" not in locals():
                     rol = "dt"
                     equipo_usuario = result[0]
                 else:
-                    # Si el PIN guardado ya no es válido (ej: equipo eliminado), lo borramos
+                    # PIN incorrecto: Avisamos y borramos
+                    st.toast("⚠️ PIN incorrecto o no aprobado", icon="❌")
                     st.session_state.pin_usuario = ""
-        except:
-            pass # Si falla la conexión silenciosamente, solo no loguea
+                    time.sleep(1)
+                    st.rerun()
+        except Exception as e:
+            st.error(f"Error de conexión: {e}")
+
+# (Opcional para debug: Si ves esto, es que el rol ya cambió)
+# st.write(f"DEBUG: Rol asignado -> {rol}")
+
 
 
 
@@ -1078,6 +1057,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
