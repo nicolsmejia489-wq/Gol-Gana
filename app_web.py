@@ -385,7 +385,7 @@ st.markdown(f"""
 ######FIN PRUEBA
 
 
-# --- NAVEGACIÓN (Botones originales) ---
+# --- NAVEGACIÓN ---
 c_nav1, c_nav2 = st.columns(2)
 with c_nav1:
     if st.button("🔙 Inicio"):
@@ -393,24 +393,33 @@ with c_nav1:
         st.session_state.pin_usuario = ""
         st.rerun()
 
-# --- CAMPO DE PIN Y BOTÓN DE ENTRAR (Diseño Compacto) ---
-st.markdown("######") # Un pequeño espacio vertical
+st.markdown("---") # Separador visual
 
-# Creamos columnas: la primera más ancha para el PIN, la segunda para el botón
-# vertical_alignment="bottom" es CLAVE para que se alineen visualmente
-c_pin, c_btn = st.columns([3, 1], vertical_alignment="bottom")
+# --- CAMPO DE PIN Y BOTÓN (Optimizado Móvil) ---
+# 1. Escribimos la etiqueta por fuera para evitar problemas de alineación
+st.caption("🔑 Ingresa tu PIN de Acceso")
 
-with c_pin:
-    pin_input = st.text_input("🔑 PIN de Acceso", 
-                              value=st.session_state.pin_usuario, 
-                              type="password", 
-                              max_chars=4) # Limitamos a 4 caracteres visualmente
+col_pin, col_btn = st.columns([3, 1])
 
-with c_btn:
-    btn_entrar = st.button("🔓 Entrar", use_container_width=True)
+with col_pin:
+    # 2. 'label_visibility="collapsed"' elimina el espacio superior vacío dentro del input
+    pin_input = st.text_input(
+        "PIN", 
+        value=st.session_state.pin_usuario, 
+        type="password", 
+        max_chars=4, 
+        label_visibility="collapsed",
+        placeholder="****"
+    )
 
-# Actualizamos el estado con lo que se escriba
+with col_btn:
+    # 3. El botón ocupará toda la altura disponible de la fila
+    btn_entrar = st.button("Entrar", use_container_width=True)
+
+# Actualizamos estado
 st.session_state.pin_usuario = pin_input
+
+
 
 
 
@@ -1061,6 +1070,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
