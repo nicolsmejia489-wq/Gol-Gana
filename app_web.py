@@ -551,7 +551,6 @@ with tabs[2]:
 with tabs[0]:
     # Usamos la variable global 'conn' directamente.
 
-    # 1. Aseguramos traer el escudo
     try:
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
@@ -566,7 +565,6 @@ with tabs[0]:
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             
             for _, f in df_p.iterrows():
-                # Validación extra para evitar errores
                 if f['local'] in stats and f['visitante'] in stats:
                     l, v = f['local'], f['visitante']
                     gl = int(f['goles_l'])
@@ -585,39 +583,87 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # --- ESTILOS CSS PERSONALIZADOS PARA ESTA TABLA ---
-            # Aumentamos fuente a 22px y forzamos alineación vertical al centro
+            # --- ESTILOS CSS "INTELIGENTES" ---
             estilo_tabla = """
             <style>
-                .big-table { font-size: 15px !important; width: 100%; border-collapse: collapse; }
-                .big-table th { background-color: #333; color: white; padding: 10px; text-align: center; }
-                .big-table td { padding: 8px; text-align: center; vertical-align: middle !important; border-bottom: 1px solid #ddd; }
-                .big-table .team-cell { text-align: left; font-weight: bold; }
+                .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; } 
+                
+                /* ENCABEZADOS (TH): Pequeños y compactos para no robar espacio */
+                .big-table th { 
+                    background-color: #333; 
+                    color: #ddd; 
+                    padding: 4px 1px;  /* Muy poco padding lateral */
+                    text-align: center; 
+                    font-size: 11px !important; /* Letra pequeña solo para los títulos */
+                    overflow: hidden;
+                }
+                
+                /* CELDAS DE DATOS (TD): Grandes y legibles */
+                .big-table td { 
+                    padding: 5px 1px; 
+                    text-align: center; 
+                    vertical-align: middle !important; 
+                    border-bottom: 1px solid #444; 
+                    font-size: 20px !important; /* NÚMEROS GRANDES */
+                    color: white;
+                }
+                
+                /* Columna del Equipo: Alineada a la izquierda y negrita */
+                .big-table .team-cell { 
+                    text-align: left; 
+                    font-weight: bold;
+                    padding-left: 5px;
+                    white-space: nowrap; /* Intenta que no se parta si cabe */
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
             </style>
             """
             st.markdown(estilo_tabla, unsafe_allow_html=True)
 
-            # --- ESTRUCTURA HTML CON TAMAÑOS AUMENTADOS ---
-            html = '<table class="mobile-table big-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
+            # --- DEFINICIÓN DE ANCHOS (WIDTHS) ---
+            # Aquí forzamos que las columnas de números sean delgadas (7-9%)
+            # Y le damos el resto (50% aprox) al Equipo para que respire.
+            html = '''
+            <table class="mobile-table big-table">
+                <thead>
+                    <tr>
+                        <th style="width:8%">POS</th>
+                        <th style="width:52%; text-align:left; padding-left:5px">EQUIPO</th>
+                        <th style="width:9%">PTS</th>
+                        <th style="width:8%">PJ</th>
+                        <th style="width:8%">GF</th>
+                        <th style="width:8%">GC</th>
+                        <th style="width:7%">DG</th>
+                    </tr>
+                </thead>
+                <tbody>
+            '''
             
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
                 
-                # AUMENTO DE TAMAÑO: width:40px (antes 20px) y margin-right:10px
+                # Escudo ajustado a 35px para equilibrar con el espacio ganado
                 if url:
-                    prefijo_img = f'<img src="{url}" style="width:45px; height:45px; object-fit:contain; vertical-align:middle; margin-right:10px;">'
+                    prefijo_img = f'<img src="{url}" style="width:35px; height:35px; object-fit:contain; vertical-align:middle; margin-right:8px;">'
                 else:
-                    # Si no hay escudo, usamos un emoji pero con tamaño de fuente 30px
-                    prefijo_img = '<span style="font-size:30px; vertical-align:middle; margin-right:10px;">🛡️</span>'
+                    prefijo_img = '<span style="font-size:25px; vertical-align:middle; margin-right:8px;">🛡️</span>'
                 
-                # Insertamos las filas
-                html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{prefijo_img}{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
+                # Renderizado de filas
+                html += f"""
+                <tr>
+                    <td>{r['POS']}</td>
+                    <td class='team-cell'>{prefijo_img}{r['EQ']}</td>
+                    <td style="font-weight:900; color:#ffd700;">{r['PTS']}</td> <td>{r['PJ']}</td>
+                    <td>{r['GF']}</td>
+                    <td>{r['GC']}</td>
+                    <td style="font-size:16px; color:#aaa;">{r['DG']}</td> </tr>
+                """
             
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error cargando tabla de posiciones: {e}")
-
 
             
 
@@ -1144,6 +1190,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
