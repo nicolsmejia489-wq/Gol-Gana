@@ -306,29 +306,57 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         return None, f"Error en el motor de visión: {str(e)}"
 
 #####FIN IA
-# --- 2. LÓGICA DE JORNADAS ---
 def generar_calendario():
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT nombre FROM equipos WHERE estado = 'aprobado'")
-        equipos = [row[0] for row in cur.fetchall()]
-        while len(equipos) < 32:
-            nombre_wo = f"(WO) {len(equipos)+1}"
-            conn.execute("INSERT OR IGNORE INTO equipos (nombre, estado) VALUES (?, 'aprobado')", (nombre_wo,))
-            equipos.append(nombre_wo)
-        random.shuffle(equipos)
-        n = len(equipos)
-        indices = list(range(n))
-        for jor in range(1, 4):
-            for i in range(n // 2):
-                loc = equipos[indices[i]]
-                vis = equipos[indices[n - 1 - i]]
-                conn.execute("INSERT INTO partidos (local, visitante, jornada) VALUES (?, ?, ?)", (loc, vis, jor))
-            indices = [indices[0]] + [indices[-1]] + indices[1:-1]
-        conn.execute("UPDATE config SET valor = 'clasificacion' WHERE llave = 'fase'")
-        conn.commit()
+    try:
+        with conn.connect() as db:
+            # 1. Obtener equipos aprobados
+            res = db.execute(text("SELECT nombre FROM equipos WHERE estado = 'aprobado'"))
+            # fetchall devuelve tuplas, extraemos el primer elemento
+            equipos = [row[0] for row in res.fetchall()]
+            
+            # 2. Rellenar con W.O. hasta llegar a 32 (o par)
+            while len(equipos) < 32:
+                nombre_wo = f"(WO) {len(equipos)+1}"
+                
+                # Sintaxis Postgres para "Si existe, no hagas nada"
+                query_wo = text("""
+                    INSERT INTO equipos (nombre, estado) 
+                    VALUES (:n, 'aprobado') 
+                    ON CONFLICT (nombre) DO NOTHING
+                """)
+                db.execute(query_wo, {"n": nombre_wo})
+                
+                # Lo agregamos a la lista local para el sorteo
+                equipos.append(nombre_wo)
+            
+            random.shuffle(equipos)
+            n = len(equipos)
+            indices = list(range(n))
+            
+            # 3. Generar cruces (Algoritmo Round Robin)
+            for jor in range(1, 4): # Genera 3 jornadas
+                for i in range(n // 2):
+                    loc = equipos[indices[i]]
+                    vis = equipos[indices[n - 1 - i]]
+                    
+                    query_partido = text("""
+                        INSERT INTO partidos (local, visitante, jornada, estado) 
+                        VALUES (:l, :v, :j, 'Programado')
+                    """)
+                    db.execute(query_partido, {"l": loc, "v": vis, "j": jor})
+                
+                # Rotación de índices para la siguiente fecha
+                indices = [indices[0]] + [indices[-1]] + indices[1:-1]
+            
+            # 4. Actualizar Fase del Torneo
+            # OJO: En Neon la columna es 'clave' y el valor es 'fase_actual'
+            db.execute(text("UPDATE config SET valor = 'clasificacion' WHERE clave = 'fase_actual'"))
+            db.commit()
+            
+    except Exception as e:
+        st.error(f"Error generando calendario: {e}")
 
-# --- 3. NAVEGACIÓN ---
+# --- 3. NAVEGACIÓN (Inicialización de Estado) ---
 if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
 if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
@@ -1090,6 +1118,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
