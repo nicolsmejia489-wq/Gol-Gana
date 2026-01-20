@@ -403,11 +403,6 @@ btn_entrar = st.button("🔓 Entrar", use_container_width=True)
 
 
 
-# Actualizamos el estado con lo que se escriba
-st.session_state.pin_usuario = pin_input'
-
-
-
 
 
 # --- OBTENER FASE ACTUAL (Versión Neon) ---
@@ -1057,6 +1052,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
