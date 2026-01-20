@@ -594,16 +594,16 @@ with tabs[0]:
 
             
 
-# --- TAB: REGISTRO (Versión Final Corregida) ---
+# --- TAB: REGISTRO (Versión Neon / SQLAlchemy) ---
 if fase_actual == "inscripcion":
     with tabs[1]:
-        if st.session_state.reg_estado == "exito":
+        if st.session_state.get("reg_estado") == "exito":
             st.success("✅ ¡Inscripción recibida!")
             if st.button("Nuevo Registro"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
-        elif st.session_state.reg_estado == "confirmar":
+        elif st.session_state.get("reg_estado") == "confirmar":
             d = st.session_state.datos_temp
             st.warning("⚠️ **Confirma tus datos:**")
             
@@ -622,56 +622,69 @@ if fase_actual == "inscripcion":
             c1, c2 = st.columns(2)
             if c1.button("✅ Confirmar"):
                 url_temporal = None
+                
+                # Subida a Cloudinary
                 if d['escudo_obj']:
                     with st.spinner("Subiendo..."):
                         try:
                             res = cloudinary.uploader.upload(d['escudo_obj'], folder="escudos_pendientes")
                             url_temporal = res['secure_url']
-                        except: pass
+                        except Exception as e: 
+                            st.error(f"Error subiendo imagen: {e}")
                 
-                with get_db_connection() as conn:
-                    try:
-                        conn.execute("""
+                # Inserción en NEON
+                try:
+                    with conn.connect() as db:
+                        query_insert = text("""
                             INSERT INTO equipos (nombre, celular, prefijo, pin, escudo, estado) 
-                            VALUES (?,?,?,?,?, 'pendiente')
-                        """, (d['n'], d['wa'], d['pref'], d['pin'], url_temporal))
-                        conn.commit()
-                        st.session_state.reg_estado = "exito"
-                        st.rerun()
-                    except sqlite3.Error as e:
-                        st.error(f"Error: {e}")
+                            VALUES (:n, :c, :p, :pi, :e, 'pendiente')
+                        """)
+                        db.execute(query_insert, {
+                            "n": d['n'], 
+                            "c": d['wa'], 
+                            "p": d['pref'], 
+                            "pi": d['pin'], 
+                            "e": url_temporal
+                        })
+                        db.commit()
+                    
+                    st.session_state.reg_estado = "exito"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error guardando en base de datos: {e}")
 
             if c2.button("✏️ Editar"): 
                 st.session_state.reg_estado = "formulario"
                 st.rerun()
         
         else:
-            # --- CSS REFINADO: Colores claros y botón de eliminar protegido ---
+            # --- CSS REFINADO (ADAPTADO A DARK MODE) ---
             st.markdown("""
                 <style>
                 [data-testid="stFileUploader"] section { padding: 0; background-color: transparent !important; }
                 [data-testid="stFileUploader"] section > div:first-child { display: none; }
                 
-                /* Solo personalizamos el botón de CARGA inicial */
+                /* Botón de carga adaptado a OSCURO */
                 [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"] { 
-                    width: 100%; background-color: white !important; color: black !important; 
-                    border: 2px solid #FFD700 !important; padding: 10px; border-radius: 8px; font-weight: bold;
+                    width: 100%; 
+                    background-color: #262730 !important; /* Gris oscuro */
+                    color: white !important; 
+                    border: 2px solid #FFD700 !important; 
+                    padding: 10px; border-radius: 8px; font-weight: bold;
                 }
                 
-                /* El botón de 'Eliminar' (X) suele aparecer diferente, 
-                   si el contenedor tiene un archivo, evitamos que el ::before lo tape */
                 [data-testid="stFileUploaderFileData"] button { width: auto !important; border: none !important; }
                 
-                /* Texto del botón solo cuando no hay archivo */
+                /* Texto del botón */
                 [data-testid="stFileUploader"] button[data-testid="baseButton-secondary"]::before { 
                     content: "🛡️ SELECCIONAR ESCUDO"; 
                 }
                 [data-testid="stFileUploader"] button div { display: none; }
                 [data-testid="stFileUploader"] small { display: none; }
                 
-                /* Asegurar que el nombre del archivo subido sea negro/visible */
+                /* Nombre del archivo en blanco para que se vea */
                 [data-testid="stFileUploaderFileName"], [data-testid="stFileUploaderFileData"] p {
-                    color: black !important;
+                    color: white !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -690,19 +703,25 @@ if fase_actual == "inscripcion":
                     if not nom or not tel or len(pin_r) < 4: 
                         st.error("Datos incompletos.")
                     else:
-                        with get_db_connection() as conn:
-                            cur = conn.cursor()
-                            cur.execute("SELECT 1 FROM equipos WHERE nombre=? OR celular=?", (nom, tel))
-                            if cur.fetchone(): 
-                                st.error("❌ Equipo o teléfono ya registrados.")
-                            else:
-                                st.session_state.datos_temp = {
-                                    "n": nom, "wa": tel, "pin": pin_r, 
-                                    "pref": pais_sel.split('(')[-1].replace(')', ''),
-                                    "escudo_obj": archivo_escudo
-                                }
-                                st.session_state.reg_estado = "confirmar"
-                                st.rerun()
+                        # --- VALIDACIÓN CON NEON ---
+                        try:
+                            with conn.connect() as db:
+                                # Usamos text() y parámetros :nombre
+                                query_check = text("SELECT 1 FROM equipos WHERE nombre = :n OR celular = :c")
+                                result = db.execute(query_check, {"n": nom, "c": tel}).fetchone()
+                                
+                                if result: 
+                                    st.error("❌ Equipo o teléfono ya registrados.")
+                                else:
+                                    st.session_state.datos_temp = {
+                                        "n": nom, "wa": tel, "pin": pin_r, 
+                                        "pref": pais_sel.split('(')[-1].replace(')', ''),
+                                        "escudo_obj": archivo_escudo
+                                    }
+                                    st.session_state.reg_estado = "confirmar"
+                                    st.rerun()
+                        except Exception as e:
+                            st.error(f"Error de conexión: {e}")
                                 
                                 
 ### FIN DESARROLLO
@@ -1050,6 +1069,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
