@@ -29,26 +29,43 @@ st.set_page_config(
 
 
 # Estilo para móviles y tema claro forzado #st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
-# --- CONFIGURACIÓN FUENTE LETRAS ---
+# --- CONFIGURACIÓN ESTÉTICA GLOBAL (FUENTE Y FONDO) ---
 st.markdown("""
     <style>
-        /* 1. Importamos la fuente Oswald desde Google Fonts */
+        /* 1. Importar Oswald */
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 2. La aplicamos a TODA la aplicación */
+        /* 2. Aplicar Oswald a toda la App */
         html, body, [class*="st-"], .main, button, input, select, textarea {
             font-family: 'Oswald', sans-serif !important;
         }
 
-        /* 3. Ajuste específico para que los títulos se vean más imponentes */
-        h1, h2, h3 {
+        /* 3. FONDO NEGRO POTENTE */
+        /* Cambia el fondo de la app principal, el header y el contenedor de bloques */
+        .stApp, [data-testid="stHeader"], [data-testid="stAppViewContainer"] {
+            background-color: #000000 !important;
+        }
+
+        /* Ajuste para que las pestañas (Tabs) no se vean grises */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #000000 !important;
+        }
+
+        /* 4. MEJORA DE TÍTULOS */
+        h1, h2, h3, h4, h5, h6 {
             font-family: 'Oswald', sans-serif !important;
+            color: #ffffff !important;
             text-transform: uppercase;
-            letter-spacing: 1px;
+        }
+        
+        /* Opcional: Hacer que los inputs y botones resalten un poco sobre el negro */
+        .stTextInput>div>div>input {
+            background-color: #1a1a1a !important;
+            color: white !important;
+            border: 1px solid #333 !important;
         }
     </style>
     """, unsafe_allow_html=True)
-
 
 
 
@@ -1197,6 +1214,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
