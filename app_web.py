@@ -181,7 +181,7 @@ st.markdown("""
     /* 8. CAJAS DE PARTIDO (Estilo tarjeta oscura) */
     .match-box { 
         border: 1px solid #444; padding: 13px; border-radius: 10px; 
-        margin-bottom: 15px; background: #1c1c1c !important; color: white !important;
+        margin-bottom: 11px; background: #1c1c1c !important; color: white !important;
     }
 
     /* WHATSAPP BUTTON */
@@ -1144,6 +1144,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
