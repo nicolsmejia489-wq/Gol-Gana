@@ -26,7 +26,30 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+
+
 # Estilo para móviles y tema claro forzado #st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
+# --- CONFIGURACIÓN FUENTE LETRAS ---
+st.markdown("""
+    <style>
+        /* 1. Importamos la fuente Oswald desde Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
+
+        /* 2. La aplicamos a TODA la aplicación */
+        html, body, [class*="st-"], .main, button, input, select, textarea {
+            font-family: 'Oswald', sans-serif !important;
+        }
+
+        /* 3. Ajuste específico para que los títulos se vean más imponentes */
+        h1, h2, h3 {
+            font-family: 'Oswald', sans-serif !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+
 
 
 
@@ -1174,6 +1197,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
