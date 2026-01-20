@@ -511,24 +511,23 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN ---
+# --- TAB: CLASIFICACIÓN (Manteniendo tu estructura original) ---
 with tabs[0]:
-    # Función interna para evitar que Streamlit imprima variables intermedias
-    def generar_tabla_posiciones():
-        try:
-            # 1. Datos
-            df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
-            if df_eq.empty:
-                return st.info("No hay equipos todavía.")
-
+    with get_db_connection() as conn:
+        # 1. Aseguramos traer el escudo
+        df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
+        
+        if df_eq.empty: 
+            st.info("No hay equipos todavía.")
+        else:
             mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
+            
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             
             for _, f in df_p.iterrows():
-                if f['local'] in stats and f['visitante'] in stats:
-                    l, v = f['local'], f['visitante']
-                    gl, gv = int(f['goles_l']), int(f['goles_v'])
+                l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
+                if l in stats and v in stats:
                     stats[l]['PJ']+=1; stats[v]['PJ']+=1
                     stats[l]['GF']+=gl; stats[l]['GC']+=gv
                     stats[v]['GF']+=gv; stats[v]['GC']+=gl
@@ -542,46 +541,24 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # 2. Construcción de la cadena HTML (Todo en una sola variable)
-            estilos = """
-            <style>
-                .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; background: #000; }
-                .big-table th { background: #111; color: #FFD700; font-size: 15px; padding: 6px 2px; text-align: center; border-bottom: 2px solid #FFD700; }
-                .big-table td { padding: 10px 2px; text-align: center; vertical-align: middle; border-bottom: 1px solid #222; font-size: 21px; color: white; }
-                .big-table .team-cell { text-align: left; padding-left: 8px; font-size: 18px; font-weight: bold; }
-            </style>
-            """
+            # --- ESTRUCTURA ORIGINAL MANTENIDA ---
+            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
             
-            # Encabezado
-            html_final = estilos + '<table class="big-table"><thead><tr><th style="width:10%">POS</th><th style="width:45%; text-align:left; padding-left:8px">EQUIPO</th><th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th></tr></thead><tbody>'
-            
-            # Filas
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
-                escudo = f'<img src="{url}" style="width:35px; height:35px; object-fit:contain; vertical-align:middle; margin-right:8px;">' if url else '<span style="font-size:25px; vertical-align:middle; margin-right:8px;">🛡️</span>'
                 
-                html_final += f"""
-                <tr>
-                    <td>{r['POS']}</td>
-                    <td class='team-cell'>{escudo}{r['EQ']}</td>
-                    <td style="color:#ffd700; font-weight:900;">{r['PTS']}</td>
-                    <td>{r['PJ']}</td>
-                    <td>{r['GF']}</td>
-                    <td>{r['GC']}</td>
-                    <td style="font-size:15px; color:#888;">{r['DG']}</td>
-                </tr>
-                """
+                # Definimos el prefijo (imagen o escudo vacío)
+                # Usamos estilos en línea simples para no romper la celda
+                if url:
+                    prefijo_img = f'<img src="{url}" style="width:20px; vertical-align:middle; margin-right:5px;">'
+                else:
+                    prefijo_img = '<span style="margin-right:5px;">🛡️</span>'
+                
+                # Esta línea es la clave: concatenamos directamente en la celda original
+                html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{prefijo_img}{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
             
-            html_final += "</tbody></table>"
-            
-            # 3. ÚNICO punto de salida de texto
-            st.markdown(html_final, unsafe_allow_html=True)
+            st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
-        except Exception as e:
-            st.error(f"Error en tabla: {e}")
-
-    # Llamamos a la función
-    generar_tabla_posiciones()
             
 
 # --- TAB: REGISTRO ---
@@ -1049,6 +1026,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
