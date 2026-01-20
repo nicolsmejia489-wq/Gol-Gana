@@ -427,51 +427,60 @@ equipo_usuario = None
 
 # --- LÓGICA DE VALIDACIÓN (Solo al dar click en Entrar) ---
 if btn_entrar:
+    # 1. Validación ADMIN
     if st.session_state.pin_usuario == ADMIN_PIN:
         rol = "admin"
         st.rerun()
+    
+    # 2. Validación DT (Base de Datos Neon)
     elif st.session_state.pin_usuario:
-        with get_db_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
-            res = cur.fetchone()
-            
-            if res:
-                rol = "dt"
-                equipo_usuario = res[0]
-                st.rerun()
-            else:
-                # ACCIÓN DEFINITIVA: Aviso + Limpieza + Rerun (Como botón Inicio)
-                st.markdown("""
-                    <div style="position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
-                                background-color: white; color: black; padding: 12px 24px;
-                                border-radius: 8px; border: 2px solid #ff4b4b;
-                                box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
-                                font-weight: bold;">
-                        ⚠️ PIN no registrado o no aprobado
-                    </div>
-                """, unsafe_allow_html=True)
+        equipo_encontrado = None
+        
+        try:
+            # Usamos el motor global 'conn'
+            with conn.connect() as db:
+                query = text("SELECT nombre FROM equipos WHERE pin = :p AND estado = 'aprobado'")
+                result = db.execute(query, {"p": st.session_state.pin_usuario}).fetchone()
                 
-                # Forzamos la limpieza y el reinicio al estado inicial
-                st.session_state.pin_usuario = ""
-                st.session_state.reg_estado = "formulario"
-                # Opcional: un pequeño delay para que alcancen a leer el mensaje antes del rerun
-                import time
-                time.sleep(1.5) 
-                st.rerun()
+                if result:
+                    equipo_encontrado = result[0]
+        except Exception as e:
+            st.error(f"Error de conexión: {e}")
 
-# Mantener la sesión activa si el PIN ya es correcto
-if st.session_state.pin_usuario:
+        if equipo_encontrado:
+            rol = "dt"
+            equipo_usuario = equipo_encontrado
+            st.rerun()
+        else:
+            # MENSAJE RÁPIDO QUE DESAPARECE (Toast)
+            st.toast("⚠️ PIN incorrecto o equipo no aprobado", icon="❌")
+            
+            # Limpiamos el PIN para que el usuario intente de nuevo
+            st.session_state.pin_usuario = ""
+            
+            # Pequeña pausa para que se vea el efecto visual del error
+            time.sleep(1) 
+            st.rerun()
+
+# --- MANTENER SESIÓN ACTIVA (Persistencia al recargar) ---
+# Este bloque revisa si ya había un PIN válido guardado en la sesión
+if st.session_state.pin_usuario and "rol" not in locals():
     if st.session_state.pin_usuario == ADMIN_PIN:
         rol = "admin"
     else:
-        with get_db_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT nombre FROM equipos WHERE pin = ? AND estado = 'aprobado'", (st.session_state.pin_usuario,))
-            res = cur.fetchone()
-            if res:
-                rol = "dt"
-                equipo_usuario = res[0]
+        try:
+            with conn.connect() as db:
+                query = text("SELECT nombre FROM equipos WHERE pin = :p AND estado = 'aprobado'")
+                result = db.execute(query, {"p": st.session_state.pin_usuario}).fetchone()
+                
+                if result:
+                    rol = "dt"
+                    equipo_usuario = result[0]
+                else:
+                    # Si el PIN guardado ya no es válido (ej: equipo eliminado), lo borramos
+                    st.session_state.pin_usuario = ""
+        except:
+            pass # Si falla la conexión silenciosamente, solo no loguea
 
 
 
@@ -1069,6 +1078,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
