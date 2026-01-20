@@ -603,7 +603,7 @@ with tabs[0]:
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
                 
-                # AUMENTO DE TAMAÑO: width:45px (antes 20px) y margin-right:10px
+                # AUMENTO DE TAMAÑO: width:40px (antes 20px) y margin-right:10px
                 if url:
                     prefijo_img = f'<img src="{url}" style="width:45px; height:45px; object-fit:contain; vertical-align:middle; margin-right:10px;">'
                 else:
@@ -1144,6 +1144,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
