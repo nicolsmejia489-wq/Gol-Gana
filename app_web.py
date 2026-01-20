@@ -385,10 +385,26 @@ btn_entrar = st.button("🔓 Entrar", use_container_width=True)
 # Actualizamos el estado con lo que se escriba
 st.session_state.pin_usuario = pin_input
 
-with get_db_connection() as conn:
-    cur = conn.cursor()
-    cur.execute("SELECT valor FROM config WHERE llave = 'fase'")
-    fase_actual = cur.fetchone()[0]
+
+
+# --- OBTENER FASE ACTUAL (Versión Neon) ---
+try:
+    with conn.connect() as connection:
+        # Usamos text() para la consulta SQL segura
+        # Nota: En Neon la columna se llama 'clave', no 'llave'
+        query_fase = text("SELECT valor FROM config WHERE clave = 'fase_actual'")
+        result = connection.execute(query_fase)
+        
+        # .scalar() obtiene el valor limpio directamente
+        fase_actual = result.scalar()
+        
+        if not fase_actual:
+            fase_actual = "inscripcion" # Valor por defecto si falla
+except Exception as e:
+    st.error(f"Error al leer la fase: {e}")
+    fase_actual = "inscripcion"
+
+    
 
 rol = "espectador"
 equipo_usuario = None
@@ -1002,6 +1018,7 @@ if rol == "admin":
                     conn.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
