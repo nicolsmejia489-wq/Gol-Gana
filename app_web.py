@@ -589,7 +589,7 @@ with tabs[0]:
             # Aumentamos fuente a 22px y forzamos alineación vertical al centro
             estilo_tabla = """
             <style>
-                .big-table { font-size: 22px !important; width: 100%; border-collapse: collapse; }
+                .big-table { font-size: 11px !important; width: 100%; border-collapse: collapse; }
                 .big-table th { background-color: #333; color: white; padding: 10px; text-align: center; }
                 .big-table td { padding: 8px; text-align: center; vertical-align: middle !important; border-bottom: 1px solid #ddd; }
                 .big-table .team-cell { text-align: left; font-weight: bold; }
@@ -1144,6 +1144,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
