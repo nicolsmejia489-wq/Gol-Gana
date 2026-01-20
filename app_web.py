@@ -549,7 +549,6 @@ with tabs[2]:
 
 # --- TAB: CLASIFICACIÓN ---
 with tabs[0]:
-    # YA NO usamos 'with get_db_connection() as conn:'. 
     # Usamos la variable global 'conn' directamente.
 
     # 1. Aseguramos traer el escudo
@@ -567,10 +566,9 @@ with tabs[0]:
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             
             for _, f in df_p.iterrows():
-                # Validación extra para evitar errores si hay datos sucios
+                # Validación extra para evitar errores
                 if f['local'] in stats and f['visitante'] in stats:
                     l, v = f['local'], f['visitante']
-                    # En Postgres los enteros vienen bien, pero forzamos int por seguridad
                     gl = int(f['goles_l'])
                     gv = int(f['goles_v'])
                     
@@ -587,25 +585,38 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # --- ESTRUCTURA ORIGINAL MANTENIDA ---
-            html = '<table class="mobile-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
+            # --- ESTILOS CSS PERSONALIZADOS PARA ESTA TABLA ---
+            # Aumentamos fuente a 22px y forzamos alineación vertical al centro
+            estilo_tabla = """
+            <style>
+                .big-table { font-size: 22px !important; width: 100%; border-collapse: collapse; }
+                .big-table th { background-color: #333; color: white; padding: 10px; text-align: center; }
+                .big-table td { padding: 8px; text-align: center; vertical-align: middle !important; border-bottom: 1px solid #ddd; }
+                .big-table .team-cell { text-align: left; font-weight: bold; }
+            </style>
+            """
+            st.markdown(estilo_tabla, unsafe_allow_html=True)
+
+            # --- ESTRUCTURA HTML CON TAMAÑOS AUMENTADOS ---
+            html = '<table class="mobile-table big-table"><thead><tr><th>POS</th><th style="text-align:left">EQ</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
             
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
                 
+                # AUMENTO DE TAMAÑO: width:45px (antes 20px) y margin-right:10px
                 if url:
-                    prefijo_img = f'<img src="{url}" style="width:20px; vertical-align:middle; margin-right:5px;">'
+                    prefijo_img = f'<img src="{url}" style="width:45px; height:45px; object-fit:contain; vertical-align:middle; margin-right:10px;">'
                 else:
-                    prefijo_img = '<span style="margin-right:5px;">🛡️</span>'
+                    # Si no hay escudo, usamos un emoji pero con tamaño de fuente 30px
+                    prefijo_img = '<span style="font-size:30px; vertical-align:middle; margin-right:10px;">🛡️</span>'
                 
+                # Insertamos las filas
                 html += f"<tr><td>{r['POS']}</td><td class='team-cell'>{prefijo_img}{r['EQ']}</td><td><b>{r['PTS']}</b></td><td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td>{r['DG']}</td></tr>"
             
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error cargando tabla de posiciones: {e}")
-        
-            
 
 
             
@@ -1133,6 +1144,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
