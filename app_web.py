@@ -550,6 +550,7 @@ with tabs[2]:
 # --- TAB: CLASIFICACIÓN ---
 with tabs[0]:
     try:
+        # 1. Obtener equipos y escudos
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
         if df_eq.empty: 
@@ -557,70 +558,70 @@ with tabs[0]:
         else:
             mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
             
+            # 2. Calcular Estadísticas
             stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
-            
-            # Consultamos partidos jugados
             df_p = pd.read_sql_query("SELECT * FROM partidos WHERE goles_l IS NOT NULL", conn)
             
             for _, f in df_p.iterrows():
                 if f['local'] in stats and f['visitante'] in stats:
                     l, v = f['local'], f['visitante']
-                    gl = int(f['goles_l'])
-                    gv = int(f['goles_v'])
+                    gl, gv = int(f['goles_l']), int(f['goles_v'])
                     
                     stats[l]['PJ']+=1; stats[v]['PJ']+=1
                     stats[l]['GF']+=gl; stats[l]['GC']+=gv
                     stats[v]['GF']+=gv; stats[v]['GC']+=gl
+                    
                     if gl > gv: stats[l]['PTS']+=3
                     elif gv > gl: stats[v]['PTS']+=3
                     else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
             
+            # 3. Crear DataFrame Final
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
             df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # --- ESTILOS CSS ---
-            # Ajustamos: Encabezados (th) MUY PEQUEÑOS (10px) y Celdas (td) GRANDES (20px)
-            estilo_tabla = """
+            # 4. Estilos CSS (Headers pequeños, Datos grandes)
+            st.markdown("""
             <style>
                 .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; } 
                 
+                /* ENCABEZADOS: Letra pequeña (10px) y poco padding */
                 .big-table th { 
                     background-color: #333; 
                     color: #aaa; 
                     padding: 2px 1px;
                     text-align: center; 
-                    font-size: 10px !important; /* Encabezado diminuto para ahorrar espacio */
+                    font-size: 10px !important; 
                     font-weight: normal;
                     letter-spacing: 1px;
                 }
                 
+                /* DATOS: Letra grande (19px/20px) */
                 .big-table td { 
                     padding: 8px 1px; 
                     text-align: center; 
                     vertical-align: middle !important; 
                     border-bottom: 1px solid #444; 
-                    font-size: 20px !important; /* Datos grandes */
+                    font-size: 19px !important; 
                     color: white;
                 }
                 
+                /* EQUIPO: Alineado izquierda, negrita */
                 .big-table .team-cell { 
                     text-align: left; 
                     font-weight: bold;
                     padding-left: 8px;
-                    font-size: 18px !important; /* Nombre equipo ligeramente menor que números para que quepa */
+                    font-size: 17px !important; 
                     white-space: nowrap; 
                     overflow: hidden; 
                     text-overflow: ellipsis; 
                 }
             </style>
-            """
-            st.markdown(estilo_tabla, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-            # --- CONSTRUCCIÓN HTML ---
-            # Iniciamos la tabla
+            # 5. Construcción de HTML
             html_table = '''
             <table class="mobile-table big-table">
                 <thead>
@@ -641,16 +642,17 @@ with tabs[0]:
                 url = mapa_escudos.get(r['EQ'])
                 
                 if url:
+                    # Escudo grande (30px)
                     prefijo_img = f'<img src="{url}" style="width:30px; height:30px; object-fit:contain; vertical-align:middle; margin-right:8px;">'
                 else:
                     prefijo_img = '<span style="font-size:20px; vertical-align:middle; margin-right:8px;">🛡️</span>'
                 
-                # Filas
+                # Fila de datos
                 html_table += f"""
                 <tr>
                     <td>{r['POS']}</td>
                     <td class='team-cell'>{prefijo_img}{r['EQ']}</td>
-                    <td style="font-weight:900; color:#ffd700; font-size:22px !important;">{r['PTS']}</td>
+                    <td style="font-weight:900; color:#ffd700; font-size:21px !important;">{r['PTS']}</td>
                     <td>{r['PJ']}</td>
                     <td>{r['GF']}</td>
                     <td>{r['GC']}</td>
@@ -658,8 +660,9 @@ with tabs[0]:
                 </tr>
                 """
             
-            # Cierre de tabla y RENDERIZADO FINAL
             html_table += "</tbody></table>"
+            
+            # 6. RENDERIZADO FINAL (Crucial para que se vea la tabla y no texto)
             st.markdown(html_table, unsafe_allow_html=True)
 
     except Exception as e:
@@ -1194,6 +1197,7 @@ if rol == "admin":
 
 
 st.markdown(html_table, unsafe_allow_html=True)
+
 
 
 
