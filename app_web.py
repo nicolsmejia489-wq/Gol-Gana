@@ -886,17 +886,24 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Consolidado Final) ---
+# --- TAB: GESTIÓN ADMIN (Versión Neon / SQLAlchemy) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        # --- 1. SECCIÓN DE APROBACIONES (Con IA y Cache Buster) ---
+        # --- 1. SECCIÓN DE APROBACIONES ---
         st.subheader("📩 Equipos por Aprobar")
-        with get_db_connection() as conn:
-            pend = pd.read_sql_query("SELECT * FROM equipos WHERE estado='pendiente'", conn)
-            aprobados_count = len(pd.read_sql_query("SELECT 1 FROM equipos WHERE estado='aprobado'", conn))
+        
+        # Lectura directa con el motor global 'conn'
+        try:
+            pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
+            # Contamos aprobados
+            res_count = pd.read_sql_query(text("SELECT count(*) FROM equipos WHERE estado='aprobado'"), conn)
+            aprobados_count = res_count.iloc[0,0]
             st.write(f"**Progreso: {aprobados_count}/32 Equipos**")
+        except Exception as e:
+            st.error(f"Error leyendo base de datos: {e}")
+            pend = pd.DataFrame() # DataFrame vacío para no romper el código
         
         if not pend.empty:
             for _, r in pend.iterrows():
@@ -907,11 +914,12 @@ if rol == "admin":
                     
                     with col_data:
                         st.markdown(f"**{r['nombre']}** \n<a href='{wa_link}' style='color: #25D366; text-decoration: none; font-weight: bold;'>🟢 📞 Contactar DT</a>", unsafe_allow_html=True)
-                        st.caption("🖼️ Escudo recibido (listo para IA)" if r['escudo'] else "⚠️ Sin escudo")
+                        st.caption("🖼️ Escudo recibido" if r['escudo'] else "⚠️ Sin escudo")
                     
                     with col_btn:
                         if st.button(f"✅ Aprobar", key=f"aprob_{r['nombre']}", use_container_width=True):
                             url_final = r['escudo']
+                            # --- Lógica de IA Cloudinary (Intacta) ---
                             if url_final:
                                 with st.spinner("🤖 IA Limpiando Escudo..."):
                                     try:
@@ -921,92 +929,89 @@ if rol == "admin":
                                             folder="escudos_limpios",
                                             format="png"
                                         )
-                                        url_final = res_ia['secure_url']
-                                        import time
-                                        url_final = f"{url_final}?v={int(time.time())}"
+                                        url_final = f"{res_ia['secure_url']}?v={int(time.time())}"
                                     except Exception as e:
                                         st.error(f"Error IA: {e}")
                             
-                            with get_db_connection() as conn:
-                                conn.execute("UPDATE equipos SET estado='aprobado', escudo=? WHERE nombre=?", (url_final, r['nombre']))
-                                conn.commit()
+                            # --- ACTUALIZACIÓN EN NEON ---
+                            with conn.connect() as db:
+                                db.execute(
+                                    text("UPDATE equipos SET estado='aprobado', escudo=:e WHERE nombre=:n"),
+                                    {"e": url_final, "n": r['nombre']}
+                                )
+                                db.commit()
                             st.rerun()
-                    st.markdown("---") 
+                st.markdown("---") 
         else:
             st.info("No hay equipos pendientes.")
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA (Resultados / Directorio) ---
+        # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos"], horizontal=True, key="adm_tab")
         
         if opcion_admin == "🛠️ Directorio de Equipos":
             st.subheader("📋 Directorio de Equipos")
-            with get_db_connection() as conn:
-                df_maestro = pd.read_sql_query("SELECT * FROM equipos", conn)
             
+            try:
+                df_maestro = pd.read_sql_query(text("SELECT * FROM equipos ORDER BY nombre"), conn)
+            except:
+                df_maestro = pd.DataFrame()
+
             if not df_maestro.empty:
                 for _, eq in df_maestro.iterrows():
                     estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                    pin_h = f'<span style="background-color: white; color: black; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold;">{eq["pin"]}</span>'
-                    st.markdown(f"{estado_icon} **{eq['nombre']}** | 🔑 PIN: {pin_h} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
+                    st.markdown(f"{estado_icon} **{eq['nombre']}** | 🔑 {eq['pin']} | 📞 {eq['prefijo']} {eq['celular']}")
                 
                 # --- SUB-SECCIÓN: GESTIÓN Y EDICIÓN ---
                 st.markdown("---")
                 st.subheader("✏️ Gestión y Edición")
-                equipo_sel = st.selectbox("Selecciona equipo para editar o eliminar:", df_maestro['nombre'].tolist())
-                datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
+                equipo_sel = st.selectbox("Selecciona equipo:", df_maestro['nombre'].tolist())
+                
+                if equipo_sel:
+                    datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
-                with st.form("edit_master_form"):
-                    col1, col2 = st.columns(2)
-                    new_name = col1.text_input("Nombre del Equipo", datos_sel['nombre'])
-                    new_pin = col2.text_input("PIN de acceso", str(datos_sel['pin']))
-                    
-                    st.write("**🛡️ Actualizar Escudo**")
-                    nuevo_escudo_img = st.file_uploader("Subir nuevo escudo (reemplaza el anterior)", type=['png', 'jpg', 'jpeg'])
-                    quitar_escudo = st.checkbox("❌ Eliminar escudo actual (dejar sin imagen)")
-                    
-                    if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-                        url_final = datos_sel['escudo']
+                    with st.form("edit_master_form"):
+                        col1, col2 = st.columns(2)
+                        new_name = col1.text_input("Nombre del Equipo", datos_sel['nombre'])
+                        new_pin = col2.text_input("PIN de acceso", str(datos_sel['pin']))
                         
-                        if quitar_escudo:
-                            url_final = None
-                        elif nuevo_escudo_img:
-                            with st.spinner("🤖 Procesando imagen con IA..."):
-                                try:
-                                    res_ia = cloudinary.uploader.upload(
-                                        nuevo_escudo_img,
-                                        background_removal="cloudinary_ai",
-                                        folder="escudos_limpios",
-                                        format="png"
-                                    )
-                                    url_final = res_ia['secure_url']
-                                    import time
-                                    url_final = f"{url_final}?v={int(time.time())}"
-                                except Exception as e:
-                                    st.error(f"Error al procesar: {e}")
-                                    res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
-                                    url_final = res_std['secure_url']
+                        st.write("**🛡️ Actualizar Escudo**")
+                        nuevo_escudo_img = st.file_uploader("Subir nuevo escudo", type=['png', 'jpg', 'jpeg'])
+                        quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
+                        
+                        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                            url_final = datos_sel['escudo']
+                            
+                            if quitar_escudo:
+                                url_final = None
+                            elif nuevo_escudo_img:
+                                # Lógica simple de subida para no complicar
+                                res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
+                                url_final = res_std['secure_url']
 
-                        with get_db_connection() as conn:
-                            conn.execute("UPDATE equipos SET nombre=?, pin=?, escudo=? WHERE nombre=?", (new_name, new_pin, url_final, equipo_sel))
-                            conn.commit()
-                        st.success(f"✅ ¡{new_name} actualizado!")
+                            with conn.connect() as db:
+                                db.execute(
+                                    text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
+                                    {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
+                                )
+                                db.commit()
+                            st.success(f"✅ ¡{new_name} actualizado!")
+                            st.rerun()
+
+                    # --- SECCIÓN DE PELIGRO ---
+                    if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
+                        with conn.connect() as db:
+                            db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
+                            db.commit()
+                        st.error(f"Equipo eliminado.")
                         st.rerun()
-
-                # --- SECCIÓN DE PELIGRO: BAJAR EQUIPO ---
-                if st.button(f"✖️ Bajar equipo: {equipo_sel}", use_container_width=True):
-                    with get_db_connection() as conn:
-                        conn.execute("DELETE FROM equipos WHERE nombre = ?", (equipo_sel,))
-                        conn.commit()
-                    st.error(f"El equipo {equipo_sel} ha sido eliminado.")
-                    st.rerun()
             else:
                 st.info("No hay equipos registrados.")
 
-        # --- 3. ACCIONES MAESTRAS (Solo visibles en Gestión para Admin) ---
+        # --- 3. ACCIONES MAESTRAS ---
         st.divider()
-        st.subheader("🚀 Control Global del Torneo")
+        st.subheader("🚀 Control Global")
         
         col_torneo, col_reset = st.columns(2)
         
@@ -1014,20 +1019,22 @@ if rol == "admin":
             if fase_actual == "inscripcion":
                 if st.button("🏁 INICIAR TORNEO", use_container_width=True, type="primary"):
                     if aprobados_count >= 2:
-                        generar_calendario()
+                        generar_calendario() # Asegúrate de que esta función también use 'conn'
                         st.rerun()
                     else:
-                        st.error("Se necesitan más equipos aprobados.")
+                        st.error("Mínimo 2 equipos aprobados.")
         
         with col_reset:
-            if st.button("🚨 REINICIAR TODO", use_container_width=True, help="Borra todo y vuelve a inscripción"):
-                with get_db_connection() as conn:
-                    conn.execute("DROP TABLE IF EXISTS equipos")
-                    conn.execute("DROP TABLE IF EXISTS partidos")
-                    conn.execute("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'")
-                    conn.commit()
+            if st.button("🚨 REINICIAR TODO", use_container_width=True):
+                with conn.connect() as db:
+                    # IMPORTANTE: Usamos DELETE, no DROP, para mantener la estructura
+                    db.execute(text("DELETE FROM equipos"))
+                    db.execute(text("DELETE FROM partidos"))
+                    db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
+                    db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
