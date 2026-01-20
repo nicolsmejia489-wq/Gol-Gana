@@ -385,32 +385,25 @@ st.markdown(f"""
 ######FIN PRUEBA
 
 
+
 # --- NAVEGACIÓN (Botones originales) ---
-
 c_nav1, c_nav2 = st.columns(2)
-
 with c_nav1:
-
     if st.button("🔙 Inicio"):
-
         st.session_state.reg_estado = "formulario"
-
         st.session_state.pin_usuario = ""
-
         st.rerun()
-
-
+#with c_nav2:
+ #   if st.button("🔄 Refrescar"): 
+  #      st.rerun()
 
 # --- CAMPO DE PIN Y BOTÓN DE ENTRAR ---
-
 pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
-
 btn_entrar = st.button("🔓 Entrar", use_container_width=True)
 
 
 
 # Actualizamos el estado con lo que se escriba
-
 st.session_state.pin_usuario = pin_input'
 
 
@@ -1064,6 +1057,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
