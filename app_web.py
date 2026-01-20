@@ -14,7 +14,8 @@ from thefuzz import fuzz # Para comparación flexible de nombres
 import json
 import os
 import streamlit as st
-
+from sqlalchemy import create_engine, text
+import time
 
 
 
@@ -38,18 +39,35 @@ st.markdown("""
 @st.cache_resource
 def get_db_connection():
     try:
-        # Busca la URL en el archivo .streamlit/secrets.toml
+        # Verifica que exista el secreto antes de intentar conectar
+        if "connections" not in st.secrets or "postgresql" not in st.secrets["connections"]:
+            st.error("❌ Faltan los datos de conexión en .streamlit/secrets.toml")
+            return None
+            
         db_url = st.secrets["connections"]["postgresql"]["url"]
         
-        # Crea el motor de conexión
+        # Creamos el motor
         engine = create_engine(db_url, pool_pre_ping=True)
+        
+        # Probamos una conexión rápida para ver si funciona
+        with engine.connect() as test_conn:
+            pass
+            
         return engine
     except Exception as e:
-        st.error(f"Error conectando a Neon: {e}")
+        st.error(f"❌ Error crítico conectando a Neon: {e}")
         return None
 
-# Inicializamos la variable 'conn' que usará todo el resto del script
+# Inicializamos la variable global 'conn'
 conn = get_db_connection()
+
+# BLOQUE DE SEGURIDAD: Si la conexión falló, detenemos la app aquí
+# Esto evita el error 'NoneType has no attribute connect' más adelante
+if conn is None:
+    st.warning("La aplicación se detuvo porque no hay conexión a la base de datos.")
+    st.stop()
+
+
 
 # 3. CONFIGURACIÓN CLOUDINARY
 # (Toma las claves de secrets.toml para mayor seguridad)
@@ -1034,6 +1052,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
