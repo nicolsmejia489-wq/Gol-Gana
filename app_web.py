@@ -809,12 +809,10 @@ if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
         
-        # Consultar partidos del usuario
-        with get_db_connection() as conn:
-            mis = pd.read_sql_query(
-                "SELECT * FROM partidos WHERE (local=? OR visitante=?) ORDER BY jornada ASC", 
-                conn, params=(equipo_usuario, equipo_usuario)
-            )
+        # 1. Consultar partidos del usuario (Lectura segura Neon)
+        try:
+            query_mis = text("SELECT * FROM partidos WHERE (local=:eq OR visitante=:eq) ORDER BY jornada ASC")
+            mis = pd.read_sql_query(query_mis, conn, params={"eq": equipo_usuario})
             
             if mis.empty:
                 st.info("Aún no tienes partidos asignados.")
@@ -832,13 +830,18 @@ if rol == "dt":
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # --- CONTACTO WHATSAPP ---
-                    cur = conn.cursor()
-                    cur.execute("SELECT prefijo, celular FROM equipos WHERE nombre=?", (rival,))
-                    r = cur.fetchone()
-                    
-                    if r and r[0] and r[1]:
-                        numero_wa = f"{str(r[0]).replace('+', '')}{r[1]}"
+                    # --- CONTACTO WHATSAPP (Consulta puntual sin cursores) ---
+                    numero_wa = None
+                    try:
+                        with conn.connect() as db:
+                            q_wa = text("SELECT prefijo, celular FROM equipos WHERE nombre=:n")
+                            r = db.execute(q_wa, {"n": rival}).fetchone()
+                            if r and r[0] and r[1]:
+                                numero_wa = f"{str(r[0]).replace('+', '')}{r[1]}"
+                    except:
+                        pass # Si falla, solo no muestra el botón
+
+                    if numero_wa:
                         st.markdown(f"""
                             <a href='https://wa.me/{numero_wa}' class='wa-btn' style='text-decoration: none;'>
                                 💬 Contactar Rival (WhatsApp)
@@ -849,7 +852,6 @@ if rol == "dt":
 
                     # --- EXPANDER PARA REPORTE ---
                     with st.expander(f"📸 Reportar Marcador J{p['jornada']}", expanded=False):
-                        # Selección de fuente con llave única
                         opcion = st.radio(
                             "Selecciona fuente:", 
                             ["Cámara", "Galería"], 
@@ -869,6 +871,7 @@ if rol == "dt":
                             if st.button("🔍 Analizar y Enviar Resultado", key=f"dt_btn_ia_{p['id']}"):
                                 with st.spinner("La IA está analizando la imagen..."):
                                     # 1. Análisis de IA
+                                    # (Asegúrate de que la función leer_marcador_ia esté definida arriba)
                                     res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
                                     
                                     if res_ia is None:
@@ -878,60 +881,72 @@ if rol == "dt":
                                         st.info(f"🤖 IA detectó marcador: {gl_ia} - {gv_ia}")
 
                                         try:
-                                            # --- SOLUCIÓN ERROR 'EMPTY FILE' ---
-                                            # Rebobinamos el archivo porque la IA ya lo leyó
+                                            # Rebobinamos el archivo
                                             foto.seek(0)
                                             
                                             # 2. Subida a Cloudinary
                                             res_cloud = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
                                             url_nueva = res_cloud['secure_url']
                                             
-                                            # Determinar columna de foto según rol
                                             col_foto = "url_foto_l" if es_local else "url_foto_v"
 
-                                            with get_db_connection() as conn_up:
-                                                # 3. Lógica de Consenso / Conflicto
+                                            # 3. Lógica de Consenso / Conflicto (Escritura segura Neon)
+                                            with conn.connect() as db:
                                                 gl_existente = p['goles_l']
                                                 gv_existente = p['goles_v']
 
-                                                # Si ya hay un reporte previo (del rival)
+                                                # Si ya hay reporte previo (del rival)
+                                                # Convertimos a int si existen para poder comparar
                                                 if gl_existente is not None:
+                                                    # Comparación
                                                     if int(gl_existente) != gl_ia or int(gv_existente) != gv_ia:
-                                                        # CONFLICTO: Marcadores diferentes
-                                                        conn_up.execute(f"""
+                                                        # CONFLICTO
+                                                        # Usamos :params para seguridad
+                                                        query_conf = text(f"""
                                                             UPDATE partidos SET 
                                                             goles_l=NULL, goles_v=NULL, 
-                                                            conflicto=1, {col_foto}=?, 
-                                                            ia_goles_l=?, ia_goles_v=? 
-                                                            WHERE id=?""", (url_nueva, gl_ia, gv_ia, p['id']))
+                                                            conflicto=1, {col_foto}=:url, 
+                                                            ia_goles_l=:gl, ia_goles_v=:gv 
+                                                            WHERE id=:id
+                                                        """)
+                                                        db.execute(query_conf, {
+                                                            "url": url_nueva, "gl": gl_ia, "gv": gv_ia, "id": p['id']
+                                                        })
                                                         st.warning("⚠️ Conflicto: Los resultados no coinciden. El Admin decidirá.")
                                                     else:
-                                                        # CONSENSO: Ambos coinciden
-                                                        conn_up.execute(f"""
+                                                        # CONSENSO
+                                                        query_ok = text(f"""
                                                             UPDATE partidos SET 
-                                                            {col_foto}=?, conflicto=0, estado='Finalizado' 
-                                                            WHERE id=?""", (url_nueva, p['id']))
+                                                            {col_foto}=:url, conflicto=0, estado='Finalizado' 
+                                                            WHERE id=:id
+                                                        """)
+                                                        db.execute(query_ok, {"url": url_nueva, "id": p['id']})
                                                         st.success("✅ ¡Marcador verificado y finalizado!")
                                                 else:
-                                                    # PRIMER REPORTE: Nadie había subido nada
-                                                    conn_up.execute(f"""
+                                                    # PRIMER REPORTE
+                                                    query_first = text(f"""
                                                         UPDATE partidos SET 
-                                                        goles_l=?, goles_v=?, 
-                                                        {col_foto}=?, ia_goles_l=?, 
-                                                        ia_goles_v=?, estado='Revision' 
-                                                        WHERE id=?""", (gl_ia, gv_ia, url_nueva, gl_ia, gv_ia, p['id']))
+                                                        goles_l=:gl, goles_v=:gv, 
+                                                        {col_foto}=:url, ia_goles_l=:gl, 
+                                                        ia_goles_v=:gv, estado='Revision' 
+                                                        WHERE id=:id
+                                                    """)
+                                                    db.execute(query_first, {
+                                                        "gl": gl_ia, "gv": gv_ia, "url": url_nueva, "id": p['id']
+                                                    })
                                                     st.success("⚽ Resultado guardado. Esperando reporte del rival.")
                                                 
-                                                conn_up.commit()
+                                                db.commit() # ¡Importante guardar cambios!
                                             
-                                            # Pausa breve y recarga
+                                            time.sleep(1.5)
                                             st.rerun()
 
                                         except Exception as e:
                                             st.error(f"❌ Error al procesar: {e}")
                     
                     st.markdown("<hr style='margin:10px 0; opacity:0.2;'>", unsafe_allow_html=True)
-
+        except Exception as e:
+            st.error(f"Error cargando partidos: {e}")
   #########
 
 
@@ -1118,6 +1133,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
