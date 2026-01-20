@@ -28,45 +28,124 @@ st.set_page_config(
 
 
 
-# Estilo para móviles y tema claro forzado #st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
-# --- CONFIGURACIÓN ESTÉTICA GLOBAL (FUENTE Y FONDO) ---
+# --- SISTEMA DE DISEÑO UNIFICADO: NEGRO TOTAL, BLANCO Y ORO ---
 st.markdown("""
     <style>
-        /* 1. Importar Oswald */
+        /* 1. IMPORTAR FUENTE OSWALD */
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 2. Aplicar Oswald a toda la App */
-        html, body, [class*="st-"], .main, button, input, select, textarea {
+        /* 2. RESET GLOBAL: FONDO NEGRO ABSOLUTO Y FUENTE */
+        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+            background-color: #000000 !important;
+            color: #ffffff !important;
             font-family: 'Oswald', sans-serif !important;
         }
 
-        /* 3. FONDO NEGRO POTENTE */
-        /* Cambia el fondo de la app principal, el header y el contenedor de bloques */
-        .stApp, [data-testid="stHeader"], [data-testid="stAppViewContainer"] {
-            background-color: #000000 !important;
-        }
-
-        /* Ajuste para que las pestañas (Tabs) no se vean grises */
-        .stTabs [data-baseweb="tab-list"] {
-            background-color: #000000 !important;
-        }
-
-        /* 4. MEJORA DE TÍTULOS */
+        /* 3. TÍTULOS Y TEXTO */
         h1, h2, h3, h4, h5, h6 {
             font-family: 'Oswald', sans-serif !important;
             color: #ffffff !important;
             text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
-        /* Opcional: Hacer que los inputs y botones resalten un poco sobre el negro */
-        .stTextInput>div>div>input {
+        p, span, label, div, b, .stMarkdown, [data-testid="stWidgetLabel"] p {
+            color: #ffffff !important;
+        }
+
+        /* 4. PESTAÑAS (TABS) - FONDO NEGRO */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #000000 !important;
+        }
+        button[data-baseweb="tab"] {
+            color: #888 !important; /* Inactivas en gris */
+        }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            color: #FFD700 !important; /* Activa en Dorado */
+            border-bottom-color: #FFD700 !important;
+        }
+
+        /* 5. BOTONES: ESTILO PREMIUM DORADO/GRIS */
+        div.stButton > button, div.stFormSubmitButton > button {
+            background-color: #1a1a1a !important; /* Gris casi negro */
+            color: white !important;
+            border: 1px solid #FFD700 !important; /* Borde dorado */
+            border-radius: 20px !important;
+            font-weight: bold !important;
+            transition: 0.3s;
+        }
+
+        div.stButton > button:hover {
+            background-color: #FFD700 !important; /* Dorado al pasar mouse */
+            color: black !important;
+        }
+
+        /* 6. INPUTS Y SELECTORES */
+        input[type="text"], input[type="password"], textarea, div[data-baseweb="select"] > div {
             background-color: #1a1a1a !important;
             color: white !important;
             border: 1px solid #333 !important;
         }
-    </style>
-    """, unsafe_allow_html=True)
+        
+        /* Dropdowns (Menús desplegables) */
+        div[data-baseweb="popover"], div[data-baseweb="menu"], ul[role="listbox"] {
+            background-color: #1a1a1a !important;
+            border: 1px solid #FFD700 !important;
+        }
+        li[role="option"]:hover {
+            background-color: #FFD700 !important;
+            color: black !important;
+        }
 
+        /* 7. TABLA DE CLASIFICACIÓN (DIETA VISUAL) */
+        .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; background: #000000; }
+        
+        .big-table th { 
+            background-color: #111; 
+            color: #FFD700 !important; /* Headers en Dorado */
+            padding: 4px 2px; 
+            text-align: center; 
+            font-size: 15px !important; 
+            border-bottom: 2px solid #333;
+        }
+        
+        .big-table td { 
+            padding: 8px 2px; 
+            text-align: center; 
+            vertical-align: middle !important; 
+            border-bottom: 1px solid #222; 
+            font-size: 20px !important; 
+        }
+        
+        .big-table .team-cell { 
+            text-align: left; 
+            padding-left: 8px;
+            font-size: 17px !important; 
+        }
+
+        /* 8. TARJETAS DE PARTIDOS Y EXPANDERS */
+        .match-box, [data-testid="stExpander"] {
+            background-color: #111111 !important;
+            border: 1px solid #333 !important;
+            border-radius: 10px !important;
+        }
+
+        /* BOTÓN WHATSAPP */
+        .wa-btn { 
+            background-color: #25D366; 
+            color: white !important; 
+            border-radius: 8px; 
+            text-align: center; 
+            font-weight: bold;
+            display: block;
+            padding: 10px;
+            text-decoration: none;
+        }
+
+        /* Eliminar resaltado azul en móvil */
+        * { -webkit-tap-highlight-color: transparent !important; }
+    </style>
+""", unsafe_allow_html=True)
 
 
 
@@ -120,125 +199,6 @@ ADMIN_PIN = "2025"
 
 
 
-
-
-#### TEMAS Y COLORES (VERSIÓN DARK MODE) ####
-st.markdown("""
-    <style>
-    /* 1. RESET GLOBAL: Fondo oscuro y texto blanco */
-    html, body, .stApp, [data-testid="stAppViewContainer"], .st-emotion-cache-1h9usn1 {
-        background-color: #0e1117 !important; /* Color fondo estándar oscuro */
-        color: white !important;
-    }
-
-    /* 2. TEXTO: Todo a blanco */
-    h1, h2, h3, h4, h5, h6, p, span, label, div, b, .stMarkdown, [data-testid="stWidgetLabel"] p, .caption {
-        color: white !important;
-        -webkit-text-fill-color: white !important;
-    }
-
-    /* 3. BOTONES: Fondo gris oscuro, texto blanco */
-    div.stButton > button, 
-    div.stFormSubmitButton > button, 
-    [data-testid="baseButton-secondary"], 
-    [data-testid="baseButton-primary"] {
-        background-color: #262730 !important;
-        color: white !important;
-        border: 1px solid #4f4f4f !important;
-        border-radius: 20px !important; /* Mantenemos tu radio de 20px */
-        width: 100%;
-        height: 3em;
-        font-weight: bold !important;
-        -webkit-text-fill-color: white !important;
-    }
-
-    div.stButton > button:active, div.stFormSubmitButton > button:active {
-        background-color: #FFD700 !important; /* Dorado al pulsar */
-        color: black !important;
-        -webkit-text-fill-color: black !important;
-        border-color: #FFD700 !important;
-    }
-
-    /* 4. INPUTS Y CAJAS DE TEXTO */
-    input[type="text"], input[type="password"], textarea, div[data-baseweb="select"] > div {
-        background-color: #262730 !important;
-        color: white !important;
-        border: 1px solid #4f4f4f !important;
-        -webkit-text-fill-color: white !important;
-    }
-
-    /* 5. FIX PARA DESPLEGABLES (Menú flotante oscuro) */
-    div[data-baseweb="popover"], 
-    div[data-baseweb="menu"], 
-    ul[role="listbox"] {
-        background-color: #262730 !important;
-        border: 1px solid #444 !important;
-    }
-
-    li[role="option"], 
-    li[role="option"] div, 
-    li[role="option"] span {
-        background-color: #262730 !important;
-        color: white !important;
-        -webkit-text-fill-color: white !important;
-    }
-
-    /* Color al seleccionar opción */
-    li[role="option"]:hover, 
-    li[role="option"]:active, 
-    li[role="option"][aria-selected="true"] {
-        background-color: #FFD700 !important;
-        color: black !important;
-        -webkit-text-fill-color: black !important;
-    }
-
-    /* Flechita del selectbox en blanco */
-    div[data-baseweb="select"] svg {
-        fill: white !important;
-    }
-
-    /* 6. EXPANDERS */
-    [data-testid="stExpander"] {
-        background-color: #262730 !important;
-        border: 1px solid #444 !important;
-        color: white !important;
-    }
-    div[data-testid="stExpander"] div[role="button"] p { 
-        font-size: 1.1rem; 
-        font-weight: bold; 
-        color: white !important;
-    }
-
-    /* 7. TABLAS MÓVILES */
-    .mobile-table { 
-        width: 100%; border-collapse: collapse; font-size: 12px; 
-        background-color: #0e1117 !important; color: white !important;
-    }
-    .mobile-table th { background: #262730 !important; color: #FFD700 !important; padding: 8px; border-bottom: 2px solid #444; }
-    .mobile-table td { padding: 8px; border-bottom: 1px solid #333; color: white !important; }
-    .team-cell { text-align: left !important; display: flex; align-items: center; color: white !important; }
-
-    /* 8. CAJAS DE PARTIDO (Estilo tarjeta oscura) */
-    .match-box { 
-        border: 1px solid #444; padding: 13px; border-radius: 10px; 
-        margin-bottom: 11px; background: #1c1c1c !important; color: white !important;
-    }
-
-    /* WHATSAPP BUTTON */
-    .wa-btn { 
-        display: inline-block; background-color: #25D366; color: white !important; 
-        padding: 10px; border-radius: 8px; text-decoration: none; 
-        font-weight: bold; width: 100%; text-align: center;
-        -webkit-text-fill-color: white !important;
-    }
-    
-    * { -webkit-tap-highlight-color: transparent !important; }
-    </style>
-""", unsafe_allow_html=True)
-
-
-
-############# FIN COLORES
 
 
 
@@ -1214,6 +1174,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
