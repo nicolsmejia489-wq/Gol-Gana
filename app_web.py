@@ -17,57 +17,52 @@ import streamlit as st
 
 
 
-#PROVISIONAL PARA HACER PRUEBAS DE DESARROLLO
-# Nombre del archivo donde se guardará todo
-DB_FILE = "data_torneo.json"
-
-def guardar_datos():
-    """Guarda el estado actual de session_state en un archivo JSON"""
-    # Filtramos solo lo que queremos persistir (equipos, resultados, etc.)
-    datos_a_guardar = {
-        "equipos": st.session_state.get("equipos", []),
-        "partidos": st.session_state.get("partidos", []),
-        "registrados": st.session_state.get("registrados", False)
-    }
-    with open(DB_FILE, "w") as f:
-        json.dump(datos_a_guardar, f)
-
-def cargar_datos():
-    """Carga los datos desde el archivo JSON al session_state"""
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f:
-            datos = json.load(f)
-            for key, value in datos.items():
-                st.session_state[key] = value
-        return True
-    return False
-
-
-
-####FIN PROVISIONAL
-
 
 # 1. CONFIGURACIÓN PRINCIPAL DE SITIO
-st.set_page_config(page_title="Gol-Gana Pro", layout="centered", initial_sidebar_state="collapsed")
-
-# 2. Inyectar el Meta Tag de "color-scheme"
-st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
-
-
-# Configura credenciales (Cloudinary) Base de datos en Nube
-cloudinary.config( 
-  cloud_name = "dlvczeqlp", 
-  api_key = "276694391654197", 
-  api_secret = "j-_6AaUam_Acwng0GGr8tmb8Zyk",
-  secure = True
+st.set_page_config(
+    page_title="Gol-Gana Pro", 
+    layout="centered", 
+    initial_sidebar_state="collapsed"
 )
 
+# Estilo para móviles y tema claro forzado
+st.markdown('<meta name="color-scheme" content="light">', unsafe_allow_html=True)
+st.markdown("""
+    <style>
+    .stButton>button { width: 100%; border-radius: 20px; font-weight: bold; }
+    div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: bold; }
+    </style>
+""", unsafe_allow_html=True)
 
-from contextlib import contextmanager
+# 2. CONEXIÓN A NEON (POSTGRESQL) - La parte más importante
+@st.cache_resource
+def get_db_connection():
+    try:
+        # Busca la URL en el archivo .streamlit/secrets.toml
+        db_url = st.secrets["connections"]["postgresql"]["url"]
+        
+        # Crea el motor de conexión
+        engine = create_engine(db_url, pool_pre_ping=True)
+        return engine
+    except Exception as e:
+        st.error(f"Error conectando a Neon: {e}")
+        return None
 
-# --- 1. CONFIGURACIÓN Y TEMA FIJO CLARO ---
-DB_NAME = "gol_gana.db"
-ADMIN_PIN = "2025" 
+# Inicializamos la variable 'conn' que usará todo el resto del script
+conn = get_db_connection()
+
+# 3. CONFIGURACIÓN CLOUDINARY
+# (Toma las claves de secrets.toml para mayor seguridad)
+cloudinary.config(
+    cloud_name = st.secrets["cloudinary"]["cloud_name"],
+    api_key = st.secrets["cloudinary"]["api_key"],
+    api_secret = st.secrets["cloudinary"]["api_secret"],
+    secure = True
+)
+
+# Constantes de Lógica
+ADMIN_PIN = "2025"
+
 
 
 
@@ -189,71 +184,6 @@ st.markdown("""
 
 ############# FIN COLORES
 
-
-# --- INICIALIZACIÓN DE DATOS 
-if "datos_cargados" not in st.session_state:
-    if cargar_datos():
-        st.session_state["datos_cargados"] = True
-    else:
-        # Si no hay archivo, inicializamos vacío
-        if "equipos" not in st.session_state: st.session_state["equipos"] = []
-        if "partidos" not in st.session_state: st.session_state["partidos"] = []
-        st.session_state["datos_cargados"] = True
-
-####
-
-
-@contextmanager
-def get_db_connection():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=15)
-    try: yield conn
-    finally: conn.close()
-
-
-
-
-def inicializar_db():
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''CREATE TABLE IF NOT EXISTS equipos (
-            nombre TEXT PRIMARY KEY, celular TEXT, prefijo TEXT, pin TEXT, estado TEXT DEFAULT 'pendiente'
-        )''')
-        # Agregamos las columnas nuevas aquí también para que si la base de datos es nueva, nazca completa
-        cursor.execute('''CREATE TABLE IF NOT EXISTS partidos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            local TEXT, visitante TEXT, 
-            goles_l INTEGER DEFAULT NULL, goles_v INTEGER DEFAULT NULL, 
-            jornada INTEGER, estado TEXT DEFAULT 'programado',
-            url_foto_l TEXT, url_foto_v TEXT, 
-            ia_goles_l INTEGER, ia_goles_v INTEGER, 
-            conflicto INTEGER DEFAULT 0
-        )''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS config (llave TEXT PRIMARY KEY, valor TEXT)''')
-        cursor.execute("INSERT OR IGNORE INTO config (llave, valor) VALUES ('fase', 'inscripcion')")
-        conn.commit()
-
-def migrar_db():
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        # Estas son las columnas que añadimos por si la base de datos ya existía de antes
-        columnas = [
-            ("url_foto_l", "TEXT"),
-            ("url_foto_v", "TEXT"),
-            ("ia_goles_l", "INTEGER"),
-            ("ia_goles_v", "INTEGER"),
-            ("conflicto", "INTEGER DEFAULT 0")
-        ]
-        for nombre_col, tipo in columnas:
-            try:
-                cursor.execute(f"ALTER TABLE partidos ADD COLUMN {nombre_col} {tipo}")
-            except sqlite3.OperationalError:
-                pass # Si la columna ya existe, no hace nada
-        conn.commit()
-
-
-# --- EJECUCIÓN ---
-inicializar_db() # 1. Crea lo básico
-migrar_db()      # 2. Asegura que lo nuevo esté ahí
 
 
 
@@ -1072,6 +1002,7 @@ if rol == "admin":
                     conn.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
