@@ -392,13 +392,22 @@ with c_nav1:
         st.session_state.reg_estado = "formulario"
         st.session_state.pin_usuario = ""
         st.rerun()
-#with c_nav2:
- #   if st.button("🔄 Refrescar"): 
-  #      st.rerun()
 
-# --- CAMPO DE PIN Y BOTÓN DE ENTRAR ---
-pin_input = st.text_input("🔑 PIN de Acceso", value=st.session_state.pin_usuario, type="password")
-btn_entrar = st.button("🔓 Entrar", use_container_width=True)
+# --- CAMPO DE PIN Y BOTÓN DE ENTRAR (Diseño Compacto) ---
+st.markdown("######") # Un pequeño espacio vertical
+
+# Creamos columnas: la primera más ancha para el PIN, la segunda para el botón
+# vertical_alignment="bottom" es CLAVE para que se alineen visualmente
+c_pin, c_btn = st.columns([3, 1], vertical_alignment="bottom")
+
+with c_pin:
+    pin_input = st.text_input("🔑 PIN de Acceso", 
+                              value=st.session_state.pin_usuario, 
+                              type="password", 
+                              max_chars=4) # Limitamos a 4 caracteres visualmente
+
+with c_btn:
+    btn_entrar = st.button("🔓 Entrar", use_container_width=True)
 
 # Actualizamos el estado con lo que se escriba
 st.session_state.pin_usuario = pin_input
@@ -1052,6 +1061,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
