@@ -554,7 +554,7 @@ with tabs[0]:
                     else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
             
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-            df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
+            df_f.columns = ['EQUIPO', 'PJ', 'PTS', 'GF', 'GC']
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
@@ -1090,6 +1090,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
