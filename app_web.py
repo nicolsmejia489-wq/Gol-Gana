@@ -29,8 +29,34 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-fondo_actual = "#000000" 
-color_primario = "#FFD700"
+# --- VALORES INICIALES (Seguridad) ---
+fondo_actual = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
+color_primario = "#FFD700" # Dorado por defecto
+
+try:
+    conn = st.connection("postgresql", type="sql")
+    
+    # Forzamos una limpieza de caché para leer el cambio instantáneo
+    df_config = conn.query("SELECT clave, valor FROM configuracion;", ttl=0)
+    
+    if not df_config.empty:
+        # Buscamos la fila del fondo
+        row_fondo = df_config[df_config['clave'] == 'fondo_url']
+        if not row_fondo.empty:
+            fondo_actual = row_fondo['valor'].values[0]
+            
+        # Buscamos la fila del color
+        row_color = df_config[df_config['clave'] == 'color_primario']
+        if not row_color.empty:
+            color_primario = row_color['valor'].values[0]
+
+    # LOG DE DEPURACIÓN (Solo para que tú lo veas en la consola de Streamlit Cloud)
+    # st.write(f"DEBUG: Fondo: {fondo_actual} | Color: {color_primario}")
+
+except Exception as e:
+    st.error(f"Error de conexión: {e}")
+
+
 
 # --- INYECCIÓN DE CSS DINÁMICO (CORREGIDO) ---
 st.markdown(f"""
@@ -1144,6 +1170,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
