@@ -22,113 +22,183 @@ from io import BytesIO
 
 
 
-# 1. CONFIGURACIÓN PRINCIPAL DE SITIO
+# 1. CONFIGURACIÓN PRINCIPAL (Siempre primero)
 st.set_page_config(
     page_title="Gol-Gana Pro", 
     layout="centered", 
     initial_sidebar_state="collapsed"
 )
 
-# --- VALORES INICIALES (Seguridad) ---
+# --- 2. GESTIÓN DE CONEXIÓN ÚNICA ---
+@st.cache_resource
+def get_db_connection():
+    try:
+        if "connections" not in st.secrets or "postgresql" not in st.secrets["connections"]:
+            st.error("❌ Faltan los datos de conexión en secrets.toml")
+            return None
+        db_url = st.secrets["connections"]["postgresql"]["url"]
+        engine = create_engine(db_url, pool_pre_ping=True)
+        return engine
+    except Exception as e:
+        st.error(f"❌ Error crítico conectando a Neon: {e}")
+        return None
+
+# Inicializamos la conexión antes de buscar los colores
+conn = get_db_connection()
+
+# --- 3. RECUPERACIÓN DE DISEÑO DINÁMICO ---
+# Valores por defecto (Dorado Gol-Gana)
 fondo_actual = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
-color_primario = "#FFD700" # Dorado por defecto
+color_primario = "#FFD700" 
 
-try:
-    conn = st.connection("postgresql", type="sql")
-    
-    # Forzamos una limpieza de caché para leer el cambio instantáneo
-    df_config = conn.query("SELECT clave, valor FROM configuracion;", ttl=0)
-    
-    if not df_config.empty:
-        # Buscamos la fila del fondo
-        row_fondo = df_config[df_config['clave'] == 'fondo_url']
-        if not row_fondo.empty:
-            fondo_actual = row_fondo['valor'].values[0]
+if conn:
+    try:
+        # Consultamos la tabla de configuración
+        with conn.connect() as db:
+            query = text("SELECT clave, valor FROM configuracion")
+            df_config = pd.read_sql(query, db)
             
-        # Buscamos la fila del color
-        row_color = df_config[df_config['clave'] == 'color_primario']
-        if not row_color.empty:
-            color_primario = row_color['valor'].values[0]
+            if not df_config.empty:
+                # Extraer fondo
+                row_f = df_config[df_config['clave'] == 'fondo_url']
+                if not row_f.empty:
+                    fondo_actual = row_f['valor'].values[0]
+                
+                # Extraer color (y limpiar espacios)
+                row_c = df_config[df_config['clave'] == 'color_primario']
+                if not row_c.empty:
+                    color_primario = str(row_c['valor'].values[0]).strip()
+    except Exception as e:
+        st.warning(f"No se pudo cargar el diseño personalizado: {e}")
 
-    # LOG DE DEPURACIÓN (Solo para que tú lo veas en la consola de Streamlit Cloud)
-    # st.write(f"DEBUG: Fondo: {fondo_actual} | Color: {color_primario}")
-
-except Exception as e:
-    st.error(f"Error de conexión: {e}")
-
-
-
-# --- INYECCIÓN DE CSS DINÁMICO (CORREGIDO) ---
+# --- 4. INYECCIÓN DE CSS DINÁMICO REFORZADO ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* Usamos DOBLE LLAVE para el CSS y SIMPLE para la variable de Python */
-        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
+        /* FONDO Y FUENTE GLOBAL */
+        html, body, .stApp, [data-testid="stAppViewContainer"] {{
             background-color: #000000 !important;
-            background-image: url("{fondo_actual}");
-            background-size: cover;
-            background-position: center center;
-            background-attachment: fixed;
-            background-repeat: no-repeat;
-            color: #ffffff !important;
+            background-image: url("{fondo_actual}") !important;
+            background-size: cover !important;
+            background-position: center center !important;
+            background-attachment: fixed !important;
+            background-repeat: no-repeat !important;
             font-family: 'Oswald', sans-serif !important;
         }}
 
+        /* CAPA DE OSCURECIMIENTO */
         .stApp::before {{
             content: "";
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.7); /* Ajusta este 0.7 si quieres más o menos brillo */
             pointer-events: none;
             z-index: 0;
         }}
 
+        /* LÍNEA DECORATIVA SUPERIOR */
         [data-testid="stDecoration"] {{
             background-image: linear-gradient(90deg, {color_primario}, #000000) !important;
         }}
 
-        button[data-baseweb="tab"] {{
-            color: #888 !important;
-        }}
-        
-        button[data-baseweb="tab"][aria-selected="true"] {{
+        /* TÍTULOS (H1, H2, H3) - Forzamos el color del equipo */
+        h1, h2, h3, h4, [data-testid="stMarkdownContainer"] h1, [data-testid="stMarkdownContainer"] h2 {{
             color: {color_primario} !important;
-            border-bottom-color: {color_primario} !important;
-        }}
-
-        h1, h2, h3, h4, h5, h6 {{
             font-family: 'Oswald', sans-serif !important;
-            color: {color_primario} !important;
             text-transform: uppercase;
-            text-shadow: 2px 2px 4px rgba(0,0,0,1);
-            position: relative;
-            z-index: 1;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8) !important;
         }}
 
+        /* BOTONES (Normales y de Formulario) */
         div.stButton > button, div.stFormSubmitButton > button {{
-            background-color: rgba(26, 26, 26, 0.8) !important;
-            color: white !important;
-            border: 1px solid {color_primario} !important;
+            background-color: rgba(26, 26, 26, 0.9) !important;
+            color: #ffffff !important;
+            border: 2px solid {color_primario} !important;
             border-radius: 20px !important;
-            font-weight: bold !important;
+            font-family: 'Oswald', sans-serif !important;
+            text-transform: uppercase;
+            transition: 0.3s;
         }}
 
         div.stButton > button:hover {{
             background-color: {color_primario} !important;
-            color: black !important;
+            color: #000000 !important;
+            border: 2px solid {color_primario} !important;
         }}
 
-        .big-table th {{ 
-            background-color: rgba(17, 17, 17, 0.9); 
-            color: {color_primario} !important; 
-            border-bottom: 2px solid {color_primario};
+        /* TABS (Pestañas) */
+        button[data-baseweb="tab"] p {{
+            color: #888888 !important;
+            font-family: 'Oswald', sans-serif !important;
         }}
         
-        /* ... el resto de tus reglas con doble llave ... */
-        
+        button[data-baseweb="tab"][aria-selected="true"] p {{
+            color: {color_primario} !important;
+        }}
+
+        div[data-baseweb="tab-highlight"] {{
+            background-color: {color_primario} !important;
+        }}
+
+        /* TABLAS DE POSICIONES */
+        .big-table th {{ 
+            background-color: rgba(17, 17, 17, 0.9) !important; 
+            color: {color_primario} !important; 
+            border-bottom: 3px solid {color_primario} !important;
+            font-family: 'Oswald', sans-serif !important;
+        }}
+
+        /* ESTILO PARA LOS EXPANDERS */
+        [data-testid="stExpander"] {{
+            background-color: rgba(20, 20, 20, 0.8) !important;
+            border: 1px solid {color_primario} !important;
+        }}
     </style>
 """, unsafe_allow_html=True)
+
+# BLOQUE DE SEGURIDAD FINAL
+if conn is None:
+    st.warning("⚠️ La aplicación se encuentra en modo limitado por falta de conexión a la base de datos.")
+    st.stop()
+
+
+    
+
+
+
+
+# 2. CONEXIÓN A NEON (POSTGRESQL) - La parte más importante
+@st.cache_resource
+def get_db_connection():
+    try:
+        # Verifica que exista el secreto antes de intentar conectar
+        if "connections" not in st.secrets or "postgresql" not in st.secrets["connections"]:
+            st.error("❌ Faltan los datos de conexión en .streamlit/secrets.toml")
+            return None
+            
+        db_url = st.secrets["connections"]["postgresql"]["url"]
+        
+        # Creamos el motor
+        engine = create_engine(db_url, pool_pre_ping=True)
+        
+        # Probamos una conexión rápida para ver si funciona
+        with engine.connect() as test_conn:
+            pass
+            
+        return engine
+    except Exception as e:
+        st.error(f"❌ Error crítico conectando a Neon: {e}")
+        return None
+
+# Inicializamos la variable global 'conn'
+conn = get_db_connection()
+
+# BLOQUE DE SEGURIDAD: Si la conexión falló, detenemos la app aquí
+# Esto evita el error 'NoneType has no attribute connect' más adelante
+if conn is None:
+    st.warning("La aplicación se detuvo porque no hay conexión a la base de datos.")
+    st.stop()
 
 
 
@@ -1170,6 +1240,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
