@@ -3,13 +3,13 @@
 # --- 1. INGREDIENTES FIJOS (Tus Plantillas en Cloudinary) ---
 ASSETS = {
     # El fondo oscuro del estadio (Full HD)
-    "fondo_base": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769026055/fondo_base_lh4v0i.png",
+    "fondo_base": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769030979/fondo_base_l7i0k6.png",
 
     # El jugador con ropa en escala de grises (blanco/negro) y fondo transparente
-    "plantilla_jugador": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769026055/plantilla_jugador_shqqjd.png",
+    "plantilla_jugador": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769030970/plantilla_jugador_pbrw5z.png",
 
     # El logo de GOL GANA en BLANCO PURO transparente
-    "plantilla_logo": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769026052/plantilla_logo_slltwb.png"
+    "plantilla_logo": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769030972/plantilla_logo_ka9bnn.png"
 }
 
 # --- 2. VALORES POR DEFECTO (Plan de Contingencia) ---
