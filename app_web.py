@@ -57,18 +57,19 @@ if conn:
     except:
         pass
 
-# --- INYECCIÓN DE CSS: ESTILO PREMIUM (OSWALD + BLANCO/DORADO) ---
+# --- INYECCIÓN DE CSS: ESTILO PREMIUM FINAL ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 1. FUENTE GLOBAL: OSWALD PARA TODO */
-        html, body, .stApp, p, span, div, label, button, input, select, textarea {{
+        /* 1. RESET Y FUENTE UNIVERSAL (FUERZA BRUTA) */
+        /* Aplicamos Oswald y Blanco a absolutamente todo lo que contenga texto */
+        * {{
             font-family: 'Oswald', sans-serif !important;
             color: #ffffff !important;
         }}
 
-        /* 2. FONDO DINÁMICO */
+        /* 2. CONFIGURACIÓN DEL FONDO DINÁMICO */
         [data-testid="stAppViewContainer"] {{
             background-color: #000000 !important;
             background-image: url("{fondo_actual}") !important;
@@ -77,7 +78,7 @@ st.markdown(f"""
             background-attachment: fixed !important;
         }}
 
-        /* CAPA OSCURA DE FONDO */
+        /* CAPA OSCURA DE FONDO (Mejora el contraste del texto blanco) */
         .stApp::before {{
             content: "";
             position: absolute;
@@ -87,85 +88,92 @@ st.markdown(f"""
             z-index: 0;
         }}
 
-        /* 3. TÍTULOS EN BLANCO (H1, H2, H3) */
-        h1, h2, h3, [data-testid="stMarkdownContainer"] h1 {{
+        /* 3. TÍTULOS PRINCIPALES */
+        h1, h2, h3, h4, h5, h6, [data-testid="stMarkdownContainer"] h1 {{
             color: #ffffff !important;
             font-weight: 700 !important;
             text-transform: uppercase;
             letter-spacing: 1px;
-            text-shadow: 2px 2px 5px rgba(0,0,0,0.8);
+            text-shadow: 2px 2px 8px rgba(0,0,0,1) !important;
             position: relative;
             z-index: 1;
         }}
 
-        /* 4. TABLA DE CLASIFICACIÓN (BLANCO Y DORADO) */
+        /* 4. TABLA DE CLASIFICACIÓN: EL CORAZÓN DEL DISEÑO */
         .big-table {{ 
             width: 100%; 
             border-collapse: collapse; 
-            border: 2px solid #FFD700 !important; /* Contorno dorado de la tabla */
+            border: 2px solid #FFD700 !important; /* Contorno exterior dorado */
             position: relative;
             z-index: 1;
+            background-color: rgba(0, 0, 0, 0.4);
         }}
         
-        /* Encabezados de tabla */
+        /* Titulares de la tabla (Headers) */
         .big-table th {{ 
-            background-color: rgba(30, 30, 30, 0.9); 
-            color: #ffffff !important; /* Letras encabezado en blanco */
-            border-bottom: 2px solid #FFD700 !important; /* Línea divisoria dorada */
+            background-color: rgba(30, 30, 30, 0.95) !important; 
+            color: #ffffff !important; /* Texto del titular en blanco */
+            border-bottom: 3px solid #FFD700 !important; /* Línea divisoria dorada gruesa */
             text-transform: uppercase;
-            padding: 10px;
+            padding: 12px 5px;
+            font-weight: 700 !important;
+            letter-spacing: 1px;
         }}
 
-        /* Celdas de tabla */
+        /* Celdas, Números y Puntos */
         .big-table td {{ 
-            background-color: rgba(0, 0, 0, 0.5);
-            color: #ffffff !important; /* Números y nombres en blanco */
+            background-color: rgba(0, 0, 0, 0.6);
+            color: #ffffff !important; /* Todos los números y puntos en blanco */
             border-bottom: 1px solid #333;
-            padding: 8px;
+            padding: 10px 5px;
             text-align: center;
+            font-weight: 400 !important;
+            font-size: 18px !important; /* Tamaño legible para los puntos */
         }}
 
-        /* 5. BOTONES Y ELEMENTOS DE DISEÑO */
+        /* 5. BOTONES GOL-GANA */
         div.stButton > button, div.stFormSubmitButton > button {{
             background-color: #000000 !important;
             color: #ffffff !important;
-            border: 1px solid #FFD700 !important; /* Borde dorado */
-            border-radius: 5px !important;
-            font-family: 'Oswald', sans-serif !important;
+            border: 1px solid #FFD700 !important; /* Borde dorado fino */
+            border-radius: 4px !important;
             text-transform: uppercase;
             font-weight: 400 !important;
+            transition: 0.3s all;
         }}
 
         div.stButton > button:hover {{
             background-color: #FFD700 !important;
             color: #000000 !important;
+            box-shadow: 0px 0px 15px rgba(255, 215, 0, 0.4);
         }}
 
-        /* Decoración superior de Streamlit */
+        /* 6. WIDGETS DE STREAMLIT (INPUTS, SELECTS, TABS) */
+        /* Forzamos el blanco en los menús desplegables y cajas de texto */
+        input, select, textarea, div[data-baseweb="select"] {{
+            color: #ffffff !important;
+            background-color: #111111 !important;
+        }}
+
+        /* Decoración superior */
         [data-testid="stDecoration"] {{
             background: linear-gradient(90deg, #FFD700, #FFA500) !important;
         }}
 
-        /* 6. CORRECCIÓN DE PESTAÑAS (TABS) */
+        /* Pestañas (Tabs) */
         button[data-baseweb="tab"] p {{
-            font-family: 'Oswald', sans-serif !important;
             color: #ffffff !important;
             font-size: 18px !important;
+            text-transform: uppercase;
         }}
         
         div[data-baseweb="tab-highlight"] {{
-            background-color: #FFD700 !important; /* Línea activa dorada */
+            background-color: #FFD700 !important;
         }}
 
-        /* 7. INPUTS Y SELECTS (Para que no se vean genéricos) */
-        div[data-baseweb="select"], div[data-baseweb="input"] {{
-            border: 1px solid #333 !important;
-            border-radius: 5px !important;
-        }}
-        
-        div[data-baseweb="select"]:hover, div[data-baseweb="input"]:focus-within {{
-            border-color: #FFD700 !important;
-        }}
+        /* 7. ELIMINAR ESTILOS GENÉRICOS DE ENLACES O TEXTOS SECUNDARIOS */
+        a {{ color: #FFD700 !important; text-decoration: none; }}
+        small {{ color: #cccccc !important; }}
 
     </style>
 """, unsafe_allow_html=True)
@@ -1247,6 +1255,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
