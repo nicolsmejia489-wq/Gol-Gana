@@ -21,6 +21,7 @@ import motor_grafico
 from io import BytesIO
 
 
+
 # 1. CONFIGURACIÓN PRINCIPAL DE SITIO
 st.set_page_config(
     page_title="Gol-Gana Pro", 
@@ -30,84 +31,107 @@ st.set_page_config(
 
 
 
-# --- SISTEMA DE DISEÑO UNIFICADO: NEGRO TOTAL Y ACENTOS DORADOS ---
-st.markdown("""
+# --- INYECCIÓN DE CSS DINÁMICO MANTENIENDO ESTILO OSWALD ---
+st.markdown(f"""
     <style>
         /* 1. IMPORTAR FUENTE OSWALD */
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 2. RESET GLOBAL: FONDO NEGRO Y FUENTE */
-        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+        /* 2. RESET GLOBAL CON FONDO DINÁMICO */
+        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
             background-color: #000000 !important;
+            background-image: url("{fondo_actual}");
+            background-size: cover;
+            background-position: center center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
             color: #ffffff !important;
             font-family: 'Oswald', sans-serif !important;
-        }
+        }}
 
-        /* 3. CAMBIAR EL ROJO POR DORADO (Primary Color Fix) */
-        /* Línea decorativa superior de Streamlit */
-        [data-testid="stDecoration"] {
-            background-image: linear-gradient(90deg, #FFD700, #FFA500) !important;
-        }
+        /* CAPA OSCURA PARA MEJORAR LECTURA */
+        .stApp::before {{
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); /* Oscurecemos un 60% para que el contenido resalte */
+            pointer-events: none;
+            z-index: 0;
+        }}
 
-        /* Pestañas (Tabs): Línea roja inferior ahora amarilla */
-        button[data-baseweb="tab"] {
+        /* 3. LÍNEA DECORATIVA Y ACENTOS DINÁMICOS */
+        [data-testid="stDecoration"] {{
+            background-image: linear-gradient(90deg, {color_primario}, #000000) !important;
+        }}
+
+        /* Pestañas (Tabs) con color dinámico */
+        button[data-baseweb="tab"] {{
             color: #888 !important;
-        }
-        button[data-baseweb="tab"][aria-selected="true"] {
-            color: #FFD700 !important;
-            border-bottom-color: #FFD700 !important; /* Aquí cambiamos el rojo */
-        }
+        }}
+        button[data-baseweb="tab"][aria-selected="true"] {{
+            color: {color_primario} !important;
+            border-bottom-color: {color_primario} !important;
+        }}
 
-        /* 4. TÍTULOS Y TEXTOS */
-        h1, h2, h3, h4, h5, h6 {
+        /* 4. TÍTULOS CON COLOR DINÁMICO */
+        h1, h2, h3, h4, h5, h6 {{
             font-family: 'Oswald', sans-serif !important;
-            color: #ffffff !important;
+            color: {color_primario} !important; /* Ahora los títulos brillan con el color del equipo */
             text-transform: uppercase;
-        }
-        p, span, label, div, b, .stMarkdown, [data-testid="stWidgetLabel"] p {
+            text-shadow: 2px 2px 4px rgba(0,0,0,1);
+            position: relative;
+            z-index: 1;
+        }}
+        
+        p, span, label, div, b, .stMarkdown, [data-testid="stWidgetLabel"] p {{
             color: #ffffff !important;
-        }
+            position: relative;
+            z-index: 1;
+        }}
 
-        /* 5. BOTONES CON BORDE DORADO */
-        div.stButton > button, div.stFormSubmitButton > button {
-            background-color: #1a1a1a !important;
+        /* 5. BOTONES CON BORDE DINÁMICO */
+        div.stButton > button, div.stFormSubmitButton > button {{
+            background-color: rgba(26, 26, 26, 0.8) !important;
             color: white !important;
-            border: 1px solid #FFD700 !important;
+            border: 1px solid {color_primario} !important;
             border-radius: 20px !important;
             font-weight: bold !important;
-        }
-        div.stButton > button:hover {
-            background-color: #FFD700 !important;
+            backdrop-filter: blur(5px);
+        }}
+        div.stButton > button:hover {{
+            background-color: {color_primario} !important;
             color: black !important;
-        }
+        }}
 
         /* 6. TABLA DE CLASIFICACIÓN (DIETA VISUAL) */
-        .big-table { width: 100%; border-collapse: collapse; table-layout: fixed; background: #000000; }
-        .big-table th { 
-            background-color: #111; 
-            color: #FFD700 !important; 
+        .big-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; background: transparent; position: relative; z-index: 1; }}
+        .big-table th {{ 
+            background-color: rgba(17, 17, 17, 0.9); 
+            color: {color_primario} !important; 
             padding: 4px 2px; 
             font-size: 15px !important; 
-            border-bottom: 2px solid #FFD700; /* Línea divisoria dorada */
-        }
-        .big-table td { 
+            border-bottom: 2px solid {color_primario};
+        }}
+        .big-table td {{ 
             padding: 8px 2px; 
             text-align: center; 
             vertical-align: middle !important; 
             border-bottom: 1px solid #222; 
-            font-size: 20px !important; 
-        }
-        .big-table .team-cell { text-align: left; padding-left: 8px; font-size: 17px !important; }
+            font-size: 20px !important;
+            background-color: rgba(0, 0, 0, 0.4); 
+        }}
+        .big-table .team-cell {{ text-align: left; padding-left: 8px; font-size: 17px !important; }}
 
         /* 7. TARJETAS DE PARTIDOS Y EXPANDERS */
-        .match-box, [data-testid="stExpander"] {
-            background-color: #111111 !important;
+        .match-box, [data-testid="stExpander"] {{
+            background-color: rgba(17, 17, 17, 0.8) !important;
             border: 1px solid #333 !important;
             border-radius: 10px !important;
-        }
+            backdrop-filter: blur(10px);
+        }}
 
         /* Eliminar resaltado azul/rojo en móvil */
-        * { -webkit-tap-highlight-color: transparent !important; }
+        * {{ -webkit-tap-highlight-color: transparent !important; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -1151,6 +1175,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
