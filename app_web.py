@@ -57,17 +57,15 @@ if conn:
     except:
         pass
 
-# --- INYECCIÓN DE CSS: TABLA COMPACTA Y ESTILO ELITE ---
+# --- INYECCIÓN DE CSS: TABLA ULTR A-COMPACTA (DRÁSTICO) ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 1. FUENTE Y FONDO (Se mantiene igual) */
-        * {{
-            font-family: 'Oswald', sans-serif !important;
-            color: #ffffff !important;
-        }}
+        /* 1. RESET GLOBAL */
+        * {{ font-family: 'Oswald', sans-serif !important; color: #ffffff !important; }}
 
+        /* 2. FONDO DINÁMICO */
         [data-testid="stAppViewContainer"] {{
             background-color: #000000 !important;
             background-image: url("{fondo_actual}") !important;
@@ -75,86 +73,82 @@ st.markdown(f"""
             background-position: center center !important;
             background-attachment: fixed !important;
         }}
-
         .stApp::before {{
-            content: "";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.75);
-            pointer-events: none;
-            z-index: 0;
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 0;
         }}
 
-        /* 2. TABLA DE CLASIFICACIÓN "DIETA VISUAL" (MÁS COMPACTA) */
+        /* ================================================================
+           3. TABLA DE CLASIFICACIÓN - DIETA EXTREMA
+        ================================================================ */
         .big-table {{ 
             width: 100%; 
             border-collapse: collapse; 
-            border: 1.5px solid #FFD700 !important;
-            position: relative;
-            z-index: 1;
+            border: 1px solid #FFD700 !important;
+            position: relative; z-index: 1;
             background-color: rgba(0, 0, 0, 0.6);
-            margin-top: 10px;
+            margin-top: 5px; /* Menos margen arriba */
         }}
         
-        /* Titulares de la tabla (Headers) - Reducidos */
+        /* --- ENCABEZADOS (Th) --- */
         .big-table th {{ 
-            background-color: rgba(20, 20, 20, 0.95) !important; 
-            color: #ffffff !important;
-            border-bottom: 2px solid #FFD700 !important;
+            background-color: rgba(20, 20, 20, 0.98) !important; 
+            color: #FFD700 !important; /* Encabezados en Dorado para contraste */
+            border-bottom: 1px solid #FFD700 !important;
             text-transform: uppercase;
-            padding: 4px 2px !important; /* PADDING MÍNIMO */
-            font-size: 13px !important;   /* TEXTO MÁS PEQUEÑO */
+            /* DRÁSTICO: Padding mínimo y letra muy pequeña */
+            padding: 4px 1px !important; 
+            font-size: 11px !important;
             font-weight: 700 !important;
             letter-spacing: 0.5px;
+            text-align: center !important;
         }}
 
-        /* Celdas de Datos - Compactas */
+        /* --- CELDAS DE DATOS (Td) --- */
         .big-table td {{ 
             background-color: rgba(0, 0, 0, 0.4);
             color: #ffffff !important;
             border-bottom: 1px solid #222;
-            padding: 3px 2px !important; /* PADDING MÍNIMO PARA QUE NO "VUELE" */
+            /* DRÁSTICO: Casi sin espacio entre filas */
+            padding: 2px 1px !important; 
             text-align: center;
-            font-size: 14px !important;   /* TAMAÑO DE DATOS REDUCIDO */
-            line-height: 1.2 !important;
+            /* DRÁSTICO: Tamaño de letra pequeño (como DG) */
+            font-size: 12px !important;   
+            line-height: 1.1 !important; /* Apila las filas */
+            vertical-align: middle !important;
         }}
 
-        /* AJUSTE PARA LOS ESCUDOS: Que no pierdan tamaño */
+        /* AJUSTE DE ESCUDOS PARA FILAS BAJAS */
         .big-table td img {{
-            height: 28px !important; /* Mantenemos el escudo visible y nítido */
+            height: 22px !important; /* Escudo pequeño para no estirar la fila */
             width: auto;
             vertical-align: middle;
+            margin-right: 5px;
         }}
 
-        /* 3. TÍTULOS Y BOTONES (Optimizados) */
-        h1, h2, h3 {{
-            color: #ffffff !important;
-            text-transform: uppercase;
-            text-shadow: 2px 2px 4px rgba(0,0,0,1) !important;
-            margin-bottom: 5px !important;
+        /* --- CONTROL DE ANCHO DE COLUMNAS (CINDY) --- */
+        /* Forzamos a las columnas de números a ser estrechas */
+        /* POS */ .big-table th:nth-child(1), .big-table td:nth-child(1) {{ width: 25px !important; }}
+        /* PTS */ .big-table th:nth-child(3), .big-table td:nth-child(3) {{ width: 30px !important; }}
+        /* PJ */  .big-table th:nth-child(4), .big-table td:nth-child(4) {{ width: 30px !important; }}
+        /* GF */  .big-table th:nth-child(5), .big-table td:nth-child(5) {{ width: 30px !important; }}
+        /* GC */  .big-table th:nth-child(6), .big-table td:nth-child(6) {{ width: 30px !important; }}
+        /* DG */  .big-table th:nth-child(7), .big-table td:nth-child(7) {{ width: 30px !important; }}
+        /* EQUIPO (El resto del espacio) */
+        .big-table th:nth-child(2), .big-table td:nth-child(2) {{ 
+            text-align: left !important; 
+            padding-left: 5px !important;
+            white-space: nowrap; /* Evita que nombres largos rompan la fila en dos */
+            overflow: hidden; text-overflow: ellipsis; /* Corta con '...' si es muy largo */
         }}
 
-        div.stButton > button {{
-            background-color: #000000 !important;
-            border: 1px solid #FFD700 !important;
-            border-radius: 2px !important;
-            padding: 0.25rem 0.75rem !important;
-            font-size: 14px !important;
-        }}
-
-        /* Ajuste de Tabs para que no ocupen tanto espacio */
-        button[data-baseweb="tab"] {{
-            padding-top: 0px !important;
-            padding-bottom: 0px !important;
-        }}
-
-        [data-testid="stDecoration"] {{
-            background: #FFD700 !important;
-        }}
+        /* 4. OTROS AJUSTES COMPACTOS */
+        h1, h2, h3 {{ margin-bottom: 2px !important; font-size: 1.5rem !important; }}
+        [data-testid="stDecoration"] {{ background: #FFD700 !important; height: 2px !important; }}
+        button[data-baseweb="tab"] {{ padding: 5px !important; }}
 
     </style>
 """, unsafe_allow_html=True)
-
 
     
 
@@ -1233,6 +1227,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
