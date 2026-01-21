@@ -1097,7 +1097,7 @@ if rol == "admin":
                                 res = cloudinary.uploader.upload(
                                     buffer_subida, 
                                     folder="fondos_dinamicos",
-                                    public_id="fondo_web_actual", 
+                                    public_id="fondo_web_v2", 
                                     overwrite=True
                                 )
                                 nueva_url_fondo = f"{res['secure_url']}?v={int(time.time())}" # Cache buster
@@ -1151,6 +1151,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
