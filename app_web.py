@@ -16,7 +16,9 @@ import os
 import streamlit as st
 from sqlalchemy import create_engine, text
 import time
-
+import motor_colores
+import motor_grafico
+from io import BytesIO
 
 
 # 1. CONFIGURACIÓN PRINCIPAL DE SITIO
@@ -912,7 +914,7 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Versión Neon / SQLAlchemy) ---
+# --- TAB: GESTIÓN ADMIN (Completo con Diseño Dinámico) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
@@ -935,16 +937,15 @@ if rol == "admin":
         if not pend.empty:
             for _, r in pend.iterrows():
                 with st.container():
-                    # Ajustamos columnas para dar espacio a la imagen
                     col_img, col_data, col_btn = st.columns([1, 2, 1], vertical_alignment="center")
                     
                     prefijo = str(r.get('prefijo', '')).replace('+', '')
                     wa_link = f"https://wa.me/{prefijo}{r['celular']}"
                     
-                    # COLUMNA 1: VISTA PREVIA DEL ESCUDO
+                    # COLUMNA 1: VISTA PREVIA
                     with col_img:
                         if r['escudo']:
-                            st.image(r['escudo'], width=60) # Vista previa de 60px
+                            st.image(r['escudo'], width=60)
                         else:
                             st.write("❌")
 
@@ -952,17 +953,16 @@ if rol == "admin":
                     with col_data:
                         st.markdown(f"**{r['nombre']}**")
                         st.markdown(f"<a href='{wa_link}' style='color: #25D366; text-decoration: none; font-weight: bold; font-size: 0.9em;'>📞 Contactar DT</a>", unsafe_allow_html=True)
-                        if not r['escudo']:
-                            st.caption("⚠️ Sin escudo")
+                        if not r['escudo']: st.caption("⚠️ Sin escudo")
                     
-                    # COLUMNA 3: BOTÓN APROBAR
+                    # COLUMNA 3: APROBAR
                     with col_btn:
                         if st.button(f"✅", key=f"aprob_{r['nombre']}", help="Aprobar equipo", use_container_width=True):
                             url_final = r['escudo']
                             
-                            # --- Procesamiento IA Cloudinary ---
+                            # Procesamiento IA Cloudinary (Quitar fondo escudo)
                             if url_final:
-                                with st.spinner("🤖"):
+                                with st.spinner("🤖 Limpiando escudo..."):
                                     try:
                                         res_ia = cloudinary.uploader.upload(
                                             url_final,
@@ -970,12 +970,11 @@ if rol == "admin":
                                             folder="escudos_limpios",
                                             format="png"
                                         )
-                                        # Truco para romper caché de imagen
                                         url_final = f"{res_ia['secure_url']}?v={int(time.time())}"
                                     except Exception as e:
                                         st.error(f"Error IA: {e}")
                             
-                            # --- Guardar en NEON ---
+                            # Guardar en NEON
                             try:
                                 with conn.connect() as db:
                                     db.execute(
@@ -993,9 +992,10 @@ if rol == "admin":
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA ---
-        opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos"], horizontal=True, key="adm_tab")
+        # --- 2. SELECCIÓN DE TAREA (Aquí añadimos la opción de Diseño) ---
+        opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
+        # --- A. OPCIÓN: DIRECTORIO ---
         if opcion_admin == "🛠️ Directorio de Equipos":
             st.subheader("📋 Directorio de Equipos")
             
@@ -1007,12 +1007,9 @@ if rol == "admin":
             if not df_maestro.empty:
                 for _, eq in df_maestro.iterrows():
                     estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                    # Mostramos mini escudo también en el directorio
                     escudo_mini = f'<img src="{eq["escudo"]}" width="20" style="vertical-align:middle; margin-right:5px">' if eq['escudo'] else ""
-                    
                     st.markdown(f"{estado_icon} {escudo_mini} **{eq['nombre']}** | 🔑 {eq['pin']} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
                 
-                # --- SUB-SECCIÓN: GESTIÓN Y EDICIÓN ---
                 st.markdown("---")
                 st.subheader("✏️ Gestión y Edición")
                 equipo_sel = st.selectbox("Selecciona equipo:", df_maestro['nombre'].tolist())
@@ -1026,8 +1023,6 @@ if rol == "admin":
                         new_pin = col2.text_input("PIN de acceso", str(datos_sel['pin']))
                         
                         st.write("**🛡️ Actualizar Escudo**")
-                        
-                        # Mostramos el escudo actual grande para referencia
                         if datos_sel['escudo']:
                             st.image(datos_sel['escudo'], width=100, caption="Escudo Actual")
                             
@@ -1036,9 +1031,7 @@ if rol == "admin":
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
-                            
-                            if quitar_escudo:
-                                url_final = None
+                            if quitar_escudo: url_final = None
                             elif nuevo_escudo_img:
                                 res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
                                 url_final = res_std['secure_url']
@@ -1055,7 +1048,6 @@ if rol == "admin":
                             except Exception as e:
                                 st.error(f"Error actualizando: {e}")
 
-                    # --- SECCIÓN DE PELIGRO ---
                     if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
                         with conn.connect() as db:
                             db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
@@ -1065,76 +1057,19 @@ if rol == "admin":
             else:
                 st.info("No hay equipos registrados.")
 
-        # --- 3. ACCIONES MAESTRAS ---
-        st.divider()
-        st.subheader("🚀 Control Global")
-        
-        col_torneo, col_reset = st.columns(2)
-        
-        with col_torneo:
-            if fase_actual == "inscripcion":
-                if st.button("🏁 INICIAR TORNEO", use_container_width=True, type="primary"):
-                    if aprobados_count >= 2:
-                        # Asegúrate de tener esta función definida en algún lugar
-                        try:
-                            generar_calendario() 
-                            st.rerun()
-                        except NameError:
-                            st.error("Función generar_calendario no encontrada")
-                    else:
-                        st.error("Mínimo 2 equipos aprobados.")
-        
-        with col_reset:
-            if st.button("🚨 REINICIAR TODO", use_container_width=True):
-                with conn.connect() as db:
-                    db.execute(text("DELETE FROM equipos"))
-                    db.execute(text("DELETE FROM partidos"))
-                    db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
-                    db.commit()
-                st.session_state.clear()
-                st.rerun()
+        # --- B. OPCIÓN: DISEÑO WEB (NUEVA FUNCIONALIDAD) ---
+        elif opcion_admin == "🎨 Diseño Web":
+            st.subheader("🎨 Personalización Automática")
+            st.info("Selecciona un equipo para 'vestir' la web con sus colores y escudo.")
+            
+            with conn.connect() as db:
+                # Solo traemos equipos aprobados con escudo
+                equipos_con_escudo = db.execute(text("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado' AND escudo IS NOT NULL")).fetchall()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            if not equipos_con_escudo:
+                st.warning("No hay equipos aprobados con escudo disponibles.")
+            else:
+                opciones_equipos = {eq
 
 
 
