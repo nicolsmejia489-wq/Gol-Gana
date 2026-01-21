@@ -57,46 +57,83 @@ if conn:
     except:
         pass
 
-# --- 4. INYECCIÓN DE CSS (SOLO FONDO DINÁMICO + ESTILO DORADO FIJO) ---
+# --- INYECCIÓN DE CSS: ESTILO PREMIUM (OSWALD + BLANCO/DORADO) ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* FONDO DINÁMICO */
-        html, body, .stApp {{
+        /* 1. FUENTE GLOBAL: OSWALD PARA TODO */
+        html, body, .stApp, p, span, div, label, button, input, select, textarea {{
+            font-family: 'Oswald', sans-serif !important;
+            color: #ffffff !important;
+        }}
+
+        /* 2. FONDO DINÁMICO */
+        [data-testid="stAppViewContainer"] {{
             background-color: #000000 !important;
             background-image: url("{fondo_actual}") !important;
             background-size: cover !important;
             background-position: center center !important;
             background-attachment: fixed !important;
-            background-repeat: no-repeat !important;
-            font-family: 'Oswald', sans-serif !important;
         }}
 
-        /* CAPA DE OSCURECIMIENTO */
+        /* CAPA OSCURA DE FONDO */
         .stApp::before {{
             content: "";
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.75);
             pointer-events: none;
             z-index: 0;
         }}
 
-        /* ESTILO DORADO FIJO (IDENTIDAD GOL-GANA) */
+        /* 3. TÍTULOS EN BLANCO (H1, H2, H3) */
         h1, h2, h3, [data-testid="stMarkdownContainer"] h1 {{
-            color: #FFD700 !important;
-            font-family: 'Oswald', sans-serif !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
             text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 2px 2px 5px rgba(0,0,0,0.8);
+            position: relative;
+            z-index: 1;
         }}
 
-        /* BOTONES DORADOS */
+        /* 4. TABLA DE CLASIFICACIÓN (BLANCO Y DORADO) */
+        .big-table {{ 
+            width: 100%; 
+            border-collapse: collapse; 
+            border: 2px solid #FFD700 !important; /* Contorno dorado de la tabla */
+            position: relative;
+            z-index: 1;
+        }}
+        
+        /* Encabezados de tabla */
+        .big-table th {{ 
+            background-color: rgba(30, 30, 30, 0.9); 
+            color: #ffffff !important; /* Letras encabezado en blanco */
+            border-bottom: 2px solid #FFD700 !important; /* Línea divisoria dorada */
+            text-transform: uppercase;
+            padding: 10px;
+        }}
+
+        /* Celdas de tabla */
+        .big-table td {{ 
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #ffffff !important; /* Números y nombres en blanco */
+            border-bottom: 1px solid #333;
+            padding: 8px;
+            text-align: center;
+        }}
+
+        /* 5. BOTONES Y ELEMENTOS DE DISEÑO */
         div.stButton > button, div.stFormSubmitButton > button {{
-            background-color: #1a1a1a !important;
+            background-color: #000000 !important;
             color: #ffffff !important;
-            border: 1px solid #FFD700 !important;
-            border-radius: 20px !important;
+            border: 1px solid #FFD700 !important; /* Borde dorado */
+            border-radius: 5px !important;
             font-family: 'Oswald', sans-serif !important;
+            text-transform: uppercase;
+            font-weight: 400 !important;
         }}
 
         div.stButton > button:hover {{
@@ -104,29 +141,34 @@ st.markdown(f"""
             color: #000000 !important;
         }}
 
-        /* PESTAÑAS Y DECORACIÓN */
+        /* Decoración superior de Streamlit */
         [data-testid="stDecoration"] {{
             background: linear-gradient(90deg, #FFD700, #FFA500) !important;
         }}
 
-        button[data-baseweb="tab"][aria-selected="true"] p {{
-            color: #FFD700 !important;
+        /* 6. CORRECCIÓN DE PESTAÑAS (TABS) */
+        button[data-baseweb="tab"] p {{
+            font-family: 'Oswald', sans-serif !important;
+            color: #ffffff !important;
+            font-size: 18px !important;
         }}
-
+        
         div[data-baseweb="tab-highlight"] {{
-            background-color: #FFD700 !important;
+            background-color: #FFD700 !important; /* Línea activa dorada */
         }}
 
-        /* TABLAS */
-        .big-table th {{ 
-            color: #FFD700 !important; 
-            border-bottom: 2px solid #FFD700 !important;
+        /* 7. INPUTS Y SELECTS (Para que no se vean genéricos) */
+        div[data-baseweb="select"], div[data-baseweb="input"] {{
+            border: 1px solid #333 !important;
+            border-radius: 5px !important;
         }}
+        
+        div[data-baseweb="select"]:hover, div[data-baseweb="input"]:focus-within {{
+            border-color: #FFD700 !important;
+        }}
+
     </style>
 """, unsafe_allow_html=True)
-
-if conn is None:
-    st.stop()
     
     
 
@@ -1205,6 +1247,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
