@@ -49,7 +49,7 @@ conn = get_db_connection()
 # --- 3. RECUPERACIÓN DE DISEÑO DINÁMICO ---
 # Valores por defecto (Dorado Gol-Gana)
 fondo_actual = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
-color_primario = "#FFD700" 
+color_primario = "#FF0000" 
 
 if conn:
     try:
@@ -1240,6 +1240,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
