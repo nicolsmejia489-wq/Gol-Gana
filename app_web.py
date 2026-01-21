@@ -57,19 +57,17 @@ if conn:
     except:
         pass
 
-# --- INYECCIÓN DE CSS: ESTILO PREMIUM FINAL ---
+# --- INYECCIÓN DE CSS: TABLA COMPACTA Y ESTILO ELITE ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 1. RESET Y FUENTE UNIVERSAL (FUERZA BRUTA) */
-        /* Aplicamos Oswald y Blanco a absolutamente todo lo que contenga texto */
+        /* 1. FUENTE Y FONDO (Se mantiene igual) */
         * {{
             font-family: 'Oswald', sans-serif !important;
             color: #ffffff !important;
         }}
 
-        /* 2. CONFIGURACIÓN DEL FONDO DINÁMICO */
         [data-testid="stAppViewContainer"] {{
             background-color: #000000 !important;
             background-image: url("{fondo_actual}") !important;
@@ -78,7 +76,6 @@ st.markdown(f"""
             background-attachment: fixed !important;
         }}
 
-        /* CAPA OSCURA DE FONDO (Mejora el contraste del texto blanco) */
         .stApp::before {{
             content: "";
             position: absolute;
@@ -88,96 +85,77 @@ st.markdown(f"""
             z-index: 0;
         }}
 
-        /* 3. TÍTULOS PRINCIPALES */
-        h1, h2, h3, h4, h5, h6, [data-testid="stMarkdownContainer"] h1 {{
-            color: #ffffff !important;
-            font-weight: 700 !important;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            text-shadow: 2px 2px 8px rgba(0,0,0,1) !important;
-            position: relative;
-            z-index: 1;
-        }}
-
-        /* 4. TABLA DE CLASIFICACIÓN: EL CORAZÓN DEL DISEÑO */
+        /* 2. TABLA DE CLASIFICACIÓN "DIETA VISUAL" (MÁS COMPACTA) */
         .big-table {{ 
             width: 100%; 
             border-collapse: collapse; 
-            border: 2px solid #FFD700 !important; /* Contorno exterior dorado */
+            border: 1.5px solid #FFD700 !important;
             position: relative;
             z-index: 1;
-            background-color: rgba(0, 0, 0, 0.4);
-        }}
-        
-        /* Titulares de la tabla (Headers) */
-        .big-table th {{ 
-            background-color: rgba(30, 30, 30, 0.95) !important; 
-            color: #ffffff !important; /* Texto del titular en blanco */
-            border-bottom: 3px solid #FFD700 !important; /* Línea divisoria dorada gruesa */
-            text-transform: uppercase;
-            padding: 12px 5px;
-            font-weight: 700 !important;
-            letter-spacing: 1px;
-        }}
-
-        /* Celdas, Números y Puntos */
-        .big-table td {{ 
             background-color: rgba(0, 0, 0, 0.6);
-            color: #ffffff !important; /* Todos los números y puntos en blanco */
-            border-bottom: 1px solid #333;
-            padding: 10px 5px;
-            text-align: center;
-            font-weight: 400 !important;
-            font-size: 18px !important; /* Tamaño legible para los puntos */
-        }}
-
-        /* 5. BOTONES GOL-GANA */
-        div.stButton > button, div.stFormSubmitButton > button {{
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border: 1px solid #FFD700 !important; /* Borde dorado fino */
-            border-radius: 4px !important;
-            text-transform: uppercase;
-            font-weight: 400 !important;
-            transition: 0.3s all;
-        }}
-
-        div.stButton > button:hover {{
-            background-color: #FFD700 !important;
-            color: #000000 !important;
-            box-shadow: 0px 0px 15px rgba(255, 215, 0, 0.4);
-        }}
-
-        /* 6. WIDGETS DE STREAMLIT (INPUTS, SELECTS, TABS) */
-        /* Forzamos el blanco en los menús desplegables y cajas de texto */
-        input, select, textarea, div[data-baseweb="select"] {{
-            color: #ffffff !important;
-            background-color: #111111 !important;
-        }}
-
-        /* Decoración superior */
-        [data-testid="stDecoration"] {{
-            background: linear-gradient(90deg, #FFD700, #FFA500) !important;
-        }}
-
-        /* Pestañas (Tabs) */
-        button[data-baseweb="tab"] p {{
-            color: #ffffff !important;
-            font-size: 18px !important;
-            text-transform: uppercase;
+            margin-top: 10px;
         }}
         
-        div[data-baseweb="tab-highlight"] {{
-            background-color: #FFD700 !important;
+        /* Titulares de la tabla (Headers) - Reducidos */
+        .big-table th {{ 
+            background-color: rgba(20, 20, 20, 0.95) !important; 
+            color: #ffffff !important;
+            border-bottom: 2px solid #FFD700 !important;
+            text-transform: uppercase;
+            padding: 4px 2px !important; /* PADDING MÍNIMO */
+            font-size: 13px !important;   /* TEXTO MÁS PEQUEÑO */
+            font-weight: 700 !important;
+            letter-spacing: 0.5px;
         }}
 
-        /* 7. ELIMINAR ESTILOS GENÉRICOS DE ENLACES O TEXTOS SECUNDARIOS */
-        a {{ color: #FFD700 !important; text-decoration: none; }}
-        small {{ color: #cccccc !important; }}
+        /* Celdas de Datos - Compactas */
+        .big-table td {{ 
+            background-color: rgba(0, 0, 0, 0.4);
+            color: #ffffff !important;
+            border-bottom: 1px solid #222;
+            padding: 3px 2px !important; /* PADDING MÍNIMO PARA QUE NO "VUELE" */
+            text-align: center;
+            font-size: 14px !important;   /* TAMAÑO DE DATOS REDUCIDO */
+            line-height: 1.2 !important;
+        }}
+
+        /* AJUSTE PARA LOS ESCUDOS: Que no pierdan tamaño */
+        .big-table td img {{
+            height: 28px !important; /* Mantenemos el escudo visible y nítido */
+            width: auto;
+            vertical-align: middle;
+        }}
+
+        /* 3. TÍTULOS Y BOTONES (Optimizados) */
+        h1, h2, h3 {{
+            color: #ffffff !important;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 4px rgba(0,0,0,1) !important;
+            margin-bottom: 5px !important;
+        }}
+
+        div.stButton > button {{
+            background-color: #000000 !important;
+            border: 1px solid #FFD700 !important;
+            border-radius: 2px !important;
+            padding: 0.25rem 0.75rem !important;
+            font-size: 14px !important;
+        }}
+
+        /* Ajuste de Tabs para que no ocupen tanto espacio */
+        button[data-baseweb="tab"] {{
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
+        }}
+
+        [data-testid="stDecoration"] {{
+            background: #FFD700 !important;
+        }}
 
     </style>
 """, unsafe_allow_html=True)
-    
+
+
     
 
 
@@ -1255,6 +1233,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
