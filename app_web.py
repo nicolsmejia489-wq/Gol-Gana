@@ -1069,7 +1069,88 @@ if rol == "admin":
             if not equipos_con_escudo:
                 st.warning("No hay equipos aprobados con escudo disponibles.")
             else:
-                opciones_equipos = {eq
+                opciones_equipos = {eq[0]: eq[1] for eq in equipos_con_escudo}
+                nombre_seleccionado = st.selectbox("Equipo Inspiración:", list(opciones_equipos.keys()))
+                
+                url_escudo_elegido = opciones_equipos[nombre_seleccionado]
+                col_prev, col_action = st.columns([1, 2])
+                with col_prev:
+                    st.image(url_escudo_elegido, width=80, caption="Escudo Base")
+                
+                with col_action:
+                    if st.button(f"✨ Aplicar Estilo de: {nombre_seleccionado}", type="primary", use_container_width=True):
+                        try:
+                            # 1. Detectar Color
+                            with st.spinner("🕵️ Analizando colores del equipo..."):
+                                color_detectado = motor_colores.obtener_color_dominante(url_escudo_elegido)
+                            
+                            # 2. Generar Imagen (Sándwich)
+                            with st.spinner(f"🧑‍🎨 Diseñando portada con color {color_detectado}..."):
+                                imagen_final_pil = motor_grafico.construir_portada(color_detectado, url_escudo_elegido)
+                                
+                                buffer_subida = BytesIO()
+                                imagen_final_pil.save(buffer_subida, format="PNG")
+                                buffer_subida.seek(0)
+                            
+                            # 3. Subir y Guardar
+                            with st.spinner("☁️ Subiendo a la nube..."):
+                                res = cloudinary.uploader.upload(
+                                    buffer_subida, 
+                                    folder="fondos_dinamicos",
+                                    public_id="fondo_web_actual", 
+                                    overwrite=True
+                                )
+                                nueva_url_fondo = f"{res['secure_url']}?v={int(time.time())}" # Cache buster
+                                
+                                with conn.connect() as db:
+                                    # Guardamos en tabla configuracion (Upsert manual)
+                                    # Nota: Asegúrate de haber creado la tabla configuracion en Neon
+                                    check = db.execute(text("SELECT 1 FROM configuracion WHERE clave='fondo_url'")).fetchone()
+                                    if check:
+                                        db.execute(text("UPDATE configuracion SET valor=:v WHERE clave='fondo_url'"), {"v": nueva_url_fondo})
+                                        db.execute(text("UPDATE configuracion SET valor=:v WHERE clave='color_primario'"), {"v": color_detectado})
+                                    else:
+                                        db.execute(text("INSERT INTO configuracion (clave, valor) VALUES ('fondo_url', :v)"), {"v": nueva_url_fondo})
+                                        db.execute(text("INSERT INTO configuracion (clave, valor) VALUES ('color_primario', :v)"), {"v": color_detectado})
+                                    db.commit()
+                            
+                            st.balloons()
+                            st.success("✅ ¡Diseño actualizado con éxito!")
+                            time.sleep(1) # Pausa dramática
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Error en el proceso gráfico: {e}")
+
+
+        # --- 3. ACCIONES MAESTRAS (Sin cambios) ---
+        st.divider()
+        st.subheader("🚀 Control Global")
+        
+        col_torneo, col_reset = st.columns(2)
+        
+        with col_torneo:
+            if fase_actual == "inscripcion":
+                if st.button("🏁 INICIAR TORNEO", use_container_width=True, type="primary"):
+                    if aprobados_count >= 2:
+                        try:
+                            generar_calendario() 
+                            st.rerun()
+                        except NameError:
+                            st.error("Función generar_calendario no encontrada")
+                    else:
+                        st.error("Mínimo 2 equipos aprobados.")
+        
+        with col_reset:
+            if st.button("🚨 REINICIAR TODO", use_container_width=True):
+                with conn.connect() as db:
+                    db.execute(text("DELETE FROM equipos"))
+                    db.execute(text("DELETE FROM partidos"))
+                    # Asumimos que existe tabla config o similar para la fase
+                    # db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
+                    db.commit()
+                st.session_state.clear()
+                st.rerun()
 
 
 
