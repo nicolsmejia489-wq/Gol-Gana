@@ -22,62 +22,48 @@ from io import BytesIO
 
 
 
-# 1. CONFIGURACIÓN PRINCIPAL (Siempre primero)
+# 1. CONFIGURACIÓN PRINCIPAL
 st.set_page_config(
     page_title="Gol-Gana Pro", 
     layout="centered", 
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. GESTIÓN DE CONEXIÓN ÚNICA ---
+# --- 2. GESTIÓN DE CONEXIÓN ---
 @st.cache_resource
 def get_db_connection():
     try:
         if "connections" not in st.secrets or "postgresql" not in st.secrets["connections"]:
-            st.error("❌ Faltan los datos de conexión en secrets.toml")
             return None
         db_url = st.secrets["connections"]["postgresql"]["url"]
-        engine = create_engine(db_url, pool_pre_ping=True)
-        return engine
-    except Exception as e:
-        st.error(f"❌ Error crítico conectando a Neon: {e}")
+        return create_engine(db_url, pool_pre_ping=True)
+    except:
         return None
 
-# Inicializamos la conexión antes de buscar los colores
 conn = get_db_connection()
 
-# --- 3. RECUPERACIÓN DE DISEÑO DINÁMICO ---
-# Valores por defecto (Dorado Gol-Gana)
+# --- 3. RECUPERACIÓN EXCLUSIVA DEL FONDO ---
+# Fondo por defecto (Estadio base)
 fondo_actual = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
-color_primario = "#FF0000" 
 
 if conn:
     try:
-        # Consultamos la tabla de configuración
         with conn.connect() as db:
-            query = text("SELECT clave, valor FROM configuracion")
-            df_config = pd.read_sql(query, db)
-            
+            df_config = pd.read_sql(text("SELECT clave, valor FROM configuracion"), db)
             if not df_config.empty:
-                # Extraer fondo
                 row_f = df_config[df_config['clave'] == 'fondo_url']
                 if not row_f.empty:
                     fondo_actual = row_f['valor'].values[0]
-                
-                # Extraer color (y limpiar espacios)
-                row_c = df_config[df_config['clave'] == 'color_primario']
-                if not row_c.empty:
-                    color_primario = str(row_c['valor'].values[0]).strip()
-    except Exception as e:
-        st.warning(f"No se pudo cargar el diseño personalizado: {e}")
+    except:
+        pass
 
-# --- 4. INYECCIÓN DE CSS DINÁMICO REFORZADO ---
+# --- 4. INYECCIÓN DE CSS (SOLO FONDO DINÁMICO + ESTILO DORADO FIJO) ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* FONDO Y FUENTE GLOBAL */
-        html, body, .stApp, [data-testid="stAppViewContainer"] {{
+        /* FONDO DINÁMICO */
+        html, body, .stApp {{
             background-color: #000000 !important;
             background-image: url("{fondo_actual}") !important;
             background-size: cover !important;
@@ -92,77 +78,56 @@ st.markdown(f"""
             content: "";
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.7); /* Ajusta este 0.7 si quieres más o menos brillo */
+            background: rgba(0, 0, 0, 0.7);
             pointer-events: none;
             z-index: 0;
         }}
 
-        /* LÍNEA DECORATIVA SUPERIOR */
-        [data-testid="stDecoration"] {{
-            background-image: linear-gradient(90deg, {color_primario}, #000000) !important;
-        }}
-
-        /* TÍTULOS (H1, H2, H3) - Forzamos el color del equipo */
-        h1, h2, h3, h4, [data-testid="stMarkdownContainer"] h1, [data-testid="stMarkdownContainer"] h2 {{
-            color: {color_primario} !important;
+        /* ESTILO DORADO FIJO (IDENTIDAD GOL-GANA) */
+        h1, h2, h3, [data-testid="stMarkdownContainer"] h1 {{
+            color: #FFD700 !important;
             font-family: 'Oswald', sans-serif !important;
             text-transform: uppercase;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8) !important;
         }}
 
-        /* BOTONES (Normales y de Formulario) */
+        /* BOTONES DORADOS */
         div.stButton > button, div.stFormSubmitButton > button {{
-            background-color: rgba(26, 26, 26, 0.9) !important;
+            background-color: #1a1a1a !important;
             color: #ffffff !important;
-            border: 2px solid {color_primario} !important;
+            border: 1px solid #FFD700 !important;
             border-radius: 20px !important;
             font-family: 'Oswald', sans-serif !important;
-            text-transform: uppercase;
-            transition: 0.3s;
         }}
 
         div.stButton > button:hover {{
-            background-color: {color_primario} !important;
+            background-color: #FFD700 !important;
             color: #000000 !important;
-            border: 2px solid {color_primario} !important;
         }}
 
-        /* TABS (Pestañas) */
-        button[data-baseweb="tab"] p {{
-            color: #888888 !important;
-            font-family: 'Oswald', sans-serif !important;
+        /* PESTAÑAS Y DECORACIÓN */
+        [data-testid="stDecoration"] {{
+            background: linear-gradient(90deg, #FFD700, #FFA500) !important;
         }}
-        
+
         button[data-baseweb="tab"][aria-selected="true"] p {{
-            color: {color_primario} !important;
+            color: #FFD700 !important;
         }}
 
         div[data-baseweb="tab-highlight"] {{
-            background-color: {color_primario} !important;
+            background-color: #FFD700 !important;
         }}
 
-        /* TABLAS DE POSICIONES */
+        /* TABLAS */
         .big-table th {{ 
-            background-color: rgba(17, 17, 17, 0.9) !important; 
-            color: {color_primario} !important; 
-            border-bottom: 3px solid {color_primario} !important;
-            font-family: 'Oswald', sans-serif !important;
-        }}
-
-        /* ESTILO PARA LOS EXPANDERS */
-        [data-testid="stExpander"] {{
-            background-color: rgba(20, 20, 20, 0.8) !important;
-            border: 1px solid {color_primario} !important;
+            color: #FFD700 !important; 
+            border-bottom: 2px solid #FFD700 !important;
         }}
     </style>
 """, unsafe_allow_html=True)
 
-# BLOQUE DE SEGURIDAD FINAL
 if conn is None:
-    st.warning("⚠️ La aplicación se encuentra en modo limitado por falta de conexión a la base de datos.")
     st.stop()
-
-
+    
     
 
 
@@ -1240,6 +1205,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
