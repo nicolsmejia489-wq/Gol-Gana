@@ -6,7 +6,7 @@ ASSETS = {
     "fondo_base": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769030979/fondo_base_l7i0k6.png",
 
     # El jugador con ropa en escala de grises (blanco/negro) y fondo transparente
-    "plantilla_jugador": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769030970/plantilla_jugador_pbrw5z.png",
+    "plantilla_jugador": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769035337/Gemini_Generated_Image_l02ahnl02ahnl02a_f8owdu.png",
 
     # El logo de GOL GANA en BLANCO PURO transparente
     "plantilla_logo": "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769030972/plantilla_logo_ka9bnn.png"
