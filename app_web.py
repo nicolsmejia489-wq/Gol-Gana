@@ -589,7 +589,7 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN (Versión Blindada Anti-Errores) ---
+# --- TAB: CLASIFICACIÓN (Versión Compacta Pro) ---
 with tabs[0]:
     try:
         # 1. Obtener datos de Neon
@@ -619,44 +619,47 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # 2. CONSTRUIMOS TODO EL DISEÑO EN UNA SOLA VARIABLE 'salida_visual'
-            # Primero los estilos
+            # 2. CONSTRUIMOS EL DISEÑO COMPACTO
+            # Reducimos padding y fuentes drásticamente aquí mismo
             estilos = """
             <style>
-                .tabla-pro { width: 100%; border-collapse: collapse; table-layout: fixed; background-color: #000; font-family: 'Oswald', sans-serif; }
-                .tabla-pro th { background-color: #111; color: #FFD700; padding: 6px 2px; font-size: 14px; border-bottom: 2px solid #FFD700; text-align: center; }
-                .tabla-pro td { padding: 10px 2px; text-align: center; vertical-align: middle; border-bottom: 1px solid #222; font-size: 21px; color: white; }
-                .tabla-pro .team-cell { text-align: left; padding-left: 8px; font-size: 18px; font-weight: bold; }
+                .tabla-pro { width: 100%; border-collapse: collapse; table-layout: fixed; background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; }
+                .tabla-pro th { background-color: #111; color: #FFD700; padding: 4px 1px; font-size: 11px; border-bottom: 2px solid #FFD700; text-align: center; }
+                .tabla-pro td { padding: 3px 1px; text-align: center; vertical-align: middle; border-bottom: 1px solid #222; font-size: 13px; color: white; line-height: 1; }
+                .tabla-pro .team-cell { text-align: left; padding-left: 5px; font-size: 14px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             </style>
             """
             
-            # Iniciamos el HTML de la tabla
+            # Ajustamos anchos de columnas para priorizar el nombre del equipo
             tabla_html = '<table class="tabla-pro"><thead><tr>'
-            tabla_html += '<th style="width:10%">POS</th><th style="width:45%; text-align:left; padding-left:8px">EQUIPO</th>'
+            tabla_html += '<th style="width:8%">POS</th><th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
             tabla_html += '<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>'
             tabla_html += '</tr></thead><tbody>'
 
-            # Agregamos las filas una por una a la variable
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
-                escudo = f'<img src="{url}" style="width:32px; height:32px; object-fit:contain; vertical-align:middle; margin-right:8px;">' if url else '<span style="font-size:22px; margin-right:8px;">🛡️</span>'
+                # Escudo más pequeño (24px) para no estirar la fila
+                escudo = f'<img src="{url}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle; margin-right:5px;">' if url else '<span style="font-size:16px; margin-right:5px;">🛡️</span>'
                 
                 tabla_html += f"<tr>"
                 tabla_html += f"<td>{r['POS']}</td>"
                 tabla_html += f"<td class='team-cell'>{escudo}{r['EQ']}</td>"
-                tabla_html += f"<td style='color:#FFD700; font-weight:bold;'>{r['PTS']}</td>"
+                # PTS un poco más grandes para resaltar, pero controlados
+                tabla_html += f"<td style='color:#FFD700; font-weight:bold; font-size:14px;'>{r['PTS']}</td>"
                 tabla_html += f"<td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td>"
-                tabla_html += f"<td style='font-size:15px; color:#888;'>{r['DG']}</td>"
+                # DG al tamaño pequeño solicitado
+                tabla_html += f"<td style='font-size:12px; color:#888;'>{r['DG']}</td>"
                 tabla_html += f"</tr>"
 
             tabla_html += "</tbody></table>"
 
-            # 3. EL ÚNICO COMANDO QUE MUESTRA COSAS (Inyecta Estilo + Tabla)
-            # Al concatenar (estilos + tabla_html), Streamlit lo trata como un solo objeto.
+            # Inyectamos el resultado
             st.markdown(estilos + tabla_html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error al cargar la clasificación: {e}")
+
+        
 
             
 
@@ -1227,6 +1230,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
