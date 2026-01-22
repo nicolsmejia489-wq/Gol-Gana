@@ -1025,10 +1025,11 @@ if fase_actual == "inscripcion":
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (DISEÑO PREMIUM) ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
-             
+        st.subheader("📅 Calendario Oficial")
+        
         # --- CONFIGURACIÓN GRÁFICA ---
         # 🔴 PEGA AQUÍ LA URL DE TU IMAGEN HORIZONTAL DE CLOUDINARY
-        URL_PLANTILLA_FONDO = ""https://res.cloudinary.com/..../tu_imagen_barra.png"" 
+        URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..../tu_imagen_barra.png" 
         
         placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
@@ -1089,8 +1090,6 @@ elif fase_actual == "clasificacion":
 
         else:
             st.info("El calendario se mostrará cuando inicie el torneo.")
-
-
 
 
 
@@ -1400,6 +1399,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
