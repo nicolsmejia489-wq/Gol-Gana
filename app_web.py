@@ -406,7 +406,7 @@ if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
 # --- CONSTANTES DE DISEÑO ---
 # Reemplaza este link con el que obtengas de Cloudinary o GitHub
-URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1768595248/PORTADA_TEMP_cok7nv.png" 
+URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769040318/ChatGPT_Image_21_ene_2026_19_05_10_uud7yk.png" 
 
 # --- ESTILO CSS INYECTADO ---
 st.markdown(f"""
@@ -1250,6 +1250,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
