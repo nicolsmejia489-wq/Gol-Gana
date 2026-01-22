@@ -1025,11 +1025,10 @@ if fase_actual == "inscripcion":
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (DISEÑO PREMIUM) ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
-        st.subheader("📅 Calendario Oficial")
-        
+             
         # --- CONFIGURACIÓN GRÁFICA ---
         # 🔴 PEGA AQUÍ LA URL DE TU IMAGEN HORIZONTAL DE CLOUDINARY
-        URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..../tu_imagen_barra.png" 
+        URL_PLANTILLA_FONDO = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" 
         
         placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
@@ -1401,32 +1400,6 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
-
-
-
-
-
-
-st.subheader("🧪 Test de Diseño Final")
-
-# REEMPLAZA ESTO CON LA URL DE TU IMAGEN HORIZONTAL EN CLOUDINARY
-url_test = "PON_AQUI_LA_URL_DE_CLOUDINARY" 
-
-html_prueba = renderizar_tarjeta_partido(
-    local="Real Madrid",
-    visita="Man. City",
-    escudo_l="https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/1200px-Real_Madrid_CF.svg.png",
-    escudo_v="https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/1200px-Manchester_City_FC_badge.svg.png",
-    marcador_texto="2 - 1",
-    color_tema="#00FFCC", 
-    url_fondo=url_test
-)
-
-st.markdown(html_prueba, unsafe_allow_html=True)
-
-
-
-
 
 
 
