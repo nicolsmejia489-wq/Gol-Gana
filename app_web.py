@@ -19,6 +19,9 @@ import time
 import motor_colores
 import motor_grafico
 from io import BytesIO
+import PIL.Image
+import requests
+import extcolors
 
 
 
@@ -1027,8 +1030,8 @@ if rol == "admin":
             # Lectura segura con SQLAlchemy
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             
-            # Contamos aprobados
-            res_count = pd.read_sql_query(text("SELECT count(*) FROM equipos WHERE estado='aprobado'"), conn)
+            # Contamos aprobados (ignorando al equipo 'Sistema' para el progreso real)
+            res_count = pd.read_sql_query(text("SELECT count(*) FROM equipos WHERE estado='aprobado' AND nombre != 'Sistema'"), conn)
             aprobados_count = res_count.iloc[0,0]
             st.write(f"**Progreso: {aprobados_count}/32 Equipos**")
         except Exception as e:
@@ -1061,7 +1064,7 @@ if rol == "admin":
                         if st.button(f"✅", key=f"aprob_{r['nombre']}", help="Aprobar equipo", use_container_width=True):
                             url_final = r['escudo']
                             
-                            # Procesamiento IA Cloudinary (Quitar fondo escudo)
+                            # A. Procesamiento IA Cloudinary
                             if url_final:
                                 with st.spinner("🤖 Limpiando escudo..."):
                                     try:
@@ -1075,12 +1078,16 @@ if rol == "admin":
                                     except Exception as e:
                                         st.error(f"Error IA: {e}")
                             
-                            # Guardar en NEON
+                            # B. EXTRAER COLOR PRINCIPAL (ADN DEL EQUIPO)
+                            with st.spinner("🎨 Extrayendo ADN visual..."):
+                                color_adn = motor_colores.obtener_color_dominante(url_final)
+                            
+                            # C. Guardar en NEON (Aprobación + Color + Escudo Limpio)
                             try:
                                 with conn.connect() as db:
                                     db.execute(
-                                        text("UPDATE equipos SET estado='aprobado', escudo=:e WHERE nombre=:n"),
-                                        {"e": url_final, "n": r['nombre']}
+                                        text("UPDATE equipos SET estado='aprobado', escudo=:e, color_principal=:c WHERE nombre=:n"),
+                                        {"e": url_final, "c": color_adn, "n": r['nombre']}
                                     )
                                     db.commit()
                                 st.rerun()
@@ -1093,7 +1100,7 @@ if rol == "admin":
 
         st.divider()
 
-        # --- 2. SELECCIÓN DE TAREA (Aquí añadimos la opción de Diseño) ---
+        # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
         # --- A. OPCIÓN: DIRECTORIO ---
@@ -1158,13 +1165,13 @@ if rol == "admin":
             else:
                 st.info("No hay equipos registrados.")
 
-        # --- B. OPCIÓN: DISEÑO WEB (NUEVA FUNCIONALIDAD) ---
+        # --- B. OPCIÓN: DISEÑO WEB ---
         elif opcion_admin == "🎨 Diseño Web":
             st.subheader("🎨 Personalización Automática")
             st.info("Selecciona un equipo para 'vestir' la web con sus colores y escudo.")
             
             with conn.connect() as db:
-                # Solo traemos equipos aprobados con escudo
+                # Traemos aprobados + Sistema
                 equipos_con_escudo = db.execute(text("SELECT nombre, escudo FROM equipos WHERE (estado = 'aprobado' AND escudo IS NOT NULL) OR nombre ='Sistema'")).fetchall()
 
             if not equipos_con_escudo:
@@ -1185,46 +1192,47 @@ if rol == "admin":
                             with st.spinner("🕵️ Analizando colores del equipo..."):
                                 color_detectado = motor_colores.obtener_color_dominante(url_escudo_elegido)
                             
-                            # 2. Generar Imagen (Sándwich)
-                            with st.spinner(f"🧑‍🎨 Diseñando portada con color {color_detectado}..."):
+                            # 2. Generar Imagen de Portada
+                            with st.spinner(f"🧑‍🎨 Diseñando portada..."):
                                 imagen_final_pil = motor_grafico.construir_portada(color_detectado, url_escudo_elegido)
-                                
                                 buffer_subida = BytesIO()
                                 imagen_final_pil.save(buffer_subida, format="PNG")
                                 buffer_subida.seek(0)
                             
-                            # 3. Subir y Guardar
-                            with st.spinner("☁️ Subiendo a la nube..."):
+                            # 3. Subir y Actualizar Configuración
+                            with st.spinner("☁️ Sincronizando diseño..."):
                                 res = cloudinary.uploader.upload(
                                     buffer_subida, 
                                     folder="fondos_dinamicos",
                                     public_id="fondo_web_v2", 
                                     overwrite=True
                                 )
-                                nueva_url_fondo = f"{res['secure_url']}?v={int(time.time())}" # Cache buster
+                                nueva_url_fondo = f"{res['secure_url']}?v={int(time.time())}"
                                 
                                 with conn.connect() as db:
-                                    # Guardamos en tabla configuracion (Upsert manual)
-                                    # Nota: Asegúrate de haber creado la tabla configuracion en Neon
-                                    check = db.execute(text("SELECT 1 FROM configuracion WHERE clave='fondo_url'")).fetchone()
-                                    if check:
-                                        db.execute(text("UPDATE configuracion SET valor=:v WHERE clave='fondo_url'"), {"v": nueva_url_fondo})
-                                        db.execute(text("UPDATE configuracion SET valor=:v WHERE clave='color_primario'"), {"v": color_detectado})
-                                    else:
-                                        db.execute(text("INSERT INTO configuracion (clave, valor) VALUES ('fondo_url', :v)"), {"v": nueva_url_fondo})
-                                        db.execute(text("INSERT INTO configuracion (clave, valor) VALUES ('color_primario', :v)"), {"v": color_detectado})
+                                    # Función auxiliar para el Upsert
+                                    def upsert_config(clave, valor):
+                                        check = db.execute(text("SELECT 1 FROM configuracion WHERE clave=:c"), {"c": clave}).fetchone()
+                                        if check:
+                                            db.execute(text("UPDATE configuracion SET valor=:v WHERE clave=:c"), {"v": valor, "c": clave})
+                                        else:
+                                            db.execute(text("INSERT INTO configuracion (clave, valor) VALUES (:c, :v)"), {"c": clave, "v": valor})
+
+                                    # Guardamos los 3 pilares del diseño
+                                    upsert_config('fondo_url', nueva_url_fondo)
+                                    upsert_config('color_primario', color_detectado)
+                                    upsert_config('equipo_activo', nombre_seleccionado)
                                     db.commit()
                             
                             st.balloons()
-                            st.success("✅ ¡Diseño actualizado con éxito!")
-                            time.sleep(1) # Pausa dramática
+                            st.success(f"✅ ¡Web vestida con la identidad de {nombre_seleccionado}!")
+                            time.sleep(1)
                             st.rerun()
                             
                         except Exception as e:
                             st.error(f"Error en el proceso gráfico: {e}")
 
-
-        # --- 3. ACCIONES MAESTRAS (Sin cambios) ---
+        # --- 3. ACCIONES MAESTRAS ---
         st.divider()
         st.subheader("🚀 Control Global")
         
@@ -1247,38 +1255,10 @@ if rol == "admin":
                 with conn.connect() as db:
                     db.execute(text("DELETE FROM equipos"))
                     db.execute(text("DELETE FROM partidos"))
-                    # Asumimos que existe tabla config o similar para la fase
-                    # db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                
 
 
 
