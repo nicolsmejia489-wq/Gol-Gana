@@ -579,7 +579,7 @@ with tabs[1]:
         # Aquí va tu código del Formulario de Inscripción para usuarios
         # y la lista de equipos ya inscritos.
     else:
-        st.subheader("📅 Calendario de Juegos")
+        st.subheader("📅 Calendario Oficial")
         # Aquí va tu código para mostrar las Jornadas y Resultados
         # que ven los espectadores y Dts.
 
@@ -854,8 +854,7 @@ if fase_actual == "inscripcion":
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
-       ## st.subheader("📅 Calendario Oficial")
-        
+             
         try:
             # Usamos el objeto 'conn' directamente para leer los partidos
             df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
@@ -1238,6 +1237,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
