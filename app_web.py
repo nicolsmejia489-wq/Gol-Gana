@@ -1391,11 +1391,42 @@ if rol == "admin":
         # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
-        # --- A. OPCIÓN: RESULTADOS (NUEVO GESTOR) ---
+        # --- A. OPCIÓN: RESULTADOS (COMPACTO Y ESTILIZADO) ---
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Gestión de Resultados")
             
-            # Traemos todos los partidos
+            # --- CSS EXCLUSIVO PARA MINI-INPUTS ---
+            # Esto hace que las cajitas de números se vean delgadas y elegantes
+            st.markdown("""
+            <style>
+                /* Forzamos altura pequeña y texto centrado en los inputs */
+                div[data-testid="stNumberInput"] div[data-baseweb="input"] {
+                    height: 35px !important;
+                    min-height: 35px !important;
+                    padding: 0px !important;
+                    border-radius: 5px !important;
+                    background-color: rgba(255, 255, 255, 0.05) !important; /* Fondo sutil */
+                }
+                div[data-testid="stNumberInput"] input {
+                    text-align: center !important;
+                    font-size: 16px !important;
+                    font-weight: bold !important;
+                    color: white !important;
+                    padding-top: 0px !important;
+                    padding-bottom: 0px !important;
+                    height: 35px !important;
+                }
+                /* Ajustamos los botones +/- para que no ocupen tanto espacio */
+                div[data-testid="stNumberInput"] button {
+                    height: 35px !important;
+                    width: 25px !important;
+                    padding: 0 !important;
+                    border: none !important;
+                    background: transparent !important;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+
             try:
                 df_partidos = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
             except:
@@ -1404,70 +1435,68 @@ if rol == "admin":
             if df_partidos.empty:
                 st.warning("No hay partidos generados. Ve a 'Control Global' e inicia el torneo.")
             else:
-                # Creamos Tabs por Jornada
                 tabs_j = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
                 
                 for i, tab in enumerate(tabs_j):
                     with tab:
-                        # Filtramos partidos de esta jornada
                         df_j = df_partidos[df_partidos['jornada'] == (i + 1)]
                         
                         if df_j.empty:
                             st.info("No hay partidos en esta jornada.")
                         
-                        # Encabezados de columna
-                        c1, c2, c3, c4, c5 = st.columns([2, 1, 0.5, 1, 1])
-                        c1.caption("Local")
-                        c2.caption("Goles")
-                        c4.caption("Goles")
-                        c5.caption("Visitante / Guardar")
-                        
                         st.divider()
 
                         for _, row in df_j.iterrows():
-                            # Contenedor para cada fila de partido
                             with st.container():
-                                # Definimos columnas para alineación perfecta
-                                col_local, col_g_l, col_vs, col_g_v, col_visit, col_save = st.columns([3, 1.2, 0.5, 1.2, 3, 1], vertical_alignment="center")
+                                # COLUMNAS MÁS APRETADAS EN EL CENTRO
+                                # Antes: [3, 1.2, 0.5, 1.2, 3, 1] -> Muy ancho
+                                # Ahora: [3.5, 0.7, 0.2, 0.7, 3.5, 0.8] -> Cintura de avispa
+                                col_local, col_g_l, col_vs, col_g_v, col_visit, col_save = st.columns([3.5, 0.7, 0.2, 0.7, 3.5, 0.8], vertical_alignment="center")
                                 
-                                # Estado del partido (Visual)
-                                estado_color = "🟢" if row['estado'] == "Finalizado" else "⏳"
+                                estado_color = "#25D366" if row['estado'] == "Finalizado" else "#666"
                                 
+                                # Equipo Local
                                 with col_local:
-                                    st.markdown(f"<div style='text-align:right; font-weight:bold;'>{row['local']}</div>", unsafe_allow_html=True)
+                                    st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['local']}</div>", unsafe_allow_html=True)
                                 
-                                # Inputs numéricos (Manejo de None -> 0 para edición)
+                                # Input Local
                                 val_l = int(row['goles_l']) if row['goles_l'] is not None else 0
-                                val_v = int(row['goles_v']) if row['goles_v'] is not None else 0
-                                
                                 with col_g_l:
                                     goles_l = st.number_input("GL", value=val_l, min_value=0, max_value=20, label_visibility="collapsed", key=f"gl_{row['id']}")
                                 
+                                # Guion central
                                 with col_vs:
-                                    st.write("-")
+                                    st.markdown("<div style='text-align:center; font-weight:bold; color:#aaa;'>-</div>", unsafe_allow_html=True)
                                 
+                                # Input Visitante
+                                val_v = int(row['goles_v']) if row['goles_v'] is not None else 0
                                 with col_g_v:
                                     goles_v = st.number_input("GV", value=val_v, min_value=0, max_value=20, label_visibility="collapsed", key=f"gv_{row['id']}")
                                 
+                                # Equipo Visitante
                                 with col_visit:
-                                    st.markdown(f"**{row['visitante']}**")
+                                    st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['visitante']}</div>", unsafe_allow_html=True)
                                     
                                 with col_save:
-                                    # Botón de guardar
-                                    if st.button("💾", key=f"save_{row['id']}", help="Guardar Resultado"):
+                                    # Botón Guardar (con color dinámico según estado)
+                                    btn_label = "💾" if row['estado'] != "Finalizado" else "✅"
+                                    if st.button(btn_label, key=f"save_{row['id']}", help="Guardar Resultado"):
                                         with conn.connect() as db:
                                             db.execute(text("""
                                                 UPDATE partidos 
                                                 SET goles_l = :gl, goles_v = :gv, estado = 'Finalizado' 
                                                 WHERE id = :id
                                             """), {"gl": goles_l, "gv": goles_v, "id": row['id']})
+                                            
+                                            # AQUÍ INYECTAMOS TU FUTURO "ORÁCULO" (Historial)
+                                            # actualizar_historial_post_partido(row['local'], row['visitante'], goles_l, goles_v, conn)
+                                            
                                             db.commit()
-                                        st.toast(f"Partido {row['local']} vs {row['visitante']} actualizado!")
-                                        time.sleep(0.5) # Breve pausa para que se note
+                                        st.toast(f"Resultado guardado: {goles_l} - {goles_v}")
+                                        time.sleep(0.5)
                                         st.rerun()
 
-                                st.caption(f"{estado_color} ID: {row['id']} | Estado: {row['estado']}")
-                                st.divider()
+                                st.markdown(f"<div style='height:1px; background-color:{estado_color}30; margin: 5px 0 10px 0;'></div>", unsafe_allow_html=True)
 
         # --- B. OPCIÓN: DIRECTORIO ---
         elif opcion_admin == "🛠️ Directorio de Equipos":
@@ -1564,6 +1593,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
