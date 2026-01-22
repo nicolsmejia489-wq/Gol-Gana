@@ -1152,10 +1152,11 @@ if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Panel de Director Técnico: {equipo_usuario}")
         
-        # URL DEL FONDO
+        # URL DEL FONDO (Asegúrate de que esta variable tenga tu link de Cloudinary)
         URL_FONDO_GESTION = "https://res.cloudinary.com/dvdup4m0p/image/upload/v1737666352/Enfrentamientos_tnk3l0.jpg" 
-
+        
         try:
+            # 1. Consultas a Base de Datos
             query_mis = text("SELECT * FROM partidos WHERE (local=:eq OR visitante=:eq) ORDER BY jornada ASC")
             mis = pd.read_sql_query(query_mis, conn, params={"eq": equipo_usuario})
             
@@ -1166,22 +1167,29 @@ if rol == "dt":
             if mis.empty:
                 st.info("🏖️ No tienes partidos programados por ahora.")
             
+            # 2. Bucle de Partidos
             for index, p in mis.iterrows():
                 es_local = (p['local'] == equipo_usuario)
                 rival = p['visitante'] if es_local else p['local']
                 
+                # Obtener escudos
                 esc_l = dict_escudos.get(p['local']) or "https://cdn-icons-png.flaticon.com/512/33/33736.png"
                 esc_v = dict_escudos.get(p['visitante']) or "https://cdn-icons-png.flaticon.com/512/33/33736.png"
                 
+                # Texto del marcador
                 if p['goles_l'] is not None and p['goles_v'] is not None:
                     txt_score = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
                 else:
                     txt_score = "VS"
 
-                # 1. HEADER DE JORNADA
+                # ---------------------------------------------------------
+                # A. HEADER DE JORNADA
+                # TANTEAR: 'font-size:14px' -> Tamaño del texto "JORNADA 1"
+                # TANTEAR: 'margin-bottom:5px' -> Espacio entre este texto y la tarjeta gráfica
+                # ---------------------------------------------------------
                 st.markdown(f"<div style='color:{color_maestro}; font-size:14px; font-weight:bold; text-transform:uppercase; letter-spacing:2px; margin-bottom:5px; opacity:0.8;'>📍 Jornada {p['jornada']}</div>", unsafe_allow_html=True)
 
-                # 2. TARJETA GRÁFICA
+                # B. TARJETA GRÁFICA (Usa la función renderizar_tarjeta_partido que definimos antes)
                 html_card = renderizar_tarjeta_partido(
                     local=p['local'],
                     visita=p['visitante'],
@@ -1193,31 +1201,32 @@ if rol == "dt":
                 )
                 st.markdown(html_card, unsafe_allow_html=True)
 
-                # 3. BLOQUE INFO + WHATSAPP (ESTILOS INLINE BLINDADOS)
+                # ---------------------------------------------------------
+                # C. BLOQUE DE INFO + WHATSAPP (Debajo de la tarjeta)
+                # ---------------------------------------------------------
                 estado_str = p['estado']
                 
-                # Configuración de colores e iconos
-                color_est = "#888"
+                # Colores de estado
+                color_est = "#888" # Gris
                 icon_est = "📅"
                 if estado_str == "Finalizado": 
-                    color_est = "#28a745"
-                    icon_est = "✅"
+                    color_est = "#28a745"; icon_est = "✅" # Verde
                 elif estado_str == "Conflicto": 
-                    color_est = "#dc3545"
-                    icon_est = "⚠️"
+                    color_est = "#dc3545"; icon_est = "⚠️" # Rojo
                 elif estado_str == "Revision": 
-                    color_est = "#ffc107"
-                    icon_est = "⏳"
+                    color_est = "#ffc107"; icon_est = "⏳" # Naranja
 
-                # Construcción del Botón WhatsApp (Lógica Segura)
+                # Botón WhatsApp
                 html_boton_wa = ""
                 if estado_str != "Finalizado":
                     datos_wa = dict_celulares.get(rival)
                     if datos_wa and datos_wa[0] and datos_wa[1]:
-                        # Limpieza del número
                         num_wa = f"{str(datos_wa[0]).replace('+','')}{datos_wa[1]}"
                         
-                        # AQUÍ ESTABA EL ERROR ANTES: AHORA USAMOS ESTILOS PEGADOS AL HTML
+                        # ESTILOS DEL BOTÓN WHATSAPP
+                        # TANTEAR: 'padding: 6px 12px' -> Gordura del botón verde
+                        # TANTEAR: 'font-size: 13px' -> Tamaño de la letra "Contactar a..."
+                        # TANTEAR: 'margin-top: 5px' -> Separación con el texto de estado de arriba
                         html_boton_wa = f"""
                         <a href='https://wa.me/{num_wa}' target='_blank' style='
                             background-color: #25D366; 
@@ -1231,11 +1240,14 @@ if rol == "dt":
                             align-items: center; 
                             gap: 5px; 
                             margin-top: 5px;'>
-                            <span>💬</span> Contactar {rival}
+                            <span>💬</span> Contactar a {rival}
                         </a>
                         """
 
-                # Renderizado del Bloque Info COMPLETO
+                # Renderizado del bloque gris completo
+                # TANTEAR: 'margin-top: -15px' -> Qué tan pegado está este bloque a la tarjeta de arriba (sube o baja)
+                # TANTEAR: 'padding: 10px' -> Espacio interno del bloque gris
+                # TANTEAR: 'font-size:14px' -> Tamaño del texto de estado (Finalizado, etc.)
                 st.markdown(f"""
                 <div style='
                     background-color: rgba(0,0,0,0.05); 
@@ -1255,14 +1267,17 @@ if rol == "dt":
                 </div>
                 """, unsafe_allow_html=True)
 
-                # 4. EXPANDER DE ACCIÓN
+                # ---------------------------------------------------------
+                # D. EXPANDER DE CARGA DE FOTOS
+                # ---------------------------------------------------------
                 if estado_str in ["Programado", "Revision", "Conflicto"]:
                     mi_col_foto = "url_foto_l" if es_local else "url_foto_v"
                     ya_reporte = pd.notnull(p[mi_col_foto]) and p[mi_col_foto] != ""
 
                     if ya_reporte and estado_str != "Conflicto":
-                        st.info("👍 Reporte enviado. Esperando rival.")
+                        st.info("✅ Ya enviaste tu reporte. Esperando confirmación del rival.")
                     else:
+                        # expanded=False -> Inicia cerrado (Minimizado)
                         with st.expander(f"📸 Subir Marcador", expanded=False):
                             st.caption("Evidencia del resultado final:")
                             tab_cam, tab_gal = st.tabs(["📷 Cámara", "📂 Galería"])
@@ -1278,18 +1293,31 @@ if rol == "dt":
                             if img_file:
                                 st.image(img_file, width=150)
                                 if st.button("Enviar Resultado", key=f"s_{p['id']}", use_container_width=True):
-                                    # --- TU LÓGICA DE ENVÍO DE SIEMPRE ---
-                                    # (Pega aquí tu lógica de IA/Cloudinary/DB)
-                                    pass
+                                    # --- BLOQUE DE ENVÍO (IA + CLOUDINARY + DB) ---
+                                    with st.spinner("🤖 Procesando..."):
+                                        try:
+                                            # IMPORTANTE: Asegúrate de tener la lógica aquí. 
+                                            # Si ya la tienes en una función externa, llámala.
+                                            # Por ahora dejo un 'pass' funcional para que no rompa.
+                                            st.toast("Funcionalidad de envío simulada (Pega tu lógica aquí)")
+                                            pass 
+                                        except Exception as e:
+                                            st.error(f"Error: {e}")
 
-                # 5. DIVISOR
+                # ---------------------------------------------------------
+                # E. EL DIVISOR NOTORIO (Línea Dorada)
+                # TANTEAR: 'margin: 30px 0' -> Espacio vertical entre un partido y otro. 
+                # TANTEAR: 'opacity: 0.5' -> Qué tan transparente es la línea.
+                # ---------------------------------------------------------
                 if index < len(mis) - 1:
                     st.markdown(f"""
-                    <hr style='height: 1px; border: none; background: linear-gradient(90deg, transparent, {color_maestro}, transparent); margin: 30px 0; opacity: 0.5;'>
+                    <hr style="border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0, 0, 0, 0), {color_maestro}99, rgba(0, 0, 0, 0)); margin: 30px 0; opacity: 0.5;">
                     """, unsafe_allow_html=True)
 
         except Exception as e:
-            st.error(f"Error panel gestión: {e}")
+            st.error(f"Error cargando el panel de gestión: {e}")
+
+            
 
 
             
@@ -1451,6 +1479,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
