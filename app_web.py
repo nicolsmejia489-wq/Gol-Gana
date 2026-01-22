@@ -854,7 +854,7 @@ if fase_actual == "inscripcion":
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
-        st.subheader("📅 Calendario Oficial")
+       ## st.subheader("📅 Calendario Oficial")
         
         try:
             # Usamos el objeto 'conn' directamente para leer los partidos
@@ -1238,6 +1238,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
