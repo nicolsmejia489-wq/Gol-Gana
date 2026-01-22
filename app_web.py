@@ -60,75 +60,82 @@ if conn:
 
 
 
-# --- CONFIGURACIÓN DE COLOR Y DISEÑO ---
-# Esta es la "línea única" que mencionas. 
-# Asegúrate de que estas variables tengan valor antes de llegar aquí.
-# fondo_actual = "..."
-# color_primario = "..." 
+# ==============================================================================
+# 🎨 CONFIGURACIÓN DE IMAGEN Y COLOR (Línea Única de Control)
+# ==============================================================================
 
+# 1. Definir valores por defecto (Si la base de datos falla, se verá así)
+final_bg = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
+final_color = "#FFD700" # Dorado por defecto
+
+# 2. Intentar actualizar con datos reales de la DB
+# (Asumimos que fondo_actual y color_primario vienen de tu consulta SQL anterior)
+try:
+    if 'fondo_actual' in locals() and fondo_actual:
+        final_bg = fondo_actual
+    if 'color_primario' in locals() and color_primario:
+        final_color = color_primario
+except NameError:
+    pass # Si las variables no existen, se mantienen los valores por defecto
+
+# 3. Plantilla de CSS (Texto plano para evitar errores de llaves {})
 css_template = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-    /* 1. RESET Y TIPOGRAFÍA UNIVERSAL */
+    /* FUENTE Y COLOR GLOBAL */
     * { 
         font-family: 'Oswald', sans-serif !important; 
         color: #ffffff !important; 
     }
 
-    /* 2. FONDO DINÁMICO */
+    /* FONDO DINÁMICO */
     [data-testid="stAppViewContainer"] {
         background-color: #000000 !important;
-        background-image: url("FONDO_URL") !important;
+        background-image: url("URL_DE_FONDO") !important;
         background-size: cover !important;
         background-position: center center !important;
         background-attachment: fixed !important;
     }
 
+    /* CAPA OSCURA */
     .stApp::before {
         content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 0;
     }
 
-    /* 3. ACENTOS DINÁMICOS */
+    /* ACENTOS DINÁMICOS */
     [data-testid="stDecoration"] { 
-        background: COLOR_VAR !important; 
-        height: 3px !important; 
+        background: COLOR_MAESTRO !important; 
     }
 
     div[data-baseweb="tab-highlight"] {
-        background-color: COLOR_VAR !important;
+        background-color: COLOR_MAESTRO !important;
     }
     
     button[data-baseweb="tab"][aria-selected="true"] p {
-        color: COLOR_VAR !important;
+        color: COLOR_MAESTRO !important;
     }
 
-    /* Botones con borde dinámico y texto blanco */
+    /* BOTONES CON BORDE DINÁMICO */
     div.stButton > button, div.stFormSubmitButton > button {
         background-color: rgba(0, 0, 0, 0.6) !important;
         color: #ffffff !important;
-        border: 1px solid COLOR_VAR !important;
+        border: 1px solid COLOR_MAESTRO !important;
         border-radius: 4px !important;
     }
 
     div.stButton > button:hover {
-        background-color: COLOR_VAR !important;
+        background-color: COLOR_MAESTRO !important;
         color: #000000 !important;
-    }
-
-    /* Títulos en Blanco por defecto */
-    h1, h2, h3, h4 {
-        color: #ffffff !important;
-        text-transform: uppercase;
-        font-weight: 700 !important;
     }
 </style>
 """
 
-# Aplicamos el reemplazo manual para evitar errores de llaves {}
-css_final = css_template.replace("FONDO_URL", fondo_actual).replace("COLOR_VAR", color_primario)
+# 4. Inyección Segura (Reemplazo manual)
+css_final = css_template.replace("URL_DE_FONDO", final_bg).replace("COLOR_MAESTRO", final_color)
 st.markdown(css_final, unsafe_allow_html=True)
+
 
 
 
@@ -1235,6 +1242,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
