@@ -57,76 +57,78 @@ if conn:
     except:
         pass
 
-# --- INYECCIÓN DE CSS: CONTROL TOTAL POR VARIABLE ---
-st.markdown(f"""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 1. RESET Y TIPOGRAFÍA */
-        * {{ 
-            font-family: 'Oswald', sans-serif !important; 
-            color: #ffffff !important; 
-        }}
 
-        /* 2. FONDO DINÁMICO */
-        [data-testid="stAppViewContainer"] {{
-            background-color: #000000 !important;
-            background-image: url("{fondo_actual}") !important;
-            background-size: cover !important;
-            background-position: center center !important;
-            background-attachment: fixed !important;
-            background-repeat: no-repeat !important;
-        }}
 
-        .stApp::before {{
-            content: ""; 
-            position: absolute; 
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.75); 
-            pointer-events: none; 
-            z-index: 0;
-        }}
+# --- CONFIGURACIÓN DE COLOR Y DISEÑO ---
+# Esta es la "línea única" que mencionas. 
+# Asegúrate de que estas variables tengan valor antes de llegar aquí.
+# fondo_actual = "..."
+# color_primario = "..." 
 
-        /* 3. ACENTOS DINÁMICOS (Variable: {color_primario}) */
-        
-        /* Línea decorativa superior */
-        [data-testid="stDecoration"] {{ 
-            background: {color_primario} !important; 
-            height: 3px !important; 
-        }}
+css_template = """
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* Pestañas (Tabs) activas */
-        div[data-baseweb="tab-highlight"] {{
-            background-color: {color_primario} !important;
-        }}
-        
-        button[data-baseweb="tab"][aria-selected="true"] p {{
-            color: {color_primario} !important;
-        }}
+    /* 1. RESET Y TIPOGRAFÍA UNIVERSAL */
+    * { 
+        font-family: 'Oswald', sans-serif !important; 
+        color: #ffffff !important; 
+    }
 
-        /* Botones: Bordes y efecto Hover */
-        div.stButton > button, div.stFormSubmitButton > button {{
-            background-color: rgba(0, 0, 0, 0.6) !important;
-            color: #ffffff !important;
-            border: 1px solid {color_primario} !important;
-            border-radius: 4px !important;
-            transition: 0.3s all;
-        }}
+    /* 2. FONDO DINÁMICO */
+    [data-testid="stAppViewContainer"] {
+        background-color: #000000 !important;
+        background-image: url("FONDO_URL") !important;
+        background-size: cover !important;
+        background-position: center center !important;
+        background-attachment: fixed !important;
+    }
 
-        div.stButton > button:hover {{
-            background-color: {color_primario} !important;
-            color: #000000 !important;
-            box-shadow: 0px 0px 15px {color_primario}66; /* El '66' añade transparencia al brillo */
-        }}
+    .stApp::before {
+        content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 0;
+    }
 
-        /* Títulos secundarios o resaltados */
-        .highlight-text {{
-            color: {color_primario} !important;
-        }}
+    /* 3. ACENTOS DINÁMICOS */
+    [data-testid="stDecoration"] { 
+        background: COLOR_VAR !important; 
+        height: 3px !important; 
+    }
 
-    </style>
-""", unsafe_allow_html=True)
+    div[data-baseweb="tab-highlight"] {
+        background-color: COLOR_VAR !important;
+    }
+    
+    button[data-baseweb="tab"][aria-selected="true"] p {
+        color: COLOR_VAR !important;
+    }
 
+    /* Botones con borde dinámico y texto blanco */
+    div.stButton > button, div.stFormSubmitButton > button {
+        background-color: rgba(0, 0, 0, 0.6) !important;
+        color: #ffffff !important;
+        border: 1px solid COLOR_VAR !important;
+        border-radius: 4px !important;
+    }
+
+    div.stButton > button:hover {
+        background-color: COLOR_VAR !important;
+        color: #000000 !important;
+    }
+
+    /* Títulos en Blanco por defecto */
+    h1, h2, h3, h4 {
+        color: #ffffff !important;
+        text-transform: uppercase;
+        font-weight: 700 !important;
+    }
+</style>
+"""
+
+# Aplicamos el reemplazo manual para evitar errores de llaves {}
+css_final = css_template.replace("FONDO_URL", fondo_actual).replace("COLOR_VAR", color_primario)
+st.markdown(css_final, unsafe_allow_html=True)
 
 
 
@@ -1233,6 +1235,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
