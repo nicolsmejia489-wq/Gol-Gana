@@ -1333,12 +1333,12 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Completo con Diseño Dinámico) ---
+# --- TAB: GESTIÓN ADMIN (Completo con Gestor de Resultados) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        # --- 1. SECCIÓN DE APROBACIONES (Sin cambios, ya extrae color_principal) ---
+        # --- 1. SECCIÓN DE APROBACIONES (Sin cambios) ---
         st.subheader("📩 Equipos por Aprobar")
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
@@ -1391,25 +1391,104 @@ if rol == "admin":
         # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
-        # --- A. OPCIÓN: DIRECTORIO (Sin cambios) ---
-        if opcion_admin == "🛠️ Directorio de Equipos":
+        # --- A. OPCIÓN: RESULTADOS (NUEVO GESTOR) ---
+        if opcion_admin == "⚽ Resultados":
+            st.subheader("📝 Gestión de Resultados")
+            
+            # Traemos todos los partidos
+            try:
+                df_partidos = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
+            except:
+                df_partidos = pd.DataFrame()
+
+            if df_partidos.empty:
+                st.warning("No hay partidos generados. Ve a 'Control Global' e inicia el torneo.")
+            else:
+                # Creamos Tabs por Jornada
+                tabs_j = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
+                
+                for i, tab in enumerate(tabs_j):
+                    with tab:
+                        # Filtramos partidos de esta jornada
+                        df_j = df_partidos[df_partidos['jornada'] == (i + 1)]
+                        
+                        if df_j.empty:
+                            st.info("No hay partidos en esta jornada.")
+                        
+                        # Encabezados de columna
+                        c1, c2, c3, c4, c5 = st.columns([2, 1, 0.5, 1, 1])
+                        c1.caption("Local")
+                        c2.caption("Goles")
+                        c4.caption("Goles")
+                        c5.caption("Visitante / Guardar")
+                        
+                        st.divider()
+
+                        for _, row in df_j.iterrows():
+                            # Contenedor para cada fila de partido
+                            with st.container():
+                                # Definimos columnas para alineación perfecta
+                                col_local, col_g_l, col_vs, col_g_v, col_visit, col_save = st.columns([3, 1.2, 0.5, 1.2, 3, 1], vertical_alignment="center")
+                                
+                                # Estado del partido (Visual)
+                                estado_color = "🟢" if row['estado'] == "Finalizado" else "⏳"
+                                
+                                with col_local:
+                                    st.markdown(f"<div style='text-align:right; font-weight:bold;'>{row['local']}</div>", unsafe_allow_html=True)
+                                
+                                # Inputs numéricos (Manejo de None -> 0 para edición)
+                                val_l = int(row['goles_l']) if row['goles_l'] is not None else 0
+                                val_v = int(row['goles_v']) if row['goles_v'] is not None else 0
+                                
+                                with col_g_l:
+                                    goles_l = st.number_input("GL", value=val_l, min_value=0, max_value=20, label_visibility="collapsed", key=f"gl_{row['id']}")
+                                
+                                with col_vs:
+                                    st.write("-")
+                                
+                                with col_g_v:
+                                    goles_v = st.number_input("GV", value=val_v, min_value=0, max_value=20, label_visibility="collapsed", key=f"gv_{row['id']}")
+                                
+                                with col_visit:
+                                    st.markdown(f"**{row['visitante']}**")
+                                    
+                                with col_save:
+                                    # Botón de guardar
+                                    if st.button("💾", key=f"save_{row['id']}", help="Guardar Resultado"):
+                                        with conn.connect() as db:
+                                            db.execute(text("""
+                                                UPDATE partidos 
+                                                SET goles_l = :gl, goles_v = :gv, estado = 'Finalizado' 
+                                                WHERE id = :id
+                                            """), {"gl": goles_l, "gv": goles_v, "id": row['id']})
+                                            db.commit()
+                                        st.toast(f"Partido {row['local']} vs {row['visitante']} actualizado!")
+                                        time.sleep(0.5) # Breve pausa para que se note
+                                        st.rerun()
+
+                                st.caption(f"{estado_color} ID: {row['id']} | Estado: {row['estado']}")
+                                st.divider()
+
+        # --- B. OPCIÓN: DIRECTORIO ---
+        elif opcion_admin == "🛠️ Directorio de Equipos":
             st.subheader("📋 Directorio de Equipos")
             # ... (Toda tu lógica de Directorio se mantiene igual) ...
-            st.info("Directorio cargado correctamente.") # Simplificado para el ejemplo
+            try:
+                df_equipos = pd.read_sql_query("SELECT * FROM equipos", conn)
+                st.dataframe(df_equipos)
+            except: st.error("Error cargando directorio.")
 
-        # --- B. OPCIÓN: DISEÑO WEB (AQUÍ ESTÁ EL ARREGLO) ---
+        # --- C. OPCIÓN: DISEÑO WEB ---
         elif opcion_admin == "🎨 Diseño Web":
             st.subheader("🎨 Personalización Maestro")
             st.info("Cambia la identidad visual de toda la web en un clic.")
             
             with conn.connect() as db:
-                # Traemos nombre, escudo y el color ya guardado en la tabla equipos
                 equipos_dispo = db.execute(text("SELECT nombre, escudo, color_principal FROM equipos WHERE (estado = 'aprobado' AND escudo IS NOT NULL) OR nombre ='Sistema'")).fetchall()
 
             if not equipos_dispo:
                 st.warning("No hay equipos con ADN completo para diseñar.")
             else:
-                # Creamos un diccionario con toda la info del equipo para no repetir consultas
                 dict_equipos = {eq[0]: {"escudo": eq[1], "color": eq[2]} for eq in equipos_dispo}
                 nombre_sel = st.selectbox("Equipo Inspiración:", list(dict_equipos.keys()))
                 
@@ -1422,34 +1501,30 @@ if rol == "admin":
                 with col_action:
                     if st.button(f"✨ Vestir Web de {nombre_sel}", type="primary", use_container_width=True):
                         try:
-                            # 1. Usar el color que ya tiene el equipo (o detectar si es Sistema)
                             color_a_usar = info_sel['color'] if info_sel['color'] else "#FFD700"
                             
-                            # 2. Generar Fondo con Motor Gráfico
                             with st.spinner("🧑‍🎨 Construyendo nueva piel para la web..."):
                                 img_pil = motor_grafico.construir_portada(color_a_usar, info_sel['escudo'])
                                 buffer = BytesIO()
                                 img_pil.save(buffer, format="PNG")
                                 buffer.seek(0)
                             
-                            # 3. Subir a Cloudinary (Usamos el nombre del equipo en el ID para forzar cambio)
                             with st.spinner("☁️ Sincronizando con la nube..."):
                                 res = cloudinary.uploader.upload(
                                     buffer, 
                                     folder="fondos_dinamicos",
-                                    public_id=f"fondo_activo_golgana", # ID fijo para el fondo actual
+                                    public_id=f"fondo_activo_golgana",
                                     overwrite=True
                                 )
-                                # Cache buster vital para que el navegador note el cambio
                                 url_fondo_nueva = f"{res['secure_url']}?v={int(time.time())}"
                                 
-                                # 4. Actualizar las 3 llaves maestras en 'configuracion'
                                 with conn.connect() as db:
                                     def update_cfg(k, v):
-                                        db.execute(text("INSERT INTO configuracion (clave, valor) VALUES (:k, :v) ON CONFLICT (clave) DO UPDATE SET valor = :v"), {"k": k, "v": v})
+                                        # IMPORTANTE: Asegúrate si tu tabla es 'config' o 'configuracion'
+                                        db.execute(text("INSERT INTO config (clave, valor) VALUES (:k, :v) ON CONFLICT (clave) DO UPDATE SET valor = :v"), {"k": k, "v": v})
                                     
                                     update_cfg('fondo_url', url_fondo_nueva)
-                                    update_cfg('color_primario', color_a_usar) # Guardamos el HEX exacto
+                                    update_cfg('color_primario', color_a_usar)
                                     update_cfg('equipo_activo', nombre_sel)
                                     db.commit()
                             
@@ -1461,7 +1536,7 @@ if rol == "admin":
                         except Exception as e:
                             st.error(f"Error en motor gráfico: {e}")
 
-          # --- 3. ACCIONES MAESTRAS ---
+        # --- 3. ACCIONES MAESTRAS ---
         st.divider()
         st.subheader("🚀 Control Global")
         
@@ -1484,41 +1559,11 @@ if rol == "admin":
                 with conn.connect() as db:
                     db.execute(text("DELETE FROM equipos"))
                     db.execute(text("DELETE FROM partidos"))
+                    # Asegúrate de usar 'config' si esa es tu tabla definitiva
+                    db.execute(text("UPDATE config SET valor = 'inscripcion' WHERE clave = 'fase_actual'"))
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
-                
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
