@@ -404,9 +404,68 @@ if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
 ####################PORTADA EN PRUEBA
 
-# --- CONSTANTES DE DISEÑO ---
-# Reemplaza este link con el que obtengas de Cloudinary o GitHub
-URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769040318/ChatGPT_Image_21_ene_2026_19_05_10_uud7yk.png" 
+
+# --- SECCIÓN DE PORTADA TIPO "HERO" CON FUSIÓN ---
+URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769040318/ChatGPT_Image_21_ene_2026_19_05_10_uud7yk.png"
+
+st.markdown(f"""
+    <style>
+        /* 1. Contenedor principal de la portada */
+        .hero-container {{
+            position: relative;
+            width: 100%;
+            /* Altura ajustable: define qué tan alta es la portada */
+            height: 350px; 
+            overflow: hidden;
+            /* Trucos para romper los márgenes por defecto de Streamlit y llegar a los bordes */
+            margin-top: -6rem;    
+            margin-left: -5rem;   
+            margin-right: -5rem;  
+            margin-bottom: 20px;  
+            z-index: 0;
+        }}
+
+        /* 2. La capa con tu imagen */
+        .hero-image-layer {{
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url('{URL_PORTADA}');
+            background-size: cover; /* Asegura que la imagen llene el espacio */
+            background-position: center top; /* Prioriza mostrar la parte de arriba (logo/jugador) */
+            z-index: 1;
+        }}
+
+        /* 3. La máscara mágica de degradado (Fusión a Negro) */
+        .hero-overlay-mask {{
+            position: absolute;
+            bottom: 0; left: 0; width: 100%;
+            height: 60%; /* La máscara afecta al 60% inferior de la imagen */
+            /* Degradado: de transparente arriba a negro sólido abajo */
+            background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 90%);
+            z-index: 2;
+        }}
+
+        /* AJUSTES PARA MÓVIL (Responsive) */
+        @media (max-width: 768px) {{
+            .hero-container {{
+                height: 250px; /* Portada más baja en celulares */
+                margin-top: -4rem;  
+                margin-left: -1rem; 
+                margin-right: -1rem;
+            }}
+        }}
+    </style>
+
+    <div class="hero-container">
+        <div class="hero-image-layer"></div>
+        <div class="hero-overlay-mask"></div>
+    </div>
+""", unsafe_allow_html=True)
+
+
+
+
+
 
 # --- ESTILO CSS INYECTADO ---
 st.markdown(f"""
@@ -1250,6 +1309,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
