@@ -344,55 +344,79 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         return None, f"Error en el motor de visión: {str(e)}"
 
 #####FIN IA
+
+
+
 def generar_calendario():
     try:
         with conn.connect() as db:
-            # 1. Obtener equipos aprobados
-            res = db.execute(text("SELECT nombre FROM equipos WHERE estado = 'aprobado'"))
-            # fetchall devuelve tuplas, extraemos el primer elemento
+            # 1. Obtener solo los equipos reales aprobados (ignorando 'Sistema')
+            res = db.execute(text("SELECT nombre FROM equipos WHERE estado = 'aprobado' AND nombre != 'Sistema'"))
             equipos = [row[0] for row in res.fetchall()]
-            
-            # 2. Rellenar con W.O. hasta llegar a 32 (o par)
-            while len(equipos) < 32:
-                nombre_wo = f"(WO) {len(equipos)+1}"
-                
-                # Sintaxis Postgres para "Si existe, no hagas nada"
-                query_wo = text("""
-                    INSERT INTO equipos (nombre, estado) 
-                    VALUES (:n, 'aprobado') 
-                    ON CONFLICT (nombre) DO NOTHING
-                """)
-                db.execute(query_wo, {"n": nombre_wo})
-                
-                # Lo agregamos a la lista local para el sorteo
-                equipos.append(nombre_wo)
-            
+            n_reales = len(equipos)
+
+            if n_reales < 2:
+                st.error("Se necesitan al menos 2 equipos para generar un calendario.")
+                return
+
+            # 2. Determinar cupos para la siguiente fase según las nuevas reglas
+            if 25 <= n_reales <= 32:
+                cupos = 16  # Clasifican a Octavos
+            elif 16 <= n_reales <= 24:
+                cupos = 8   # Clasifican a Cuartos
+            elif 8 <= n_reales < 16:
+                cupos = 4   # Clasifican a Semifinales
+            else:
+                cupos = 2   # Caso excepcional para torneos muy pequeños (Final directa)
+
+            # Guardamos el número de clasificados en la configuración
+            db.execute(text("""
+                INSERT INTO configuracion (clave, valor) 
+                VALUES ('cupos_clasificados', :v) 
+                ON CONFLICT (clave) DO UPDATE SET valor = :v
+            """), {"v": str(cupos)})
+
+            # 3. Mezclar equipos para aleatoriedad total
             random.shuffle(equipos)
-            n = len(equipos)
-            indices = list(range(n))
-            
-            # 3. Generar cruces (Algoritmo Round Robin)
-            for jor in range(1, 4): # Genera 3 jornadas
-                for i in range(n // 2):
-                    loc = equipos[indices[i]]
-                    vis = equipos[indices[n - 1 - i]]
-                    
-                    query_partido = text("""
-                        INSERT INTO partidos (local, visitante, jornada, estado) 
-                        VALUES (:l, :v, :j, 'Programado')
-                    """)
-                    db.execute(query_partido, {"l": loc, "v": vis, "j": jor})
-                
-                # Rotación de índices para la siguiente fecha
+
+            # 4. Generar 3 Jornadas Aleatorias
+            # Si el número de equipos es impar, un equipo descansará por jornada
+            equipos_sorteo = equipos.copy()
+            if len(equipos_sorteo) % 2 != 0:
+                equipos_sorteo.append(None) # 'None' representa el descanso (Bye)
+
+            n_sorteo = len(equipos_sorteo)
+            indices = list(range(n_sorteo))
+
+            for jor in range(1, 4): # Generamos exactamente 3 jornadas
+                for i in range(n_sorteo // 2):
+                    loc_idx = indices[i]
+                    vis_idx = indices[n_sorteo - 1 - i]
+
+                    loc = equipos_sorteo[loc_idx]
+                    vis = equipos_sorteo[vis_idx]
+
+                    # Solo insertamos el partido si no es un descanso (ambos equipos existen)
+                    if loc is not None and vis is not None:
+                        db.execute(text("""
+                            INSERT INTO partidos (local, visitante, jornada, estado) 
+                            VALUES (:l, :v, :j, 'Programado')
+                        """), {"l": loc, "v": vis, "j": jor})
+
+                # Rotación Round Robin para asegurar que no se repitan enfrentamientos
                 indices = [indices[0]] + [indices[-1]] + indices[1:-1]
-            
-            # 4. Actualizar Fase del Torneo
-            # OJO: En Neon la columna es 'clave' y el valor es 'fase_actual'
-            db.execute(text("UPDATE config SET valor = 'clasificacion' WHERE clave = 'fase_actual'"))
+
+            # 5. Actualizar Fase del Torneo
+            db.execute(text("UPDATE configuracion SET valor = 'clasificacion' WHERE clave = 'fase_actual'"))
             db.commit()
             
+            st.success(f"¡Calendario generado! {n_reales} equipos compitiendo por {cupos} cupos.")
+            
     except Exception as e:
-        st.error(f"Error generando calendario: {e}")
+        st.error(f"Error generando el calendario: {e}")
+        
+###FIN GENERAR CALENDARIO
+
 
 # --- 3. NAVEGACIÓN (Inicialización de Estado) ---
 if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
@@ -1271,6 +1295,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
