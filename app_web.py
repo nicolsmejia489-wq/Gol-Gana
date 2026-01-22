@@ -32,37 +32,40 @@ st.set_page_config(
 )
 
 
-# Valores de seguridad (por si la base de datos no responde)
-color_maestro = "#FFD700" 
-fondo_url = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
+# --- 1. CONEXIÓN (Siempre al principio) ---
+try:
+    conn = st.connection("postgresql", type="sql")
+except Exception as e:
+    st.error(f"Error de conexión: {e}")
+    conn = None
 
-if conn:
+# --- 2. INICIALIZACIÓN DE VARIABLES (Valores de Respaldo) ---
+color_maestro = "#FFD700"  # Dorado por defecto
+fondo_url = "URL_ESTADIO_GENERICO"
+
+# --- 3. LÓGICA DE IDENTIDAD (Si hay conexión) ---
+if conn is not None:
     try:
         with conn.connect() as db:
-            # A. Buscamos qué equipo es la insignia actual en la tabla de configuración
-            res_config = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'equipo_activo'")).fetchone()
-            equipo_insignia = res_config[0] if res_config else "Sistema"
+            # Buscamos el equipo activo en la configuración
+            res_conf = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'equipo_activo'")).fetchone()
+            equipo_nombre = res_conf[0] if res_conf else "Sistema"
 
-            # B. Buscamos el color y el fondo generado para ese equipo específico
-            # Hacemos un JOIN simple o una consulta directa a la tabla equipos
-            query_identidad = text("""
-                SELECT color_principal 
-                FROM equipos 
-                WHERE nombre = :nombre
-            """)
-            res_equipo = db.execute(query_identidad, {"nombre": equipo_insignia}).fetchone()
+            # Buscamos el color principal de ese equipo
+            res_eq = db.execute(
+                text("SELECT color_principal FROM equipos WHERE nombre = :nom"),
+                {"nom": equipo_nombre}
+            ).fetchone()
             
-            if res_equipo:
-                color_maestro = res_equipo[0] # Aquí es donde ocurre la magia: reemplazamos el dorado
-
-            # C. Traemos la URL del fondo generado por el motor gráfico
-            res_fondo = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'fondo_url'")).fetchone()
-            if res_fondo:
-                fondo_url = res_fondo[0]
-
+            if res_eq and res_eq[0]:
+                color_maestro = res_eq[0]
+                
+            # Buscamos el fondo dinámico actual
+            res_f = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'fondo_url'")).fetchone()
+            if res_f:
+                fondo_url = res_f[0]
     except Exception as e:
-        # En caso de error, el sistema mantiene el color_maestro = "#FFD700"
-        pass
+        pass # Mantiene los valores por defecto si la consulta falla
 
 
 
@@ -1249,6 +1252,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
