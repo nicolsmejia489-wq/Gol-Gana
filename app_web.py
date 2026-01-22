@@ -57,15 +57,18 @@ if conn:
     except:
         pass
 
-# --- INYECCIÓN DE CSS: TABLA ULTR A-COMPACTA (DRÁSTICO) ---
+# --- INYECCIÓN DE CSS: ESTRUCTURA Y ATMÓSFERA GLOBAL ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 1. RESET GLOBAL */
-        * {{ font-family: 'Oswald', sans-serif !important; color: #ffffff !important; }}
+        /* 1. RESET Y TIPOGRAFÍA UNIVERSAL */
+        * {{ 
+            font-family: 'Oswald', sans-serif !important; 
+            color: #ffffff !important; 
+        }}
 
-        /* 2. FONDO DINÁMICO */
+        /* 2. FONDO DINÁMICO Y CAPA DE CONTRASTE */
         [data-testid="stAppViewContainer"] {{
             background-color: #000000 !important;
             background-image: url("{fondo_actual}") !important;
@@ -73,84 +76,51 @@ st.markdown(f"""
             background-position: center center !important;
             background-attachment: fixed !important;
         }}
+
+        /* Overlay para asegurar que el texto siempre sea legible */
         .stApp::before {{
-            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 0;
+            content: ""; 
+            position: absolute; 
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75); 
+            pointer-events: none; 
+            z-index: 0;
         }}
 
-        /* ================================================================
-           3. TABLA DE CLASIFICACIÓN - DIETA EXTREMA
-        ================================================================ */
-        .big-table {{ 
-            width: 100%; 
-            border-collapse: collapse; 
-            border: 1px solid #FFD700 !important;
-            position: relative; z-index: 1;
-            background-color: rgba(0, 0, 0, 0.6);
-            margin-top: 5px; /* Menos margen arriba */
+        /* 3. TÍTULOS Y ENCABEZADOS */
+        h1, h2, h3 {{ 
+            margin-bottom: 10px !important; 
+            text-transform: uppercase;
+            font-weight: 700 !important;
+            text-shadow: 2px 2px 4px rgba(0,0,0,1) !important;
+        }}
+
+        /* 4. AJUSTES DE INTERFAZ STREAMLIT */
+        /* Línea decorativa superior */
+        [data-testid="stDecoration"] {{ 
+            background: #FFD700 !important; 
+            height: 3px !important; 
+        }}
+
+        /* Pestañas (Tabs) más compactas */
+        button[data-baseweb="tab"] {{ 
+            padding: 10px 15px !important; 
+            text-transform: uppercase;
         }}
         
-        /* --- ENCABEZADOS (Th) --- */
-        .big-table th {{ 
-            background-color: rgba(20, 20, 20, 0.98) !important; 
-            color: #FFD700 !important; /* Encabezados en Dorado para contraste */
-            border-bottom: 1px solid #FFD700 !important;
-            text-transform: uppercase;
-            /* DRÁSTICO: Padding mínimo y letra muy pequeña */
-            padding: 4px 1px !important; 
-            font-size: 11px !important;
-            font-weight: 700 !important;
-            letter-spacing: 0.5px;
-            text-align: center !important;
+        /* Color de la pestaña activa */
+        div[data-baseweb="tab-highlight"] {{
+            background-color: #FFD700 !important;
         }}
 
-        /* --- CELDAS DE DATOS (Td) --- */
-        .big-table td {{ 
-            background-color: rgba(0, 0, 0, 0.4);
-            color: #ffffff !important;
-            border-bottom: 1px solid #222;
-            /* DRÁSTICO: Casi sin espacio entre filas */
-            padding: 2px 1px !important; 
-            text-align: center;
-            /* DRÁSTICO: Tamaño de letra pequeño (como DG) */
-            font-size: 12px !important;   
-            line-height: 1.1 !important; /* Apila las filas */
-            vertical-align: middle !important;
+        /* 5. ELIMINAR ESPACIOS INNECESARIOS EN MÓVIL */
+        .block-container {{
+            padding-top: 2rem !important;
+            padding-bottom: 1rem !important;
         }}
-
-        /* AJUSTE DE ESCUDOS PARA FILAS BAJAS */
-        .big-table td img {{
-            height: 22px !important; /* Escudo pequeño para no estirar la fila */
-            width: auto;
-            vertical-align: middle;
-            margin-right: 5px;
-        }}
-
-        /* --- CONTROL DE ANCHO DE COLUMNAS (CINDY) --- */
-        /* Forzamos a las columnas de números a ser estrechas */
-        /* POS */ .big-table th:nth-child(1), .big-table td:nth-child(1) {{ width: 25px !important; }}
-        /* PTS */ .big-table th:nth-child(3), .big-table td:nth-child(3) {{ width: 30px !important; }}
-        /* PJ */  .big-table th:nth-child(4), .big-table td:nth-child(4) {{ width: 30px !important; }}
-        /* GF */  .big-table th:nth-child(5), .big-table td:nth-child(5) {{ width: 30px !important; }}
-        /* GC */  .big-table th:nth-child(6), .big-table td:nth-child(6) {{ width: 30px !important; }}
-        /* DG */  .big-table th:nth-child(7), .big-table td:nth-child(7) {{ width: 30px !important; }}
-        /* EQUIPO (El resto del espacio) */
-        .big-table th:nth-child(2), .big-table td:nth-child(2) {{ 
-            text-align: left !important; 
-            padding-left: 5px !important;
-            white-space: nowrap; /* Evita que nombres largos rompan la fila en dos */
-            overflow: hidden; text-overflow: ellipsis; /* Corta con '...' si es muy largo */
-        }}
-
-        /* 4. OTROS AJUSTES COMPACTOS */
-        h1, h2, h3 {{ margin-bottom: 2px !important; font-size: 1.5rem !important; }}
-        [data-testid="stDecoration"] {{ background: #FFD700 !important; height: 2px !important; }}
-        button[data-baseweb="tab"] {{ padding: 5px !important; }}
 
     </style>
 """, unsafe_allow_html=True)
-
-    
 
 
 
@@ -1250,6 +1220,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
