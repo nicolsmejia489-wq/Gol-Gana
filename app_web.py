@@ -1025,7 +1025,6 @@ if fase_actual == "inscripcion":
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (DISEÑO PREMIUM) ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
-        st.subheader("📅 Calendario Oficial")
         
         # --- CONFIGURACIÓN GRÁFICA ---
         # 🔴 PEGA AQUÍ LA URL DE TU IMAGEN HORIZONTAL DE CLOUDINARY
@@ -1399,6 +1398,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
