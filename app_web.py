@@ -75,18 +75,21 @@ st.markdown(f"""
             background-size: cover !important;
             background-position: center center !important;
             background-attachment: fixed !important;
+            background-repeat: no-repeat !important;
         }}
 
         .stApp::before {{
-            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 0;
+            content: ""; 
+            position: absolute; 
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75); 
+            pointer-events: none; 
+            z-index: 0;
         }}
 
-     
-        #   3. ACENTOS DINÁMICOS (USANDO {color_primario})
-      
+        /* 3. ACENTOS DINÁMICOS (Variable: {color_primario}) */
         
-        /* Línea superior de Streamlit */
+        /* Línea decorativa superior */
         [data-testid="stDecoration"] {{ 
             background: {color_primario} !important; 
             height: 3px !important; 
@@ -105,15 +108,15 @@ st.markdown(f"""
         div.stButton > button, div.stFormSubmitButton > button {{
             background-color: rgba(0, 0, 0, 0.6) !important;
             color: #ffffff !important;
-            border: 1px solid {color_primario} !important; /* Borde dinámico */
+            border: 1px solid {color_primario} !important;
             border-radius: 4px !important;
             transition: 0.3s all;
         }}
 
         div.stButton > button:hover {{
-            background-color: {color_primario} !important; /* Fondo dinámico al pasar el mouse */
+            background-color: {color_primario} !important;
             color: #000000 !important;
-            box-shadow: 0px 0px 15px {color_primario}66; /* Brillo sutil del mismo color */
+            box-shadow: 0px 0px 15px {color_primario}66; /* El '66' añade transparencia al brillo */
         }}
 
         /* Títulos secundarios o resaltados */
@@ -123,7 +126,6 @@ st.markdown(f"""
 
     </style>
 """, unsafe_allow_html=True)
-
 
 
 
@@ -1231,6 +1233,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
