@@ -848,57 +848,85 @@ if fase_actual == "inscripcion":
 
 
     
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (Versión Ultra-Compacta Móvil) ---
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
         st.subheader("📅 Calendario Oficial")
         
-        with get_db_connection() as conn:
+        try:
+            # Usamos el objeto 'conn' directamente para leer los partidos
             df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
+            # Traemos los escudos actualizados (por si el admin los cambió)
             df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
             escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
-        
-        j_tabs = st.tabs(["J1", "J2", "J3"]) # Nombres cortos para ahorrar espacio en móvil
-        
-        for i, jt in enumerate(j_tabs):
-            with jt:
-                df_j = df_p[df_p['jornada'] == (i + 1)]
-                
-                for _, p in df_j.iterrows():
-                    res_text = "vs"
-                    if p['goles_l'] is not None and p['goles_v'] is not None:
-                        try:
-                            res_text = f"{int(p['goles_l'])}-{int(p['goles_v'])}"
-                        except: res_text = "vs"
-                    
-                    esc_l = escudos_dict.get(p['local']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                    esc_v = escudos_dict.get(p['visitante']) or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+        except Exception as e:
+            st.error(f"Error al cargar partidos: {e}")
+            df_p = pd.DataFrame()
 
-                    # --- DISEÑO DE FILA ULTRA COMPACTA ---
-                    # Reducimos a 3 columnas principales para evitar que Streamlit las apile en el celular
-                    with st.container():
-                        col_izq, col_cnt, col_der = st.columns([1, 0.8, 1])
-                        
-                        # Local: Escudo + Nombre (Markdown pegado)
-                        with col_izq:
-                            st.markdown(f"<div style='display: flex; align-items: center; gap: 5px; font-size: 12px;'> <img src='{esc_l}' width='25'> <b>{p['local'][:8]}</b> </div>", unsafe_allow_html=True)
-                        
-                        # Marcador: Centro
-                        with col_cnt:
-                            st.markdown(f"<div style='text-align: center; background: #31333F; color: white; border-radius: 5px; font-weight: bold; font-size: 12px;'>{res_text}</div>", unsafe_allow_html=True)
-                        
-                        # Visitante: Nombre + Escudo (Markdown pegado)
-                        with col_der:
-                            st.markdown(f"<div style='display: flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 12px;'> <b>{p['visitante'][:8]}</b> <img src='{esc_v}' width='25'> </div>", unsafe_allow_html=True)
-                        
-                        # Evidencias: Botón minimalista
-                        if p['url_foto_l'] or p['url_foto_v']:
-                            if st.button(f"📷 Ver", key=f"v_{p['id']}", use_container_width=True):
-                                c_ev1, c_ev2 = st.columns(2)
-                                if p['url_foto_l']: c_ev1.image(p['url_foto_l'])
-                                if p['url_foto_v']: c_ev2.image(p['url_foto_v'])
+        if not df_p.empty:
+            j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
+            
+            for i, jt in enumerate(j_tabs):
+                with jt:
+                    df_j = df_p[df_p['jornada'] == (i + 1)]
                     
-                    st.divider() # Línea más delgada que st.markdown("---")
+                    for _, p in df_j.iterrows():
+                        # Lógica de Marcador
+                        res_text = "vs"
+                        if p['goles_l'] is not None and p['goles_v'] is not None:
+                            try:
+                                res_text = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                            except: res_text = "vs"
+                        
+                        # Escudos con respaldo (Placeholder si no hay)
+                        placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                        esc_l = escudos_dict.get(p['local']) or placeholder
+                        esc_v = escudos_dict.get(p['visitante']) or placeholder
+
+                        # --- DISEÑO DE FILA ELITE (Alineación Forzada) ---
+                        with st.container():
+                            # Columnas con pesos específicos para evitar saltos de línea en móvil
+                            col_izq, col_cnt, col_der = st.columns([1.2, 0.6, 1.2])
+                            
+                            # Local (Alineado a la derecha del contenedor)
+                            with col_izq:
+                                st.markdown(f"""
+                                    <div style='display: flex; align-items: center; justify-content: flex-end; gap: 8px;'>
+                                        <span style='font-size: 13px; font-weight: bold; white-space: nowrap;'>{p['local'][:10]}</span>
+                                        <img src='{esc_l}' width='26' height='26' style='object-fit: contain;'>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            
+                            # Marcador (Centro)
+                            with col_cnt:
+                                # Usamos el color_maestro para el fondo del marcador
+                                color_bg = color_maestro if 'color_maestro' in locals() else "#31333F"
+                                st.markdown(f"""
+                                    <div style='text-align: center; background: {color_bg}; color: #000; 
+                                    border-radius: 4px; font-weight: bold; font-size: 13px; padding: 2px 0;'>
+                                        {res_text}
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            
+                            # Visitante (Alineado a la izquierda del contenedor)
+                            with col_der:
+                                st.markdown(f"""
+                                    <div style='display: flex; align-items: center; justify-content: flex-start; gap: 8px;'>
+                                        <img src='{esc_v}' width='26' height='26' style='object-fit: contain;'>
+                                        <span style='font-size: 13px; font-weight: bold; white-space: nowrap;'>{p['visitante'][:10]}</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            
+                            # Botón de Evidencias (Solo si existen fotos)
+                            if p.get('url_foto_l') or p.get('url_foto_v'):
+                                if st.button(f"📷 Ver Evidencia", key=f"v_{p['id']}", use_container_width=True):
+                                    c1, c2 = st.columns(2)
+                                    if p['url_foto_l']: c1.image(p['url_foto_l'], caption="Local")
+                                    if p['url_foto_v']: c2.image(p['url_foto_v'], caption="Visitante")
+                        
+                        st.divider()
+        else:
+            st.info("El calendario se mostrará cuando inicie el torneo.")
 
 
 
@@ -1207,6 +1235,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
