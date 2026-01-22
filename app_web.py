@@ -348,9 +348,10 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
 
 
 def generar_calendario():
+    import random # Aseguramos la importación dentro o al inicio del script
     try:
         with conn.connect() as db:
-            # 1. Obtener solo los equipos reales aprobados (ignorando 'Sistema')
+            # 1. Obtener equipos reales aprobados (ignorando 'Sistema')
             res = db.execute(text("SELECT nombre FROM equipos WHERE estado = 'aprobado' AND nombre != 'Sistema'"))
             equipos = [row[0] for row in res.fetchall()]
             n_reales = len(equipos)
@@ -359,7 +360,7 @@ def generar_calendario():
                 st.error("Se necesitan al menos 2 equipos para generar un calendario.")
                 return
 
-            # 2. Determinar cupos para la siguiente fase según las nuevas reglas
+            # 2. DETERMINAR CUPOS PARA PLAY-OFFS (Tus nuevas reglas)
             if 25 <= n_reales <= 32:
                 cupos = 16  # Clasifican a Octavos
             elif 16 <= n_reales <= 24:
@@ -367,11 +368,11 @@ def generar_calendario():
             elif 8 <= n_reales < 16:
                 cupos = 4   # Clasifican a Semifinales
             else:
-                cupos = 2   # Caso excepcional para torneos muy pequeños (Final directa)
+                cupos = 2   # Final directa
 
-            # Guardamos el número de clasificados en la configuración
+            # Guardamos los cupos en la tabla 'config' (Sincronizado)
             db.execute(text("""
-                INSERT INTO configuracion (clave, valor) 
+                INSERT INTO config (clave, valor) 
                 VALUES ('cupos_clasificados', :v) 
                 ON CONFLICT (clave) DO UPDATE SET valor = :v
             """), {"v": str(cupos)})
@@ -379,41 +380,38 @@ def generar_calendario():
             # 3. Mezclar equipos para aleatoriedad total
             random.shuffle(equipos)
 
-            # 4. Generar 3 Jornadas Aleatorias
-            # Si el número de equipos es impar, un equipo descansará por jornada
+            # 4. Generar 3 Jornadas (Sistema Round Robin sin WO)
+            # Si es impar, el algoritmo manejará un "descanso" automáticamente
             equipos_sorteo = equipos.copy()
             if len(equipos_sorteo) % 2 != 0:
-                equipos_sorteo.append(None) # 'None' representa el descanso (Bye)
+                equipos_sorteo.append(None) # None = Equipo que descansa
 
             n_sorteo = len(equipos_sorteo)
             indices = list(range(n_sorteo))
 
-            for jor in range(1, 4): # Generamos exactamente 3 jornadas
+            for jor in range(1, 4): # 3 Jornadas fijas
                 for i in range(n_sorteo // 2):
-                    loc_idx = indices[i]
-                    vis_idx = indices[n_sorteo - 1 - i]
+                    loc = equipos_sorteo[indices[i]]
+                    vis = equipos_sorteo[indices[n_sorteo - 1 - i]]
 
-                    loc = equipos_sorteo[loc_idx]
-                    vis = equipos_sorteo[vis_idx]
-
-                    # Solo insertamos el partido si no es un descanso (ambos equipos existen)
-                    if loc is not None and vis is not None:
+                    # Solo insertamos si ninguno es 'None' (el descanso no se escribe en la DB)
+                    if loc and vis:
                         db.execute(text("""
                             INSERT INTO partidos (local, visitante, jornada, estado) 
                             VALUES (:l, :v, :j, 'Programado')
                         """), {"l": loc, "v": vis, "j": jor})
 
-                # Rotación Round Robin para asegurar que no se repitan enfrentamientos
+                # Rotación de índices (Algoritmo de la Tuerca)
                 indices = [indices[0]] + [indices[-1]] + indices[1:-1]
 
-            # 5. Actualizar Fase del Torneo
-            db.execute(text("UPDATE configuracion SET valor = 'clasificacion' WHERE clave = 'fase_actual'"))
+            # 5. ACTUALIZAR FASE DEL TORNEO (Sincronizado con tu tabla 'config')
+            db.execute(text("UPDATE config SET valor = 'clasificacion' WHERE clave = 'fase_actual'"))
+            
+            # Confirmar cambios en Neon
             db.commit()
             
-            st.success(f"¡Calendario generado! {n_reales} equipos compitiendo por {cupos} cupos.")
-            
     except Exception as e:
-        st.error(f"Error generando el calendario: {e}")
+        st.error(f"Error crítico en el calendario: {e}")
         
 ###FIN GENERAR CALENDARIO
 
@@ -1209,6 +1207,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
