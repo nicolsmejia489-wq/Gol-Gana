@@ -419,6 +419,143 @@ def generar_calendario():
 ###FIN GENERAR CALENDARIO
 
 
+
+
+#####EN DESARROLLO/PRUEBA
+def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
+    """
+    Genera el HTML de una tarjeta de partido estilo 'Glass-Card' horizontal.
+    """
+    # Si no hay color, usamos dorado por defecto
+    if not color_tema: color_tema = "#FFD700"
+    
+    html_code = f"""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
+        
+        .match-card-container {{
+            position: relative;
+            width: 100%;
+            max-width: 700px; /* Ancho máximo para PC */
+            margin: 0 auto 15px auto; /* Centrado y margen inferior */
+            aspect-ratio: 5 / 1; /* Mantiene la proporción de la barra (ajustar según tu imagen real) */
+            
+            background-image: url('{url_fondo}');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            background-position: center;
+            
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            
+            border-radius: 8px; /* Un poco de borde redondeado si la imagen lo permite */
+            /* El brillo dinámico (Glow) */
+            box-shadow: 0 0 10px {color_tema}40, inset 0 0 5px {color_tema}20; 
+            border: 1px solid {color_tema}60;
+            
+            font-family: 'Oswald', sans-serif;
+            color: white;
+            overflow: hidden;
+        }}
+
+        /* ZONA LOCAL (Izquierda) */
+        .team-box-left {{
+            width: 38%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end; /* Pegado al centro */
+            padding-right: 2%; 
+            gap: 10px;
+        }}
+
+        /* ZONA VISITANTE (Derecha) */
+        .team-box-right {{
+            width: 38%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start; /* Pegado al centro */
+            padding-left: 2%;
+            gap: 10px;
+        }}
+
+        /* ZONA MARCADOR (Centro) */
+        .score-box {{
+            width: 24%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            color: {color_tema}; /* El marcador brilla con el color del equipo */
+            padding-top: 4px; /* Ajuste fino vertical */
+        }}
+
+        /* ESTILOS DE TEXTO Y LOGOS */
+        .team-name {{
+            font-size: 16px;
+            font-weight: 500;
+            text-transform: uppercase;
+            text-shadow: 0 2px 2px rgba(0,0,0,0.9);
+            line-height: 1.1;
+        }}
+        
+        .team-logo {{
+            width: 45px; /* Tamaño del escudo */
+            height: 45px;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+        }}
+
+        /* AJUSTES PARA CELULAR */
+        @media (max-width: 480px) {{
+            .match-card-container {{
+                aspect-ratio: 4 / 1; /* Un poco más alta en celular para que quepa todo */
+            }}
+            .team-name {{ font-size: 11px; }}
+            .team-logo {{ width: 30px; height: 30px; }}
+            .score-box {{ font-size: 18px; }}
+        }}
+    </style>
+
+    <div class="match-card-container">
+        <div class="team-box-left">
+            <div class="team-name" style="text-align: right;">{local}</div>
+            <img src="{escudo_l}" class="team-logo">
+        </div>
+
+        <div class="score-box">
+            {marcador_texto}
+        </div>
+
+        <div class="team-box-right">
+            <img src="{escudo_v}" class="team-logo">
+            <div class="team-name" style="text-align: left;">{visita}</div>
+        </div>
+    </div>
+    """
+    return html_code
+
+####FIN DESARROLLO/PRUEBA
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # --- 3. NAVEGACIÓN (Inicialización de Estado) ---
 if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
 if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
@@ -1243,6 +1380,23 @@ if rol == "admin":
 
 
 
+st.subheader("🧪 Test de Diseño Híbrido")
+
+# 1. PEGA AQUÍ LA URL QUE TE DIO CLOUDINARY (La de la imagen horizontal)
+url_plantilla = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" 
+
+# Datos falsos para probar
+html_prueba = renderizar_tarjeta_partido(
+    local="Real Madrid",
+    visita="Manchester City",
+    escudo_l="https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/1200px-Real_Madrid_CF.svg.png",
+    escudo_v="https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/1200px-Manchester_City_FC_badge.svg.png",
+    marcador_texto="2 - 1",
+    color_tema="#00FFCC", # Un color neón para ver el brillo
+    url_fondo=url_plantilla
+)
+
+st.markdown(html_prueba, unsafe_allow_html=True)
 
 
 
