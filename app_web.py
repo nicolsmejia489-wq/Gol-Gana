@@ -425,10 +425,10 @@ def generar_calendario():
 def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
     if not color_tema: color_tema = "#FFD700"
     
-    # AJUSTES DE ESPACIO
-    # Equipos: Pasan del 35% al 39% cada uno
-    # Centro: Baja del 20% al 18% (suficiente para el marcador)
-    # Total: 39 + 39 + 18 = 96% (dejamos 4% de aire para gaps y bordes)
+    # AJUSTES DE ESPACIO V3 (Nombres Expandidos)
+    # Equipos: Suben al 42% cada uno
+    # Centro: Baja al 12% (Compacto)
+    # Paddings de texto: Bajan de 18px a 4px (Para pegar el texto al marcador)
     
     estilo = f"""
     <style>
@@ -449,15 +449,15 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             filter: drop-shadow(0 0 4px {color_tema});
         }}
         .zona-equipo {{
-            width: 39%; /* AUMENTADO: Antes 35% */
+            width: 42%; /* AUMENTADO: Antes 39% */
             height: 100%;
             display: flex;
             align-items: center;
-            gap: 12px;
-            overflow: hidden; /* Seguridad para que no rompa el layout */
+            gap: 10px; /* Gap ligeramente reducido para ganar espacio */
+            overflow: hidden; 
         }}
         .zona-centro {{
-            width: 18%; /* REDUCIDO: Antes 20% */
+            width: 12%; /* REDUCIDO: Antes 18% */
             height: 100%;
             display: flex;
             align-items: center;
@@ -467,19 +467,20 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             text-shadow: 0 2px 4px black;
             color: {color_tema};
             padding-top: 6px;
+            z-index: 2; /* Asegura que esté por encima */
         }}
         
-        /* ESTILOS DE TEXTO: FORZAMOS UNA SOLA LÍNEA */
+        /* ESTILOS DE TEXTO: MÁXIMA PROXIMIDAD */
         .txt-local {{ 
             text-align: right; 
             width: 100%; 
             font-size: 17px; 
             text-transform: uppercase; 
-            padding-right: 18px; 
+            padding-right: 4px; /* REDUCIDO: Antes 18px. Ahora pega casi al centro */
             line-height: 1.1; 
-            white-space: nowrap; /* PROHIBIDO SALTAR LÍNEA */
+            white-space: nowrap; 
             overflow: hidden;
-            text-overflow: ellipsis; /* Pone '...' si es infinito */
+            text-overflow: ellipsis; 
         }}
         
         .txt-visit {{ 
@@ -487,9 +488,9 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             width: 100%; 
             font-size: 17px; 
             text-transform: uppercase; 
-            padding-left: 18px; 
+            padding-left: 4px; /* REDUCIDO: Antes 18px */
             line-height: 1.1; 
-            white-space: nowrap; /* PROHIBIDO SALTAR LÍNEA */
+            white-space: nowrap; 
             overflow: hidden;
             text-overflow: ellipsis;
         }}
@@ -497,7 +498,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
         .logo-img {{
             width: 48px;  
             height: 48px; 
-            min-width: 48px; /* Evita que el logo se aplaste si el texto empuja */
+            min-width: 48px; 
             object-fit: contain;
             filter: drop-shadow(0 3px 3px black);
         }}
@@ -507,9 +508,10 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 
         @media (max-width: 480px) {{
             .card-container {{ height: 84px; }} 
-            .txt-local, .txt-visit {{ font-size: 12px; }} 
+            .txt-local, .txt-visit {{ font-size: 12px; padding-right: 2px; padding-left: 2px; }} 
             .logo-img {{ width: 36px; height: 36px; min-width: 36px; }} 
-            .zona-centro {{ font-size: 22px; }} 
+            .zona-centro {{ font-size: 22px; width: 14%; }} /* Un poco más ancho en móvil para que quepa el VS */
+            .zona-equipo {{ width: 41%; }}
         }}
     </style>
     """
@@ -1384,6 +1386,7 @@ html_prueba = renderizar_tarjeta_partido(
 )
 
 st.markdown(html_prueba, unsafe_allow_html=True)
+
 
 
 
