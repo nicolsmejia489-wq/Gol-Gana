@@ -534,7 +534,7 @@ with tabs[2]:
         # --- BLOQUE DE GESTIÓN DT ---
         st.header(f"⚽ Gestión: {equipo_usuario}")
         if fase_actual == "inscripcion":
-            st.info("👋 ¡Hola DT! Tu equipo ya está aprobado. El torneo aún no comienza, espera a que el administrador genere el calendario.")
+            st.info("👋 ¡Hola DT! Tu equipo ya está aprobado. El torneo aún no comienza, espera a que se genere el calendario.")
         else:
             st.success("✅ Torneo en curso. Aquí podrás reportar tus marcadores.")
             # Próximo paso: Formulario de reporte para el DT
@@ -663,7 +663,7 @@ if fase_actual == "inscripcion":
 
         # --- ESTADO: ÉXITO ---
         if st.session_state.reg_estado == "exito":
-            st.success("✅ ¡Inscripción recibida! El administrador revisará tu solicitud.")
+            st.success("✅ ¡Inscripción recibida! Se estara revisando tu solicitud.")
             if st.button("Nuevo Registro"): 
                 st.session_state.datos_temp = {"n": "", "wa": "", "pin": "", "pref": "+57", "escudo_obj": None}
                 st.session_state.reg_estado = "formulario"
@@ -1219,6 +1219,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
