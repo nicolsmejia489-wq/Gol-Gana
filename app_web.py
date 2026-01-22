@@ -22,12 +22,20 @@ from io import BytesIO
 
 
 
+
+
 # 1. CONFIGURACIÓN PRINCIPAL
 st.set_page_config(
     page_title="Gol-Gana Pro", 
     layout="centered", 
     initial_sidebar_state="collapsed"
 )
+# --- VALORES MAESTROS DE DISEÑO ---
+# Estos valores se actualizan con la base de datos, pero aquí definimos los nombres
+color_maestro = "#FFD700"  # Se sobreescribe con el motor de colores
+
+
+
 
 # --- 2. GESTIÓN DE CONEXIÓN ---
 @st.cache_resource
@@ -45,6 +53,10 @@ conn = get_db_connection()
 # --- 3. RECUPERACIÓN EXCLUSIVA DEL FONDO ---
 # Fondo por defecto (Estadio base)
 fondo_actual = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
+fondo_url = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769049958/fondos_dinamicos/fondo_web_v2.png"
+
+
+
 
 if conn:
     try:
@@ -60,81 +72,44 @@ if conn:
 
 
 
-# ==============================================================================
-# 🎨 CONFIGURACIÓN DE IMAGEN Y COLOR (Línea Única de Control)
-# ==============================================================================
-
-# 1. Definir valores por defecto (Si la base de datos falla, se verá así)
-final_bg = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
-final_color = "#FFD700" # Dorado por defecto
-
-# 2. Intentar actualizar con datos reales de la DB
-# (Asumimos que fondo_actual y color_primario vienen de tu consulta SQL anterior)
-try:
-    if 'fondo_actual' in locals() and fondo_actual:
-        final_bg = fondo_actual
-    if 'color_primario' in locals() and color_primario:
-        final_color = color_primario
-except NameError:
-    pass # Si las variables no existen, se mantienen los valores por defecto
-
-# 3. Plantilla de CSS (Texto plano para evitar errores de llaves {})
-css_template = """
+# --- INYECCIÓN DE CSS GLOBAL DINÁMICO ---
+plantilla_css_global = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-    /* FUENTE Y COLOR GLOBAL */
-    * { 
-        font-family: 'Oswald', sans-serif !important; 
-        color: #ffffff !important; 
-    }
+    /* Todo en Oswald y Blanco por defecto */
+    * { font-family: 'Oswald', sans-serif !important; color: #ffffff !important; }
 
-    /* FONDO DINÁMICO */
+    /* Fondo de Pantalla */
     [data-testid="stAppViewContainer"] {
-        background-color: #000000 !important;
-        background-image: url("URL_DE_FONDO") !important;
+        background-image: url("URL_FONDO") !important;
         background-size: cover !important;
-        background-position: center center !important;
         background-attachment: fixed !important;
     }
 
-    /* CAPA OSCURA */
-    .stApp::before {
-        content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 0;
-    }
+    /* Acentos Dinámicos: Línea superior, Tabs y Botones */
+    [data-testid="stDecoration"] { background: COLOR_DINAMICO !important; }
+    
+    div[data-baseweb="tab-highlight"] { background-color: COLOR_DINAMICO !important; }
+    
+    button[data-baseweb="tab"][aria-selected="true"] p { color: COLOR_DINAMICO !important; }
 
-    /* ACENTOS DINÁMICOS */
-    [data-testid="stDecoration"] { 
-        background: COLOR_MAESTRO !important; 
-    }
-
-    div[data-baseweb="tab-highlight"] {
-        background-color: COLOR_MAESTRO !important;
+    div.stButton > button { 
+        border: 1.5px solid COLOR_DINAMICO !important; 
+        background-color: rgba(0,0,0,0.6) !important;
     }
     
-    button[data-baseweb="tab"][aria-selected="true"] p {
-        color: COLOR_MAESTRO !important;
-    }
-
-    /* BOTONES CON BORDE DINÁMICO */
-    div.stButton > button, div.stFormSubmitButton > button {
-        background-color: rgba(0, 0, 0, 0.6) !important;
-        color: #ffffff !important;
-        border: 1px solid COLOR_MAESTRO !important;
-        border-radius: 4px !important;
-    }
-
-    div.stButton > button:hover {
-        background-color: COLOR_MAESTRO !important;
-        color: #000000 !important;
+    div.stButton > button:hover { 
+        background-color: COLOR_DINAMICO !important; 
+        color: #000000 !important; 
     }
 </style>
 """
 
-# 4. Inyección Segura (Reemplazo manual)
-css_final = css_template.replace("URL_DE_FONDO", final_bg).replace("COLOR_MAESTRO", final_color)
+# Reemplazo único para toda la web
+css_final = plantilla_css_global.replace("URL_FONDO", fondo_url).replace("COLOR_DINAMICO", color_maestro)
 st.markdown(css_final, unsafe_allow_html=True)
+
 
 
 
@@ -610,54 +585,52 @@ with tabs[0]:
 
             # 2. DISEÑO SINCRONIZADO (Sin f-strings para evitar errores de llaves)
             plantilla_tabla = """
-            <style>
-                .tabla-pro { 
-                    width: 100%; border-collapse: collapse; table-layout: fixed; 
-                    background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; 
-                }
-                .tabla-pro th { 
-                    background-color: #111; color: COLOR_VAR !important; 
-                    padding: 0px 1px; font-size: 11px; 
-                    border-bottom: 2px solid COLOR_VAR !important; 
-                    text-align: center; height: 32px !important; 
-                }
-                .tabla-pro td { 
-                    padding: 0px 1px !important; text-align: center; 
-                    vertical-align: middle !important; border-bottom: 1px solid #222; 
-                    font-size: 13px; color: white; height: 30px !important; 
-                }
-                .tabla-pro .team-cell { 
-                    text-align: left; padding-left: 5px; 
-                    font-size: 13px; font-weight: bold; 
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-                }
-            </style>
-            """
-            
-            # Aplicamos el color dinámico de forma segura
-            estilos_finales = plantilla_tabla.replace("COLOR_VAR", color_primario)
-            
-            tabla_html = '<table class="tabla-pro"><thead><tr>'
-            tabla_html += '<th style="width:8%">POS</th><th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
-            tabla_html += '<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>'
-            tabla_html += '</tr></thead><tbody>'
+<style>
+    .tabla-pro { 
+        width: 100%; border-collapse: collapse; table-layout: fixed; 
+        background-color: rgba(0,0,0,0.5); 
+        border: 1.5px solid COLOR_DINAMICO !important; 
+    }
+    .tabla-pro th { 
+        background-color: #111; color: #ffffff !important; 
+        padding: 4px 1px; font-size: 11px; 
+        border-bottom: 2px solid COLOR_DINAMICO !important; 
+        text-align: center; height: 32px !important; 
+    }
+    .tabla-pro td { 
+        padding: 0px 1px !important; text-align: center; 
+        vertical-align: middle !important; border-bottom: 1px solid #222; 
+        font-size: 13px; color: white; height: 30px !important; 
+    }
+</style>
+"""
 
-            for _, r in df_f.iterrows():
-                url = mapa_escudos.get(r['EQ'])
-                escudo = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle; margin-right:5px;">' if url else '<span style="font-size:16px; margin-right:5px;">🛡️</span>'
-                
-                tabla_html += "<tr>"
-                tabla_html += f"<td>{r['POS']}</td>"
-                tabla_html += f"<td class='team-cell'>{escudo}{r['EQ']}</td>"
-                # Usamos el color dinámico directamente en la celda de PTS
-                tabla_html += f"<td style='color:{color_primario}; font-weight:bold;'>{r['PTS']}</td>"
-                tabla_html += f"<td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td>"
-                tabla_html += f"<td style='font-size:11px; color:#888;'>{r['DG']}</td>"
-                tabla_html += "</tr>"
+# Aplicamos el color dinámico a la tabla
+estilo_tabla_final = plantilla_tabla.replace("COLOR_DINAMICO", color_maestro)
 
-            tabla_html += "</tbody></table>"
+# Construcción del HTML de la tabla
+tabla_html = f'<table class="tabla-pro"><thead><tr>'
+tabla_html += '<th style="width:8%">POS</th><th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
+# Nota: Aquí en el header de PTS también usamos la variable
+tabla_html += f'<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>'
+tabla_html += '</tr></thead><tbody>'
 
-            st.markdown(estilos_finales + tabla_html, unsafe_allow_html=True)
+for _, r in df_f.iterrows():
+    url = mapa_escudos.get(r['EQ'])
+    escudo = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle; margin-right:5px;">' if url else '🛡️'
+    
+    tabla_html += f"<tr>"
+    tabla_html += f"<td>{r['POS']}</td>"
+    tabla_html += f"<td style='text-align:left; padding-left:5px; font-weight:bold;'>{escudo}{r['EQ']}</td>"
+    # IMPORTANTE: Los puntos ahora brillan con el color dinámico
+    tabla_html += f"<td style='color:{color_maestro}; font-weight:bold;'>{r['PTS']}</td>"
+    tabla_html += f"<td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td>"
+    tabla_html += f"<td style='font-size:11px; color:#888;'>{r['DG']}</td>"
+    tabla_html += "</tr>"
+
+tabla_html += "</tbody></table>"
+
+st.markdown(estilo_tabla_final + tabla_html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error al cargar la clasificación: {e}")
@@ -1232,6 +1205,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
