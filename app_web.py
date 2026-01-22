@@ -1235,7 +1235,7 @@ if rol == "dt":
                         if ya_reporte and estado_str != "Conflicto":
                             st.info("✅ Ya enviaste tu reporte. Esperando confirmación del rival.")
                         else:
-                            with st.expander(f"       📸 Cargar Resultado (J{p['jornada']})", expanded=True):
+                            with st.expander(f"       📸 Publicar Marcador (J{p['jornada']})", expanded=True):
                                 st.write("Sube la foto del resultado final:")
                                 
                                 # USAMOS TABS PARA EVITAR SUPERPOSICIÓN DE TEXTOS
@@ -1494,6 +1494,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
