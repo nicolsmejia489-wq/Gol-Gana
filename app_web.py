@@ -1028,7 +1028,7 @@ elif fase_actual == "clasificacion":
              
         # --- CONFIGURACIÓN GRÁFICA ---
         # 🔴 PEGA AQUÍ LA URL DE TU IMAGEN HORIZONTAL DE CLOUDINARY
-        URL_PLANTILLA_FONDO = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" 
+        URL_PLANTILLA_FONDO = ""https://res.cloudinary.com/..../tu_imagen_barra.png"" 
         
         placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
@@ -1400,6 +1400,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
