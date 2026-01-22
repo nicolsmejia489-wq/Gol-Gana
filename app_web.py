@@ -404,7 +404,7 @@ if "pin_usuario" not in st.session_state: st.session_state.pin_usuario = ""
 
 ####################PORTADA EN PRUEBA
 
-URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769040318/ChatGPT_Image_21_ene_2026_19_05_10_uud7yk.png" 
+URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769050565/a906a330-8b8c-4b52-b131-8c75322bfc10_hwxmqb.png" 
 
 
 
@@ -1250,6 +1250,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
