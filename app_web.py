@@ -574,9 +574,13 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN (Versión Sincronizada con Color Dinámico) ---
+# --- TAB: CLASIFICACIÓN (Versión Blindada y Sincronizada) ---
 with tabs[0]:
     try:
+        # A. VALIDACIÓN DE SEGURIDAD: Si por alguna razón la variable global no llegó, la creamos aquí
+        if 'color_primario' not in locals() and 'color_primario' not in globals():
+            color_primario = "#FFD700" # Dorado de respaldo
+            
         # 1. Obtener datos de Neon
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
@@ -604,73 +608,59 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # 2. DISEÑO SINCRONIZADO (Usamos f-string y doble llave {{ }} para el CSS)
-            estilos = f"""
+            # 2. DISEÑO SINCRONIZADO (Sin f-strings para evitar errores de llaves)
+            plantilla_tabla = """
             <style>
-                .tabla-pro {{ 
-                    width: 100%; 
-                    border-collapse: collapse; 
-                    table-layout: fixed; 
-                    background-color: rgba(0,0,0,0.5); 
-                    font-family: 'Oswald', sans-serif; 
-                }}
-                
-                /* Encabezados con color dinámico */
-                .tabla-pro th {{ 
-                    background-color: #111; 
-                    color: {color_primario} !important; 
+                .tabla-pro { 
+                    width: 100%; border-collapse: collapse; table-layout: fixed; 
+                    background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; 
+                }
+                .tabla-pro th { 
+                    background-color: #111; color: COLOR_VAR !important; 
                     padding: 0px 1px; font-size: 11px; 
-                    border-bottom: 2px solid {color_primario} !important; 
-                    text-align: center;
-                    height: 32px !important; 
-                }}
-                
-                /* Celdas con altura unificada */
-                .tabla-pro td {{ 
-                    padding: 0px 1px !important; 
-                    text-align: center; 
-                    vertical-align: middle !important; 
-                    border-bottom: 1px solid #222; 
-                    font-size: 13px; color: white; 
-                    height: 30px !important; 
-                    box-sizing: border-box;
-                }}
-                
-                .tabla-pro .team-cell {{ 
+                    border-bottom: 2px solid COLOR_VAR !important; 
+                    text-align: center; height: 32px !important; 
+                }
+                .tabla-pro td { 
+                    padding: 0px 1px !important; text-align: center; 
+                    vertical-align: middle !important; border-bottom: 1px solid #222; 
+                    font-size: 13px; color: white; height: 30px !important; 
+                }
+                .tabla-pro .team-cell { 
                     text-align: left; padding-left: 5px; 
                     font-size: 13px; font-weight: bold; 
-                    white-space: nowrap; 
-                    overflow: hidden; 
-                    text-overflow: ellipsis; 
-                }}
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+                }
             </style>
             """
             
+            # Aplicamos el color dinámico de forma segura
+            estilos_finales = plantilla_tabla.replace("COLOR_VAR", color_primario)
+            
             tabla_html = '<table class="tabla-pro"><thead><tr>'
-            tabla_html += f'<th style="width:8%">POS</th><th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
-            tabla_html += f'<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>'
+            tabla_html += '<th style="width:8%">POS</th><th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
+            tabla_html += '<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>'
             tabla_html += '</tr></thead><tbody>'
 
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
                 escudo = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle; margin-right:5px;">' if url else '<span style="font-size:16px; margin-right:5px;">🛡️</span>'
                 
-                tabla_html += f"<tr>"
+                tabla_html += "<tr>"
                 tabla_html += f"<td>{r['POS']}</td>"
                 tabla_html += f"<td class='team-cell'>{escudo}{r['EQ']}</td>"
-                # Color dinámico aplicado también a los puntos (PTS)
+                # Usamos el color dinámico directamente en la celda de PTS
                 tabla_html += f"<td style='color:{color_primario}; font-weight:bold;'>{r['PTS']}</td>"
                 tabla_html += f"<td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td>"
                 tabla_html += f"<td style='font-size:11px; color:#888;'>{r['DG']}</td>"
-                tabla_html += f"</tr>"
+                tabla_html += "</tr>"
 
             tabla_html += "</tbody></table>"
 
-            st.markdown(estilos + tabla_html, unsafe_allow_html=True)
+            st.markdown(estilos_finales + tabla_html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error al cargar la clasificación: {e}")
-
         
 
             
@@ -1242,6 +1232,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
