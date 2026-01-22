@@ -44,7 +44,7 @@ except Exception as e:
 
 # --- 2. INICIALIZACIÓN DE VARIABLES (Valores de Respaldo) ---
 color_maestro = "#FFD700"  # Dorado por defecto
-fondo_url = "URL_ESTADIO_GENERICO"
+fondo_url = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769056355/fondos_dinamicos/fondo_activo_golgana.png"
 
 # --- 3. LÓGICA DE IDENTIDAD (Si hay conexión) ---
 if conn is not None:
@@ -1209,6 +1209,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
