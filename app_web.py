@@ -422,13 +422,8 @@ def generar_calendario():
 
 
 #####EN DESARROLLO/PRUEBA
-def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
+def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo=None): # url_fondo ya no es necesario
     if not color_tema: color_tema = "#FFD700"
-    
-    # AJUSTES DE ESPACIO V3 (Nombres Expandidos)
-    # Equipos: Suben al 42% cada uno
-    # Centro: Baja al 12% (Compacto)
-    # Paddings de texto: Bajan de 18px a 4px (Para pegar el texto al marcador)
     
     estilo = f"""
     <style>
@@ -438,80 +433,76 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             max-width: 840px; 
             height: 108px;    
             margin: 0 auto 12px auto; 
-            background-image: url('{url_fondo}');
-            background-size: 100% 100%;
-            background-repeat: no-repeat;
+            
+            /* EL SECRETO: Fondo degradado sutil en lugar de imagen */
+            background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 20%, rgba(0,0,0,0.4) 80%, rgba(0,0,0,0) 100%);
+            
+            /* Borde inferior brillante sutil */
+            border-bottom: 1px solid {color_tema}40;
+            
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-family: 'Oswald', sans-serif;
             color: white;
-            filter: drop-shadow(0 0 4px {color_tema});
+            
+            /* El brillo global */
+            filter: drop-shadow(0 0 3px {color_tema});
+            transition: transform 0.2s;
         }}
+        
+        .card-container:hover {{
+            transform: scale(1.02);
+            background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0) 100%);
+        }}
+
         .zona-equipo {{
-            width: 42%; /* AUMENTADO: Antes 39% */
+            width: 42%; 
             height: 100%;
             display: flex;
             align-items: center;
-            gap: 10px; /* Gap ligeramente reducido para ganar espacio */
+            gap: 15px; /* Más aire entre elementos */
             overflow: hidden; 
         }}
+        
         .zona-centro {{
-            width: 12%; /* REDUCIDO: Antes 18% */
+            width: 12%; 
             height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 31px; 
+            font-size: 38px; /* Números más grandes y limpios */
             font-weight: bold;
-            text-shadow: 0 2px 4px black;
-            color: {color_tema};
+            text-shadow: 0 0 10px {color_tema}; /* El marcador brilla como neón */
+            color: white; 
             padding-top: 6px;
-            z-index: 2; /* Asegura que esté por encima */
+            z-index: 2;
         }}
         
-        /* ESTILOS DE TEXTO: MÁXIMA PROXIMIDAD */
         .txt-local {{ 
-            text-align: right; 
-            width: 100%; 
-            font-size: 17px; 
-            text-transform: uppercase; 
-            padding-right: 4px; /* REDUCIDO: Antes 18px. Ahora pega casi al centro */
-            line-height: 1.1; 
-            white-space: nowrap; 
-            overflow: hidden;
-            text-overflow: ellipsis; 
+            text-align: right; width: 100%; font-size: 20px; font-weight: 300; /* Fuente más fina y elegante */
+            text-transform: uppercase; padding-right: 4px; line-height: 1.1; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 1px;
         }}
-        
         .txt-visit {{ 
-            text-align: left; 
-            width: 100%; 
-            font-size: 17px; 
-            text-transform: uppercase; 
-            padding-left: 4px; /* REDUCIDO: Antes 18px */
-            line-height: 1.1; 
-            white-space: nowrap; 
-            overflow: hidden;
-            text-overflow: ellipsis;
+            text-align: left; width: 100%; font-size: 20px; font-weight: 300;
+            text-transform: uppercase; padding-left: 4px; line-height: 1.1; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 1px;
         }}
         
         .logo-img {{
-            width: 48px;  
-            height: 48px; 
-            min-width: 48px; 
-            object-fit: contain;
-            filter: drop-shadow(0 3px 3px black);
+            width: 55px; height: 55px; min-width: 55px; /* Escudos un poco más grandes */
+            object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.8));
         }}
         
-        .pad-l {{ padding-left: 24px; }}
-        .pad-r {{ padding-right: 24px; justify-content: flex-end; }}
+        .pad-l {{ padding-left: 10px; }}
+        .pad-r {{ padding-right: 10px; justify-content: flex-end; }}
 
         @media (max-width: 480px) {{
             .card-container {{ height: 84px; }} 
-            .txt-local, .txt-visit {{ font-size: 12px; padding-right: 2px; padding-left: 2px; }} 
-            .logo-img {{ width: 36px; height: 36px; min-width: 36px; }} 
-            .zona-centro {{ font-size: 22px; width: 14%; }} /* Un poco más ancho en móvil para que quepa el VS */
-            .zona-equipo {{ width: 41%; }}
+            .txt-local, .txt-visit {{ font-size: 14px; }} 
+            .logo-img {{ width: 40px; height: 40px; min-width: 40px; }} 
+            .zona-centro {{ font-size: 24px; width: 14%; }} 
         }}
     </style>
     """
@@ -530,6 +521,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
     </div>
     """
     return estilo + html
+    
 ####FIN DESARROLLO/PRUEBA
 
 
@@ -1398,6 +1390,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
