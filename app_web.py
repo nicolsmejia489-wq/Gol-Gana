@@ -57,18 +57,18 @@ if conn:
     except:
         pass
 
-# --- INYECCIÓN DE CSS: ESTRUCTURA Y ATMÓSFERA GLOBAL ---
+# --- INYECCIÓN DE CSS: CONTROL TOTAL POR VARIABLE ---
 st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-        /* 1. RESET Y TIPOGRAFÍA UNIVERSAL */
+        /* 1. RESET Y TIPOGRAFÍA */
         * {{ 
             font-family: 'Oswald', sans-serif !important; 
             color: #ffffff !important; 
         }}
 
-        /* 2. FONDO DINÁMICO Y CAPA DE CONTRASTE */
+        /* 2. FONDO DINÁMICO */
         [data-testid="stAppViewContainer"] {{
             background-color: #000000 !important;
             background-image: url("{fondo_actual}") !important;
@@ -77,50 +77,54 @@ st.markdown(f"""
             background-attachment: fixed !important;
         }}
 
-        /* Overlay para asegurar que el texto siempre sea legible */
         .stApp::before {{
-            content: ""; 
-            position: absolute; 
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.75); 
-            pointer-events: none; 
-            z-index: 0;
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 0;
         }}
 
-        /* 3. TÍTULOS Y ENCABEZADOS */
-        h1, h2, h3 {{ 
-            margin-bottom: 10px !important; 
-            text-transform: uppercase;
-            font-weight: 700 !important;
-            text-shadow: 2px 2px 4px rgba(0,0,0,1) !important;
-        }}
-
-        /* 4. AJUSTES DE INTERFAZ STREAMLIT */
-        /* Línea decorativa superior */
+        /* ================================================================
+           3. ACENTOS DINÁMICOS (USANDO {color_primario})
+        ================================================================ */
+        
+        /* Línea superior de Streamlit */
         [data-testid="stDecoration"] {{ 
-            background: #FFD700 !important; 
+            background: {color_primario} !important; 
             height: 3px !important; 
         }}
 
-        /* Pestañas (Tabs) más compactas */
-        button[data-baseweb="tab"] {{ 
-            padding: 10px 15px !important; 
-            text-transform: uppercase;
+        /* Pestañas (Tabs) activas */
+        div[data-baseweb="tab-highlight"] {{
+            background-color: {color_primario} !important;
         }}
         
-        /* Color de la pestaña activa */
-        div[data-baseweb="tab-highlight"] {{
-            background-color: #FFD700 !important;
+        button[data-baseweb="tab"][aria-selected="true"] p {{
+            color: {color_primario} !important;
         }}
 
-        /* 5. ELIMINAR ESPACIOS INNECESARIOS EN MÓVIL */
-        .block-container {{
-            padding-top: 2rem !important;
-            padding-bottom: 1rem !important;
+        /* Botones: Bordes y efecto Hover */
+        div.stButton > button, div.stFormSubmitButton > button {{
+            background-color: rgba(0, 0, 0, 0.6) !important;
+            color: #ffffff !important;
+            border: 1px solid {color_primario} !important; /* Borde dinámico */
+            border-radius: 4px !important;
+            transition: 0.3s all;
+        }}
+
+        div.stButton > button:hover {{
+            background-color: {color_primario} !important; /* Fondo dinámico al pasar el mouse */
+            color: #000000 !important;
+            box-shadow: 0px 0px 15px {color_primario}66; /* Brillo sutil del mismo color */
+        }}
+
+        /* Títulos secundarios o resaltados */
+        .highlight-text {{
+            color: {color_primario} !important;
         }}
 
     </style>
 """, unsafe_allow_html=True)
+
+
 
 
 
@@ -559,7 +563,7 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN (Versión de Altura Unificada) ---
+# --- TAB: CLASIFICACIÓN (Versión Sincronizada con Color Dinámico) ---
 with tabs[0]:
     try:
         # 1. Obtener datos de Neon
@@ -589,55 +593,62 @@ with tabs[0]:
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # 2. DISEÑO CON ALTURA UNIFICADA
-            estilos = """
+            # 2. DISEÑO SINCRONIZADO (Usamos f-string y doble llave {{ }} para el CSS)
+            estilos = f"""
             <style>
-                .tabla-pro { width: 100%; border-collapse: collapse; table-layout: fixed; background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; }
+                .tabla-pro {{ 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    table-layout: fixed; 
+                    background-color: rgba(0,0,0,0.5); 
+                    font-family: 'Oswald', sans-serif; 
+                }}
                 
-                /* Altura fija para encabezados */
-                .tabla-pro th { 
-                    background-color: #111; color: #FFD700; 
+                /* Encabezados con color dinámico */
+                .tabla-pro th {{ 
+                    background-color: #111; 
+                    color: {color_primario} !important; 
                     padding: 0px 1px; font-size: 11px; 
-                    border-bottom: 2px solid #FFD700; text-align: center;
+                    border-bottom: 2px solid {color_primario} !important; 
+                    text-align: center;
                     height: 32px !important; 
-                }
+                }}
                 
-                /* Altura fija para celdas de datos */
-                .tabla-pro td { 
+                /* Celdas con altura unificada */
+                .tabla-pro td {{ 
                     padding: 0px 1px !important; 
                     text-align: center; 
                     vertical-align: middle !important; 
                     border-bottom: 1px solid #222; 
                     font-size: 13px; color: white; 
-                    height: 30px !important; /* UNIFICACIÓN DE ALTO */
+                    height: 30px !important; 
                     box-sizing: border-box;
-                }
+                }}
                 
-                /* Control estricto del nombre del equipo */
-                .tabla-pro .team-cell { 
+                .tabla-pro .team-cell {{ 
                     text-align: left; padding-left: 5px; 
                     font-size: 13px; font-weight: bold; 
                     white-space: nowrap; 
                     overflow: hidden; 
-                    text-overflow: ellipsis; /* Evita que el nombre estire la fila */
-                }
+                    text-overflow: ellipsis; 
+                }}
             </style>
             """
             
             tabla_html = '<table class="tabla-pro"><thead><tr>'
-            tabla_html += '<th style="width:8%">POS</th><th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
-            tabla_html += '<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>'
+            tabla_html += f'<th style="width:8%">POS</th><th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
+            tabla_html += f'<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>'
             tabla_html += '</tr></thead><tbody>'
 
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
-                # Escudo con tamaño fijo para no romper la simetría
                 escudo = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle; margin-right:5px;">' if url else '<span style="font-size:16px; margin-right:5px;">🛡️</span>'
                 
                 tabla_html += f"<tr>"
                 tabla_html += f"<td>{r['POS']}</td>"
                 tabla_html += f"<td class='team-cell'>{escudo}{r['EQ']}</td>"
-                tabla_html += f"<td style='color:#FFD700; font-weight:bold;'>{r['PTS']}</td>"
+                # Color dinámico aplicado también a los puntos (PTS)
+                tabla_html += f"<td style='color:{color_primario}; font-weight:bold;'>{r['PTS']}</td>"
                 tabla_html += f"<td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td>"
                 tabla_html += f"<td style='font-size:11px; color:#888;'>{r['DG']}</td>"
                 tabla_html += f"</tr>"
@@ -1220,6 +1231,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
