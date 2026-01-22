@@ -30,9 +30,40 @@ st.set_page_config(
     layout="centered", 
     initial_sidebar_state="collapsed"
 )
-# --- VALORES MAESTROS DE DISEÑO ---
-# Estos valores se actualizan con la base de datos, pero aquí definimos los nombres
-color_maestro = "#FFD700"  # Se sobreescribe con el motor de colores
+
+
+# Valores de seguridad (por si la base de datos no responde)
+color_maestro = "#FFD700" 
+fondo_url = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1/assets/fondo_base.jpg"
+
+if conn:
+    try:
+        with conn.connect() as db:
+            # A. Buscamos qué equipo es la insignia actual en la tabla de configuración
+            res_config = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'equipo_activo'")).fetchone()
+            equipo_insignia = res_config[0] if res_config else "Sistema"
+
+            # B. Buscamos el color y el fondo generado para ese equipo específico
+            # Hacemos un JOIN simple o una consulta directa a la tabla equipos
+            query_identidad = text("""
+                SELECT color_principal 
+                FROM equipos 
+                WHERE nombre = :nombre
+            """)
+            res_equipo = db.execute(query_identidad, {"nombre": equipo_insignia}).fetchone()
+            
+            if res_equipo:
+                color_maestro = res_equipo[0] # Aquí es donde ocurre la magia: reemplazamos el dorado
+
+            # C. Traemos la URL del fondo generado por el motor gráfico
+            res_fondo = db.execute(text("SELECT valor FROM configuracion WHERE clave = 'fondo_url'")).fetchone()
+            if res_fondo:
+                fondo_url = res_fondo[0]
+
+    except Exception as e:
+        # En caso de error, el sistema mantiene el color_maestro = "#FFD700"
+        pass
+
 
 
 
@@ -73,41 +104,40 @@ if conn:
 
 
 # --- INYECCIÓN DE CSS GLOBAL DINÁMICO ---
-plantilla_css_global = """
+plantilla_estilo = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200;400;700&display=swap');
 
-    /* Todo en Oswald y Blanco por defecto */
+    /* Fuente y Fondo */
     * { font-family: 'Oswald', sans-serif !important; color: #ffffff !important; }
-
-    /* Fondo de Pantalla */
+    
     [data-testid="stAppViewContainer"] {
         background-image: url("URL_FONDO") !important;
         background-size: cover !important;
         background-attachment: fixed !important;
     }
 
-    /* Acentos Dinámicos: Línea superior, Tabs y Botones */
-    [data-testid="stDecoration"] { background: COLOR_DINAMICO !important; }
+    /* Acentos con el Color del Equipo Insignia */
+    [data-testid="stDecoration"] { background: COLOR_MAESTRO !important; }
     
-    div[data-baseweb="tab-highlight"] { background-color: COLOR_DINAMICO !important; }
+    div[data-baseweb="tab-highlight"] { background-color: COLOR_MAESTRO !important; }
     
-    button[data-baseweb="tab"][aria-selected="true"] p { color: COLOR_DINAMICO !important; }
+    button[data-baseweb="tab"][aria-selected="true"] p { color: COLOR_MAESTRO !important; }
 
     div.stButton > button { 
-        border: 1.5px solid COLOR_DINAMICO !important; 
+        border: 1px solid COLOR_MAESTRO !important; 
         background-color: rgba(0,0,0,0.6) !important;
     }
     
     div.stButton > button:hover { 
-        background-color: COLOR_DINAMICO !important; 
+        background-color: COLOR_MAESTRO !important; 
         color: #000000 !important; 
     }
 </style>
 """
 
-# Reemplazo único para toda la web
-css_final = plantilla_css_global.replace("URL_FONDO", fondo_url).replace("COLOR_DINAMICO", color_maestro)
+# El único punto de control: Reemplazamos los marcadores con las variables de la DB
+css_final = plantilla_estilo.replace("URL_FONDO", fondo_url).replace("COLOR_MAESTRO", color_maestro)
 st.markdown(css_final, unsafe_allow_html=True)
 
 
@@ -1219,6 +1249,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
