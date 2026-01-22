@@ -537,7 +537,51 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 
 
 
+############FUNCIÓN EN PRUEBA DATOS FUTUROS
+def actualizar_historial_post_partido(equipo_local, equipo_visitante, goles_l, goles_v, conn):
+    """
+    Se ejecuta AUTOMÁTICAMENTE después de guardar un resultado.
+    Actualiza la racha y el ganador.
+    """
+    # 1. Determinar Ganador y Letra de Racha
+    if goles_l > goles_v:
+        ganador = equipo_local
+        res_l, res_v = 'W', 'L' # W=Win, L=Loss
+    elif goles_v > goles_l:
+        ganador = equipo_visitante
+        res_l, res_v = 'L', 'W'
+    else:
+        ganador = 'Empate'
+        res_l, res_v = 'D', 'D' # D=Draw
 
+    with conn.connect() as db:
+        # 2. Guardar el ganador explícito en el partido (Facilita consultas futuras del Oráculo)
+        # Asumimos que ya tienes el ID del partido o usas los nombres para filtrar
+        db.execute(text("""
+            UPDATE partidos 
+            SET ganador = :g 
+            WHERE local = :l AND visitante = :v AND estado = 'Finalizado'
+        """), {"g": ganador, "l": equipo_local, "v": equipo_visitante})
+
+        # 3. Actualizar la Racha de los Equipos (Concatenación simple)
+        # Esto agrega la nueva letra al final de la cadena existente
+        # Para el Local
+        db.execute(text("""
+            UPDATE equipos 
+            SET racha_actual = CONCAT(COALESCE(racha_actual, ''), :r, ',') 
+            WHERE nombre = :n
+        """), {"r": res_l, "n": equipo_local})
+
+        # Para el Visitante
+        db.execute(text("""
+            UPDATE equipos 
+            SET racha_actual = CONCAT(COALESCE(racha_actual, ''), :r, ',') 
+            WHERE nombre = :n
+        """), {"r": res_v, "n": equipo_visitante})
+        
+        db.commit()
+
+#######FUNCIÓN EN PRUEBA
 
 
 
@@ -977,15 +1021,21 @@ if fase_actual == "inscripcion":
 
 
 
-    
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS ---
+
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (DISEÑO PREMIUM) ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
-             
+        st.subheader("📅 Calendario Oficial")
+        
+        # --- CONFIGURACIÓN GRÁFICA ---
+        # 🔴 PEGA AQUÍ LA URL DE TU IMAGEN HORIZONTAL DE CLOUDINARY
+        URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..../tu_imagen_barra.png" 
+        
+        placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+
         try:
-            # Usamos el objeto 'conn' directamente para leer los partidos
+            # Lectura de datos
             df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
-            # Traemos los escudos actualizados (por si el admin los cambió)
             df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
             escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
         except Exception as e:
@@ -997,69 +1047,56 @@ elif fase_actual == "clasificacion":
             
             for i, jt in enumerate(j_tabs):
                 with jt:
+                    # Filtramos por jornada
                     df_j = df_p[df_p['jornada'] == (i + 1)]
                     
+                    if df_j.empty:
+                        st.info("No hay partidos programados para esta fecha.")
+                    
+                    # BUCLE DE GENERACIÓN DE TARJETAS
                     for _, p in df_j.iterrows():
-                        # Lógica de Marcador
-                        res_text = "vs"
+                        
+                        # 1. Preparar Escudos
+                        esc_l = escudos_dict.get(p['local']) or placeholder_escudo
+                        esc_v = escudos_dict.get(p['visitante']) or placeholder_escudo
+                        
+                        # 2. Preparar Marcador
                         if p['goles_l'] is not None and p['goles_v'] is not None:
-                            try:
-                                res_text = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
-                            except: res_text = "vs"
+                            txt_marcador = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                        else:
+                            txt_marcador = "VS"
                         
-                        # Escudos con respaldo (Placeholder si no hay)
-                        placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                        esc_l = escudos_dict.get(p['local']) or placeholder
-                        esc_v = escudos_dict.get(p['visitante']) or placeholder
+                        # 3. Construir la Tarjeta HTML
+                        html_tarjeta = renderizar_tarjeta_partido(
+                            local=p['local'],
+                            visita=p['visitante'],
+                            escudo_l=esc_l,
+                            escudo_v=esc_v,
+                            marcador_texto=txt_marcador,
+                            color_tema=color_maestro, # Usa el color del equipo activo
+                            url_fondo=URL_PLANTILLA_FONDO
+                        )
+                        
+                        # 4. Renderizar en Pantalla
+                        st.markdown(html_tarjeta, unsafe_allow_html=True)
+                        
+                        # 5. (Opcional) Botón de Evidencia discreto debajo de la tarjeta
+                        if p.get('url_foto_l') or p.get('url_foto_v'):
+                            with st.expander(f"📷 Ver evidencia {p['local']} vs {p['visitante']}"):
+                                c1, c2 = st.columns(2)
+                                if p['url_foto_l']: c1.image(p['url_foto_l'])
+                                if p['url_foto_v']: c2.image(p['url_foto_v'])
+                            st.write("") # Espacio extra
 
-                        # --- DISEÑO DE FILA ELITE (Alineación Forzada) ---
-                        with st.container():
-                            # Columnas con pesos específicos para evitar saltos de línea en móvil
-                            col_izq, col_cnt, col_der = st.columns([1.2, 0.6, 1.2])
-                            
-                            # Local (Alineado a la derecha del contenedor)
-                            with col_izq:
-                                st.markdown(f"""
-                                    <div style='display: flex; align-items: center; justify-content: flex-end; gap: 8px;'>
-                                        <span style='font-size: 13px; font-weight: bold; white-space: nowrap;'>{p['local'][:10]}</span>
-                                        <img src='{esc_l}' width='26' height='26' style='object-fit: contain;'>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                            
-                            # Marcador (Centro)
-                            with col_cnt:
-                                # Usamos el color_maestro para el fondo del marcador
-                                color_bg = color_maestro if 'color_maestro' in locals() else "#31333F"
-                                st.markdown(f"""
-                                    <div style='text-align: center; background: {color_bg}; color: #000; 
-                                    border-radius: 4px; font-weight: bold; font-size: 13px; padding: 2px 0;'>
-                                        {res_text}
-                                    </div>
-                                """, unsafe_allow_html=True)
-                            
-                            # Visitante (Alineado a la izquierda del contenedor)
-                            with col_der:
-                                st.markdown(f"""
-                                    <div style='display: flex; align-items: center; justify-content: flex-start; gap: 8px;'>
-                                        <img src='{esc_v}' width='26' height='26' style='object-fit: contain;'>
-                                        <span style='font-size: 13px; font-weight: bold; white-space: nowrap;'>{p['visitante'][:10]}</span>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                            
-                            # Botón de Evidencias (Solo si existen fotos)
-                            if p.get('url_foto_l') or p.get('url_foto_v'):
-                                if st.button(f"📷 Ver Evidencia", key=f"v_{p['id']}", use_container_width=True):
-                                    c1, c2 = st.columns(2)
-                                    if p['url_foto_l']: c1.image(p['url_foto_l'], caption="Local")
-                                    if p['url_foto_v']: c2.image(p['url_foto_v'], caption="Visitante")
-                        
-                        st.divider()
         else:
             st.info("El calendario se mostrará cuando inicie el torneo.")
 
 
 
-                            ###PARTIDOS
+
+
+
+            
 
 # --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
 if rol == "dt":
@@ -1386,6 +1423,7 @@ html_prueba = renderizar_tarjeta_partido(
 )
 
 st.markdown(html_prueba, unsafe_allow_html=True)
+
 
 
 
