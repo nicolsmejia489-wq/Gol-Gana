@@ -1132,7 +1132,7 @@ if rol == "admin":
             
             with conn.connect() as db:
                 # Solo traemos equipos aprobados con escudo
-                equipos_con_escudo = db.execute(text("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado' AND escudo IS NOT NULL")).fetchall()
+                equipos_con_escudo = db.execute(text("SELECT nombre, escudo FROM equipos WHERE (estado = 'aprobado' AND escudo IS NOT NULL) OR nombre ='Sistema'")).fetchall()
 
             if not equipos_con_escudo:
                 st.warning("No hay equipos aprobados con escudo disponibles.")
@@ -1219,6 +1219,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
