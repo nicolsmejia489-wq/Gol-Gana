@@ -422,7 +422,8 @@ def generar_calendario():
 
 
 #####EN DESARROLLO/PRUEBA
-def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo=None): # url_fondo ya no es necesario
+# --- FUNCIÓN GRÁFICA: TARJETA DE PARTIDO (VERSIÓN ELEGANTE & ESPACIOSA) ---
+def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
     if not color_tema: color_tema = "#FFD700"
     
     estilo = f"""
@@ -432,13 +433,12 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             width: 100%;
             max-width: 840px; 
             height: 108px;    
-            margin: 0 auto 12px auto; 
+            margin: 0 auto 15px auto; /* Un poco más de separación vertical entre partidos */
             
-            /* EL SECRETO: Fondo degradado sutil en lugar de imagen */
-            background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 20%, rgba(0,0,0,0.4) 80%, rgba(0,0,0,0) 100%);
-            
-            /* Borde inferior brillante sutil */
-            border-bottom: 1px solid {color_tema}40;
+            /* FONDO: La plantilla metálica que te gusta */
+            background-image: url('{url_fondo}');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
             
             display: flex;
             align-items: center;
@@ -446,63 +446,87 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             font-family: 'Oswald', sans-serif;
             color: white;
             
-            /* El brillo global */
-            filter: drop-shadow(0 0 3px {color_tema});
-            transition: transform 0.2s;
+            /* NUEVO EFECTO DE COLOR MESURADO */
+            /* Quitamos el filtro agresivo y usamos sombras sutiles */
+            box-shadow: 
+                0 4px 6px -2px rgba(0,0,0,0.5), /* Sombra de profundidad base */
+                0 2px 10px -3px {color_tema}60; /* El color del tema difuminado abajo */
+            
+            /* Un borde inferior muy fino del color del tema para definir */
+            border-bottom: 1px solid {color_tema}30;
+
+            transition: transform 0.2s, box-shadow 0.2s;
         }}
         
+        /* Efecto Hover sutil */
         .card-container:hover {{
-            transform: scale(1.02);
-            background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0) 100%);
+            transform: translateY(-2px); /* Se levanta un poquito */
+            box-shadow: 
+                0 6px 8px -2px rgba(0,0,0,0.6),
+                0 4px 15px -3px {color_tema}80; /* El brillo se intensifica suavemente al pasar el mouse */
         }}
 
+        /* ZONAS MÁS AMPLIAS PARA NOMBRES */
         .zona-equipo {{
-            width: 42%; 
+            width: 44%; /* AUMENTADO al máximo */
             height: 100%;
             display: flex;
             align-items: center;
-            gap: 15px; /* Más aire entre elementos */
+            gap: 8px;
             overflow: hidden; 
         }}
         
+        /* ZONA CENTRAL MÁS COMPACTA */
         .zona-centro {{
-            width: 12%; 
+            width: 8%; /* REDUCIDO al mínimo viable */
             height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 38px; /* Números más grandes y limpios */
+            font-size: 30px; 
             font-weight: bold;
-            text-shadow: 0 0 10px {color_tema}; /* El marcador brilla como neón */
-            color: white; 
+            text-shadow: 0 2px 4px black;
+            color: {color_tema}; /* El marcador mantiene el color fuerte */
             padding-top: 6px;
             z-index: 2;
         }}
         
+        /* TEXTO MÁS PEQUEÑO Y OPTIMIZADO */
         .txt-local {{ 
-            text-align: right; width: 100%; font-size: 20px; font-weight: 300; /* Fuente más fina y elegante */
-            text-transform: uppercase; padding-right: 4px; line-height: 1.1; 
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 1px;
+            text-align: right; width: 100%; 
+            font-size: 15px; /* REDUCIDO de 17px */
+            font-weight: 500;
+            text-transform: uppercase; 
+            padding-right: 2px; /* Padding mínimo */
+            line-height: 1.1; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.5px;
         }}
         .txt-visit {{ 
-            text-align: left; width: 100%; font-size: 20px; font-weight: 300;
-            text-transform: uppercase; padding-left: 4px; line-height: 1.1; 
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 1px;
+            text-align: left; width: 100%; 
+            font-size: 15px; /* REDUCIDO de 17px */
+            font-weight: 500;
+            text-transform: uppercase; 
+            padding-left: 2px; /* Padding mínimo */
+            line-height: 1.1; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.5px;
         }}
         
         .logo-img {{
-            width: 55px; height: 55px; min-width: 55px; /* Escudos un poco más grandes */
-            object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.8));
+            width: 46px; height: 46px; min-width: 46px; /* Ajuste ligero de escudo */
+            object-fit: contain; filter: drop-shadow(0 3px 3px black);
         }}
         
-        .pad-l {{ padding-left: 10px; }}
-        .pad-r {{ padding-right: 10px; justify-content: flex-end; }}
+        .pad-l {{ padding-left: 22px; }}
+        .pad-r {{ padding-right: 22px; justify-content: flex-end; }}
 
         @media (max-width: 480px) {{
             .card-container {{ height: 84px; }} 
-            .txt-local, .txt-visit {{ font-size: 14px; }} 
-            .logo-img {{ width: 40px; height: 40px; min-width: 40px; }} 
-            .zona-centro {{ font-size: 24px; width: 14%; }} 
+            .txt-local, .txt-visit {{ font-size: 11px; }} /* Letra más pequeña en móvil */
+            .logo-img {{ width: 34px; height: 34px; min-width: 34px; }} 
+            .zona-centro {{ font-size: 20px; width: 10%; }} 
+            .zona-equipo {{ width: 43%; }}
+            .pad-l {{ padding-left: 15px; }}
+            .pad-r {{ padding-right: 15px; }}
         }}
     </style>
     """
@@ -1390,6 +1414,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
