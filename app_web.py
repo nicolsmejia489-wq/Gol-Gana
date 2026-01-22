@@ -488,7 +488,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
         }}
         .txt-visit {{ 
             text-align: left; width: 100%; 
-            font-size: 19px; /* ¡AQUÍ TAMBIÉN! */
+            font-size: 17px; /* ¡AQUÍ TAMBIÉN! */
             font-weight: 500;
             text-transform: uppercase; 
             padding-left: 5px; 
@@ -1397,6 +1397,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
