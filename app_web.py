@@ -672,7 +672,7 @@ with tabs[0]:
                 if url:
                     img_html = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle;">'
                 else:
-                    img_html = '<span style="font-size:16px;">🛡️</span>'
+                    img_html = '<span style="font-size:16px;"> </span>'
                 
                 # Envolvemos el escudo en el contenedor de ancho fijo
                 escudo_final = f'<div class="escudo-wrapper">{img_html}</div>'
@@ -1271,6 +1271,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
