@@ -425,16 +425,20 @@ def generar_calendario():
 def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
     if not color_tema: color_tema = "#FFD700"
     
-    # CSS Específico para tu imagen "Enfrentamientos.jpg"
-    # Ajustamos Height a 90px para que se vea bien en desktop y movil
+    # AJUSTES DE TAMAÑO (+20% respecto al anterior)
+    # Ancho Max: 700px -> 840px
+    # Alto: 90px -> 108px
+    # Fuente Nombres: 14px -> 17px
+    # Escudos: 40px -> 48px
+    
     estilo = f"""
     <style>
         .card-container {{
             position: relative;
             width: 100%;
-            max-width: 700px;
-            height: 90px; 
-            margin: 0 auto 10px auto;
+            max-width: 840px; /* Aumentado */
+            height: 108px;    /* Aumentado */
+            margin: 0 auto 12px auto; /* Un poco más de margen */
             background-image: url('{url_fondo}');
             background-size: 100% 100%;
             background-repeat: no-repeat;
@@ -443,14 +447,14 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             justify-content: space-between;
             font-family: 'Oswald', sans-serif;
             color: white;
-            filter: drop-shadow(0 0 3px {color_tema});
+            filter: drop-shadow(0 0 4px {color_tema}); /* Brillo un poco más intenso */
         }}
         .zona-equipo {{
             width: 35%;
             height: 100%;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px; /* Más espacio entre escudo y nombre */
         }}
         .zona-centro {{
             width: 20%;
@@ -458,36 +462,37 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 26px;
+            font-size: 31px; /* Aumentado de 26 a 31 */
             font-weight: bold;
             text-shadow: 0 2px 4px black;
             color: {color_tema};
-            padding-top: 5px;
+            padding-top: 6px;
         }}
-        .txt-local {{ text-align: right; width: 100%; font-size: 14px; text-transform: uppercase; padding-right: 15px; }}
-        .txt-visit {{ text-align: left; width: 100%; font-size: 14px; text-transform: uppercase; padding-left: 15px; }}
+        .txt-local {{ text-align: right; width: 100%; font-size: 17px; text-transform: uppercase; padding-right: 18px; line-height: 1.1; }}
+        .txt-visit {{ text-align: left; width: 100%; font-size: 17px; text-transform: uppercase; padding-left: 18px; line-height: 1.1; }}
         
         .logo-img {{
-            width: 40px; 
-            height: 40px; 
+            width: 48px;  /* Aumentado de 40 a 48 */
+            height: 48px; 
             object-fit: contain;
-            filter: drop-shadow(0 2px 2px black);
+            filter: drop-shadow(0 3px 3px black);
         }}
         
         /* Ajuste fino para meter los logos en los circulos laterales */
-        .pad-l {{ padding-left: 20px; }}
-        .pad-r {{ padding-right: 20px; justify-content: flex-end; }}
+        .pad-l {{ padding-left: 24px; }}
+        .pad-r {{ padding-right: 24px; justify-content: flex-end; }}
 
+        /* ESCALADO PARA CELULAR (+20% también) */
         @media (max-width: 480px) {{
-            .card-container {{ height: 70px; }}
-            .txt-local, .txt-visit {{ font-size: 10px; line-height: 1.1; }}
-            .logo-img {{ width: 30px; height: 30px; }}
-            .zona-centro {{ font-size: 18px; }}
+            .card-container {{ height: 84px; }} /* De 70 a 84 */
+            .txt-local, .txt-visit {{ font-size: 12px; }} /* De 10 a 12 */
+            .logo-img {{ width: 36px; height: 36px; }} /* De 30 a 36 */
+            .zona-centro {{ font-size: 22px; }} /* De 18 a 22 */
         }}
     </style>
     """
 
-    # HTML en una sola linea o pegado a la izquierda para evitar errores de Markdown
+    # HTML (Sin cambios en estructura, solo clases)
     html = f"""
     <div class="card-container">
         <div class="zona-equipo pad-l">
@@ -1359,6 +1364,7 @@ html_prueba = renderizar_tarjeta_partido(
 )
 
 st.markdown(html_prueba, unsafe_allow_html=True)
+
 
 
 
