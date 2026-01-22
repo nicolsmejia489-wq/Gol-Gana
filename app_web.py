@@ -422,7 +422,7 @@ def generar_calendario():
 
 
 #####EN DESARROLLO/PRUEBA
-# --- FUNCIÓN GRÁFICA: TARJETA DE PARTIDO (VERSIÓN ELEGANTE & ESPACIOSA) ---
+# --- FUNCIÓN GRÁFICA: TARJETA DE PARTIDO (MODO LABORATORIO) ---
 def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
     if not color_tema: color_tema = "#FFD700"
     
@@ -431,11 +431,16 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
         .card-container {{
             position: relative;
             width: 100%;
-            max-width: 840px; 
-            height: 108px;    
-            margin: 0 auto 15px auto; /* Un poco más de separación vertical entre partidos */
             
-            /* FONDO: La plantilla metálica que te gusta */
+            /* TANTEAR: Ancho máximo en PC. */
+            max-width: 840px; 
+            
+            /* TANTEAR: Altura de la barra en PC. Si quieres que sea mas "gorda", sube a 120px */
+            height: 108px;    
+            
+            /* TANTEAR: El '15px' es el espacio vacio entre una tarjeta y otra */
+            margin: 0 auto 15px auto; 
+            
             background-image: url('{url_fondo}');
             background-size: 100% 100%;
             background-repeat: no-repeat;
@@ -446,85 +451,117 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             font-family: 'Oswald', sans-serif;
             color: white;
             
-            /* NUEVO EFECTO DE COLOR MESURADO */
-            /* Quitamos el filtro agresivo y usamos sombras sutiles */
+            /* EFECTO DE SOMBRA / COLOR */
             box-shadow: 
-                0 4px 6px -2px rgba(0,0,0,0.5), /* Sombra de profundidad base */
-                0 2px 10px -3px {color_tema}60; /* El color del tema difuminado abajo */
+                0 4px 6px -2px rgba(0,0,0,0.5), 
+                /* TANTEAR: El '10px' es qué tan difuminado está el color abajo. El '{color_tema}60' es la transparencia (60 es suave, 99 es fuerte) */
+                0 2px 10px -3px {color_tema}60; 
             
-            /* Un borde inferior muy fino del color del tema para definir */
+            /* TANTEAR: El '1px' es el grosor de la línea de color inferior. */
             border-bottom: 1px solid {color_tema}30;
 
             transition: transform 0.2s, box-shadow 0.2s;
         }}
         
-        /* Efecto Hover sutil */
         .card-container:hover {{
-            transform: translateY(-2px); /* Se levanta un poquito */
+            transform: translateY(-2px); 
             box-shadow: 
                 0 6px 8px -2px rgba(0,0,0,0.6),
-                0 4px 15px -3px {color_tema}80; /* El brillo se intensifica suavemente al pasar el mouse */
+                0 4px 15px -3px {color_tema}80; 
         }}
 
-        /* ZONAS MÁS AMPLIAS PARA NOMBRES */
+        /* --- ZONAS (OJO: Las sumas de width deben dar cerca de 100%) --- */
+        
         .zona-equipo {{
-            width: 44%; /* AUMENTADO al máximo */
+            /* TANTEAR: Espacio horizontal para Nombre + Escudo. Si subes esto, baja la .zona-centro */
+            width: 44%; 
             height: 100%;
             display: flex;
             align-items: center;
-            gap: 8px;
+            
+            /* TANTEAR: Espacio entre el Escudo y el Nombre */
+            gap: 8px; 
             overflow: hidden; 
         }}
         
-        /* ZONA CENTRAL MÁS COMPACTA */
         .zona-centro {{
-            width: 8%; /* REDUCIDO al mínimo viable */
+            /* TANTEAR: Espacio para el marcador. Si los números no caben, sube a 10% o 12% */
+            width: 8%; 
             height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
+            
+            /* TANTEAR: Tamaño del número del marcador en PC */
             font-size: 30px; 
             font-weight: bold;
             text-shadow: 0 2px 4px black;
-            color: {color_tema}; /* El marcador mantiene el color fuerte */
+            color: {color_tema}; 
             padding-top: 6px;
             z-index: 2;
         }}
         
-        /* TEXTO MÁS PEQUEÑO Y OPTIMIZADO */
+        /* --- TEXTOS --- */
+        
         .txt-local {{ 
             text-align: right; width: 100%; 
-            font-size: 15px; /* REDUCIDO de 17px */
+            
+            /* TANTEAR: Tamaño del nombre del equipo en PC. */
+            font-size: 15px; 
             font-weight: 500;
             text-transform: uppercase; 
-            padding-right: 2px; /* Padding mínimo */
+            
+            /* TANTEAR: Distancia entre el final del nombre y el marcador central */
+            padding-right: 2px; 
             line-height: 1.1; 
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.5px;
         }}
         .txt-visit {{ 
             text-align: left; width: 100%; 
-            font-size: 15px; /* REDUCIDO de 17px */
+            
+            /* TANTEAR: Igual que arriba, tamaño del nombre visitante */
+            font-size: 15px; 
             font-weight: 500;
             text-transform: uppercase; 
-            padding-left: 2px; /* Padding mínimo */
+            
+            /* TANTEAR: Distancia entre el marcador central y el inicio del nombre */
+            padding-left: 2px; 
             line-height: 1.1; 
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.5px;
         }}
         
         .logo-img {{
-            width: 46px; height: 46px; min-width: 46px; /* Ajuste ligero de escudo */
+            /* TANTEAR: Tamaño del escudo en PC. Si cambias 46px, cambia min-width también */
+            width: 46px; height: 46px; min-width: 46px; 
             object-fit: contain; filter: drop-shadow(0 3px 3px black);
         }}
         
+        /* TANTEAR: Relleno izquierdo (distancia del borde izquierdo al primer escudo) */
         .pad-l {{ padding-left: 22px; }}
+        
+        /* TANTEAR: Relleno derecho (distancia del borde derecho al segundo escudo) */
         .pad-r {{ padding-right: 22px; justify-content: flex-end; }}
 
+
+        /* --- ¡AQUI EMPIEZA LO IMPORTANTE PARA EL MOVIL! --- */
         @media (max-width: 480px) {{
+            
+            /* TANTEAR: Altura de la tarjeta en celular. Prueba 90px si se ve muy apretado */
             .card-container {{ height: 84px; }} 
-            .txt-local, .txt-visit {{ font-size: 11px; }} /* Letra más pequeña en móvil */
+            
+            /* TANTEAR: Tamaño de letra en celular. Si los nombres se cortan mucho, baja a 10px */
+            .txt-local, .txt-visit {{ font-size: 11px; }} 
+            
+            /* TANTEAR: Tamaño del escudo en celular. Prueba 30px o 38px */
             .logo-img {{ width: 34px; height: 34px; min-width: 34px; }} 
+            
+            /* TANTEAR: Tamaño del marcador en celular y ancho de la zona central */
             .zona-centro {{ font-size: 20px; width: 10%; }} 
+            
+            /* TANTEAR: Ancho para equipos en celular. (43% + 43% + 10% = 96%) */
             .zona-equipo {{ width: 43%; }}
+            
+            /* TANTEAR: Márgenes laterales en celular. Si están muy pegados al borde, sube a 20px */
             .pad-l {{ padding-left: 15px; }}
             .pad-r {{ padding-right: 15px; }}
         }}
@@ -1413,6 +1450,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
