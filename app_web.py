@@ -474,13 +474,13 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
         
         .zona-equipo {{
             /* TANTEAR: Espacio horizontal para Nombre + Escudo. Si subes esto, baja la .zona-centro */
-            width: 44%; 
+            width: 60%; 
             height: 100%;
             display: flex;
             align-items: center;
             
             /* TANTEAR: Espacio entre el Escudo y el Nombre */
-            gap: 8px; 
+            gap: 3px; 
             overflow: hidden; 
         }}
         
@@ -507,7 +507,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             text-align: right; width: 100%; 
             
             /* TANTEAR: Tamaño del nombre del equipo en PC. */
-            font-size: 15px; 
+            font-size: 17px; 
             font-weight: 500;
             text-transform: uppercase; 
             
@@ -520,7 +520,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             text-align: left; width: 100%; 
             
             /* TANTEAR: Igual que arriba, tamaño del nombre visitante */
-            font-size: 15px; 
+            font-size: 17px; 
             font-weight: 500;
             text-transform: uppercase; 
             
@@ -532,15 +532,15 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
         
         .logo-img {{
             /* TANTEAR: Tamaño del escudo en PC. Si cambias 46px, cambia min-width también */
-            width: 46px; height: 46px; min-width: 46px; 
+            width: 46px; height: 50px; min-width: 50px; 
             object-fit: contain; filter: drop-shadow(0 3px 3px black);
         }}
         
         /* TANTEAR: Relleno izquierdo (distancia del borde izquierdo al primer escudo) */
-        .pad-l {{ padding-left: 22px; }}
+        .pad-l {{ padding-left: 10px; }}
         
         /* TANTEAR: Relleno derecho (distancia del borde derecho al segundo escudo) */
-        .pad-r {{ padding-right: 22px; justify-content: flex-end; }}
+        .pad-r {{ padding-right: 10px; justify-content: flex-end; }}
 
 
         /* --- ¡AQUI EMPIEZA LO IMPORTANTE PARA EL MOVIL! --- */
@@ -550,16 +550,16 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             .card-container {{ height: 84px; }} 
             
             /* TANTEAR: Tamaño de letra en celular. Si los nombres se cortan mucho, baja a 10px */
-            .txt-local, .txt-visit {{ font-size: 11px; }} 
+            .txt-local, .txt-visit {{ font-size: 13px; }} 
             
             /* TANTEAR: Tamaño del escudo en celular. Prueba 30px o 38px */
-            .logo-img {{ width: 34px; height: 34px; min-width: 34px; }} 
+            .logo-img {{ width: 34px; height: 38px; min-width: 34px; }} 
             
             /* TANTEAR: Tamaño del marcador en celular y ancho de la zona central */
             .zona-centro {{ font-size: 20px; width: 10%; }} 
             
             /* TANTEAR: Ancho para equipos en celular. (43% + 43% + 10% = 96%) */
-            .zona-equipo {{ width: 43%; }}
+            .zona-equipo {{ width: 50%; }}
             
             /* TANTEAR: Márgenes laterales en celular. Si están muy pegados al borde, sube a 20px */
             .pad-l {{ padding-left: 15px; }}
@@ -1450,6 +1450,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
