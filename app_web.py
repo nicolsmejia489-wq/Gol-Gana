@@ -552,10 +552,11 @@ with tabs[2]:
 # --- TAB: CLASIFICACIÓN (Versión Blindada y Sincronizada) ---
 with tabs[0]:
     try:
-        # A. VALIDACIÓN DE SEGURIDAD: Si por alguna razón la variable global no llegó, la creamos aquí
-        if 'color_primario' not in locals() and 'color_primario' not in globals():
-            color_primario = "#FFD700" # Dorado de respaldo
-            
+        # A. VALIDACIÓN DE SEGURIDAD
+        # Si color_maestro no existe, usamos dorado por defecto
+        if 'color_maestro' not in locals() and 'color_maestro' not in globals():
+            color_maestro = "#FFD700" 
+
         # 1. Obtener datos de Neon
         df_eq = pd.read_sql_query("SELECT nombre, escudo FROM equipos WHERE estado = 'aprobado'", conn)
         
@@ -570,70 +571,83 @@ with tabs[0]:
                 if f['local'] in stats and f['visitante'] in stats:
                     l, v = f['local'], f['visitante']
                     gl, gv = int(f['goles_l']), int(f['goles_v'])
-                    stats[l]['PJ']+=1; stats[v]['PJ']+=1
-                    stats[l]['GF']+=gl; stats[l]['GC']+=gv
-                    stats[v]['GF']+=gv; stats[v]['GC']+=gl
-                    if gl > gv: stats[l]['PTS']+=3
-                    elif gv > gl: stats[v]['PTS']+=3
-                    else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
+                    stats[l]['PJ'] += 1; stats[v]['PJ'] += 1
+                    stats[l]['GF'] += gl; stats[l]['GC'] += gv
+                    stats[v]['GF'] += gv; stats[v]['GC'] += gl
+                    
+                    if gl > gv: 
+                        stats[l]['PTS'] += 3
+                    elif gv > gl: 
+                        stats[v]['PTS'] += 3
+                    else: 
+                        stats[l]['PTS'] += 1; stats[v]['PTS'] += 1
             
+            # Procesar DataFrame de posiciones
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
             df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # 2. DISEÑO SINCRONIZADO (Sin f-strings para evitar errores de llaves)
+            # 2. DISEÑO DE TABLA (Usando reemplazo para evitar errores de llaves)
             plantilla_tabla = """
-<style>
-    .tabla-pro { 
-        width: 100%; border-collapse: collapse; table-layout: fixed; 
-        background-color: rgba(0,0,0,0.5); 
-        border: 1.5px solid COLOR_DINAMICO !important; 
-    }
-    .tabla-pro th { 
-        background-color: #111; color: #ffffff !important; 
-        padding: 4px 1px; font-size: 11px; 
-        border-bottom: 2px solid COLOR_DINAMICO !important; 
-        text-align: center; height: 32px !important; 
-    }
-    .tabla-pro td { 
-        padding: 0px 1px !important; text-align: center; 
-        vertical-align: middle !important; border-bottom: 1px solid #222; 
-        font-size: 13px; color: white; height: 30px !important; 
-    }
-</style>
-"""
+            <style>
+                .tabla-pro { 
+                    width: 100%; border-collapse: collapse; table-layout: fixed; 
+                    background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; 
+                    border: 1px solid COLOR_MAESTRO !important;
+                }
+                .tabla-pro th { 
+                    background-color: #111; color: #ffffff !important; 
+                    padding: 4px 1px; font-size: 11px; 
+                    border-bottom: 2px solid COLOR_MAESTRO !important; 
+                    text-align: center; height: 32px !important; 
+                }
+                .tabla-pro td { 
+                    padding: 0px 1px !important; text-align: center; 
+                    vertical-align: middle !important; border-bottom: 1px solid #222; 
+                    font-size: 13px; color: white; height: 30px !important; 
+                }
+            </style>
+            """
+            
+            # Aplicamos el color dinámico a la plantilla CSS
+            estilo_tabla_final = plantilla_tabla.replace("COLOR_MAESTRO", color_maestro)
 
-# Aplicamos el color dinámico a la tabla
-estilo_tabla_final = plantilla_tabla.replace("COLOR_DINAMICO", color_maestro)
+            # Construcción del HTML de la tabla
+            tabla_html = '<table class="tabla-pro"><thead><tr>'
+            tabla_html += '<th style="width:8%">POS</th>'
+            tabla_html += '<th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
+            tabla_html += '<th style="width:10%">PTS</th>'
+            tabla_html += '<th style="width:9%">PJ</th>'
+            tabla_html += '<th style="width:9%">GF</th>'
+            tabla_html += '<th style="width:9%">GC</th>'
+            tabla_html += '<th style="width:8%">DG</th>'
+            tabla_html += '</tr></thead><tbody>'
 
-# Construcción del HTML de la tabla
-tabla_html = f'<table class="tabla-pro"><thead><tr>'
-tabla_html += '<th style="width:8%">POS</th><th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
-# Nota: Aquí en el header de PTS también usamos la variable
-tabla_html += f'<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>'
-tabla_html += '</tr></thead><tbody>'
+            for _, r in df_f.iterrows():
+                url = mapa_escudos.get(r['EQ'])
+                escudo = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle; margin-right:5px;">' if url else '🛡️'
+                
+                tabla_html += "<tr>"
+                tabla_html += f"<td>{r['POS']}</td>"
+                tabla_html += f"<td style='text-align:left; padding-left:5px; font-weight:bold;'>{escudo}{r['EQ']}</td>"
+                # PTS brilla con el color dinámico
+                tabla_html += f"<td style='color:{color_maestro}; font-weight:bold;'>{r['PTS']}</td>"
+                tabla_html += f"<td>{r['PJ']}</td>"
+                tabla_html += f"<td>{r['GF']}</td>"
+                tabla_html += f"<td>{r['GC']}</td>"
+                tabla_html += f"<td style='font-size:11px; color:#888;'>{r['DG']}</td>"
+                tabla_html += "</tr>"
 
-for _, r in df_f.iterrows():
-    url = mapa_escudos.get(r['EQ'])
-    escudo = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle; margin-right:5px;">' if url else '🛡️'
-    
-    tabla_html += f"<tr>"
-    tabla_html += f"<td>{r['POS']}</td>"
-    tabla_html += f"<td style='text-align:left; padding-left:5px; font-weight:bold;'>{escudo}{r['EQ']}</td>"
-    # IMPORTANTE: Los puntos ahora brillan con el color dinámico
-    tabla_html += f"<td style='color:{color_maestro}; font-weight:bold;'>{r['PTS']}</td>"
-    tabla_html += f"<td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td>"
-    tabla_html += f"<td style='font-size:11px; color:#888;'>{r['DG']}</td>"
-    tabla_html += "</tr>"
+            tabla_html += "</tbody></table>"
 
-tabla_html += "</tbody></table>"
-
-st.markdown(estilo_tabla_final + tabla_html, unsafe_allow_html=True)
+            # Inyección final
+            st.markdown(estilo_tabla_final + tabla_html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error al cargar la clasificación: {e}")
+        
         
 
             
@@ -1205,6 +1219,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
