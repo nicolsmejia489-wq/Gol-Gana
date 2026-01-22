@@ -1229,7 +1229,7 @@ if rol == "dt":
                             st.info("✅ Ya enviaste tu reporte. Esperando confirmación del rival.")
                         else:
                             # Expander cerrado por defecto (expanded=False)
-                            with st.expander(f"📸 Publicar Marcador (J{p['jornada']})", expanded=False):
+                            with st.expander(f"              📸 Publicar Marcador (J{p['jornada']})", expanded=False):
                                 st.write("Sube la foto del resultado final:")
                                 tab_cam, tab_gal = st.tabs(["📷 Usar Cámara", "📂 Subir Archivo"])
                                 
@@ -1320,7 +1320,7 @@ if rol == "dt":
                 # D. Divisor de Jornadas (Separador)
                 if index < len(mis) - 1:
                     st.markdown(f"""
-                        <hr style="border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0, 0, 0, 0), {color_maestro}99, rgba(0, 0, 0, 0)); margin: 30px 0;">
+                        <hr style="border: 0; height: 2px; background-image: linear-gradient(to right, rgba(0, 0, 0, 0), {color_maestro}99, rgba(0, 0, 0, 0)); margin: 40px 0;">
                     """, unsafe_allow_html=True)
 
         except Exception as e:
@@ -1488,6 +1488,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
