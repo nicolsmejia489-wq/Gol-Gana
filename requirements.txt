@@ -1,3 +1,4 @@
+
 streamlit
 easyocr
 opencv-python-headless
@@ -12,6 +13,7 @@ sqlalchemy
 openai
 colorgram.py
 requests
+extcolors
 
 
 
