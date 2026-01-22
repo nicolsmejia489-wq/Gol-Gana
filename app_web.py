@@ -1152,9 +1152,97 @@ if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Panel de Director Técnico: {equipo_usuario}")
         
-        # URL DEL FONDO (Asegúrate de tenerla definida)
+        # 🔴 RECUERDA: Define tu URL de fondo aquí o al inicio
         URL_FONDO_GESTION = "https://res.cloudinary.com/..../tu_imagen_barra.png" 
-        
+
+        # --- ESTILOS CSS ESPECÍFICOS PARA GESTIÓN ---
+        # Definimos clases para compactar y separar
+        st.markdown(f"""
+        <style>
+            /* BLOQUE 1: EL CONTENEDOR DE INFORMACIÓN DEBAJO DE LA TARJETA */
+            .info-block {{
+                /* TANTEAR: Color de fondo del bloque de estado/whatsapp */
+                background-color: rgba(0,0,0,0.2); 
+                
+                /* TANTEAR: Redondeo de las esquinas inferiores (para que encaje con la tarjeta si quieres) */
+                border-radius: 8px; 
+                
+                /* TANTEAR: Espacio interno del texto */
+                padding: 10px; 
+                
+                /* TANTEAR: Margen negativo para "chupar" este bloque hacia arriba y pegarlo a la tarjeta */
+                margin-top: -15px; 
+                
+                /* TANTEAR: Margen abajo antes de llegar al desplegable de subir foto */
+                margin-bottom: 5px; 
+                
+                text-align: center;
+                border: 1px solid {color_maestro}30;
+                border-top: none; /* Sin borde arriba para que parezca unido a la tarjeta */
+            }}
+
+            /* BLOQUE 2: EL TEXTO DE ESTADO */
+            .status-text {{
+                /* TANTEAR: Tamaño de letra del estado (Finalizado, etc) */
+                font-size: 14px; 
+                margin-bottom: 8px; /* Espacio entre el estado y el botón de WhatsApp */
+            }}
+
+            /* BLOQUE 3: EL BOTÓN DE WHATSAPP */
+            .wa-button {{
+                /* TANTEAR: Color de fondo verde WhatsApp */
+                background-color: #25D366; 
+                color: white; 
+                
+                /* TANTEAR: Relleno del botón (Gordura) */
+                padding: 6px 12px; 
+                
+                border-radius: 5px; 
+                text-decoration: none; 
+                font-weight: bold; 
+                
+                /* TANTEAR: Tamaño de letra del botón */
+                font-size: 13px; 
+                
+                display: inline-flex; 
+                align-items: center; 
+                gap: 5px;
+                transition: background 0.3s;
+            }}
+            .wa-button:hover {{ background-color: #1DA851; color: white; }}
+
+            /* BLOQUE 4: EL SEPARADOR DE JORNADAS (LA LÍNEA GRUESA) */
+            .mega-divider {{
+                /* TANTEAR: Altura de la línea divisoria */
+                height: 2px; 
+                
+                /* TANTEAR: Color de la línea (Degradado con el color de tu equipo) */
+                background: linear-gradient(90deg, transparent, {color_maestro}, transparent); 
+                
+                border: none;
+                
+                /* TANTEAR: Espacio gigante antes y después de la línea para separar partidos */
+                margin: 40px 0; 
+                
+                opacity: 0.7;
+            }}
+            
+            /* BLOQUE 5: TÍTULO DE JORNADA ENCIMA DE CADA PARTIDO */
+            .jornada-header {{
+                color: {color_maestro};
+                
+                /* TANTEAR: Tamaño de letra de "JORNADA X" */
+                font-size: 14px; 
+                
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                margin-bottom: 5px; /* TANTEAR: Espacio entre este título y la tarjeta gráfica */
+                opacity: 0.8;
+            }}
+        </style>
+        """, unsafe_allow_html=True)
+
         try:
             query_mis = text("SELECT * FROM partidos WHERE (local=:eq OR visitante=:eq) ORDER BY jornada ASC")
             mis = pd.read_sql_query(query_mis, conn, params={"eq": equipo_usuario})
@@ -1166,7 +1254,7 @@ if rol == "dt":
             if mis.empty:
                 st.info("🏖️ No tienes partidos programados por ahora.")
             
-            for _, p in mis.iterrows():
+            for index, p in mis.iterrows():
                 es_local = (p['local'] == equipo_usuario)
                 rival = p['visitante'] if es_local else p['local']
                 
@@ -1178,7 +1266,10 @@ if rol == "dt":
                 else:
                     txt_score = "VS"
 
-                # Renderizado Visual (Usa la función actualizada arriba)
+                # 1. HEADER DE JORNADA (Fuera de la tarjeta para identificar)
+                st.markdown(f"<div class='jornada-header'>📍 Jornada {p['jornada']}</div>", unsafe_allow_html=True)
+
+                # 2. TARJETA GRÁFICA (Tu función premium)
                 html_card = renderizar_tarjeta_partido(
                     local=p['local'],
                     visita=p['visitante'],
@@ -1190,69 +1281,81 @@ if rol == "dt":
                 )
                 st.markdown(html_card, unsafe_allow_html=True)
 
-                with st.container():
-                    # Estado del Partido
-                    estado_str = p['estado']
-                    color_estado = "grey"
-                    if estado_str == "Finalizado": color_estado = "green"
-                    elif estado_str == "Conflicto": color_estado = "red"
-                    elif estado_str == "Revision": color_estado = "orange"
-                    
-                    st.caption(f"📌 Estado: :{color_estado}[**{estado_str}**] | Jornada {p['jornada']}")
+                # 3. BLOQUE DE INFO COMPACTO (Estado + WhatsApp pegados)
+                # Unificamos esto en un solo HTML para evitar espacios de Streamlit
+                estado_str = p['estado']
+                
+                # Colores de estado
+                color_css = "#888" # Gris por defecto
+                icon_est = "📅"
+                if estado_str == "Finalizado": 
+                    color_css = "#28a745" # Verde
+                    icon_est = "✅"
+                elif estado_str == "Conflicto": 
+                    color_css = "#dc3545" # Rojo
+                    icon_est = "⚠️"
+                elif estado_str == "Revision": 
+                    color_css = "#ffc107" # Naranja
+                    icon_est = "⏳"
 
-                    # Botón WhatsApp
-                    if estado_str != "Finalizado":
-                        datos_wa = dict_celulares.get(rival)
-                        if datos_wa and datos_wa[0] and datos_wa[1]:
-                            num_wa = f"{str(datos_wa[0]).replace('+','')}{datos_wa[1]}"
-                            st.markdown(f"""
-                            <a href='https://wa.me/{num_wa}' target='_blank' style='text-decoration:none;'>
-                                <div style='background-color:#25D366; color:white; padding:6px; border-radius:5px; text-align:center; margin-bottom:10px; font-weight:bold; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;'>
-                                    <span>💬</span> Contactar a {rival}
-                                </div>
-                            </a>
-                            """, unsafe_allow_html=True)
-
-                    # Lógica de Carga (Expander colapsado por defecto)
-                    if estado_str in ["Programado", "Revision", "Conflicto"]:
-                        mi_col_foto = "url_foto_l" if es_local else "url_foto_v"
-                        ya_reporte = pd.notnull(p[mi_col_foto]) and p[mi_col_foto] != ""
-
-                        if ya_reporte and estado_str != "Conflicto":
-                            st.info("✅ Ya enviaste tu reporte. Esperando confirmación del rival.")
-                        else:
-                            # CAMBIO AQUÍ: expanded=False (Minimizado)
-                            with st.expander(f"📸 Publicar Marcador (J{p['jornada']})", expanded=False):
-                                st.write("Sube la foto del resultado final:")
-                                tab_cam, tab_gal = st.tabs(["📷 Usar Cámara", "📂 Subir Archivo"])
-                                
-                                img_file = None
-                                with tab_cam:
-                                    img_cam = st.camera_input("Toma la foto", key=f"cam_{p['id']}")
-                                    if img_cam: img_file = img_cam
-                                with tab_gal:
-                                    img_upl = st.file_uploader("Elige imagen", type=['jpg','png','jpeg'], key=f"upl_{p['id']}")
-                                    if img_upl: img_file = img_upl
-
-                                if img_file:
-                                    st.image(img_file, width=200, caption="Previsualización")
-                                    if st.button("🚀 Enviar Resultado", key=f"btn_send_{p['id']}", use_container_width=True):
-                                        with st.spinner("🤖 Procesando..."):
-                                            try:
-                                                # ... (Tu lógica de IA y Cloudinary se mantiene igual) ...
-                                                # Para ahorrar espacio aquí, asumo que mantienes tu bloque
-                                                # de lectura de IA, subida y DB que ya tenías funcionando.
-                                                pass 
-                                            except Exception as e:
-                                                st.error(f"Error: {e}")
-
-                # CAMBIO AQUÍ: Separador Notorio (Línea Dorada con Degradado)
+                # Lógica botón WhatsApp
+                btn_wa_html = ""
+                if estado_str != "Finalizado":
+                    datos_wa = dict_celulares.get(rival)
+                    if datos_wa and datos_wa[0] and datos_wa[1]:
+                        num_wa = f"{str(datos_wa[0]).replace('+','')}{datos_wa[1]}"
+                        btn_wa_html = f"""
+                        <a href='https://wa.me/{num_wa}' target='_blank' class='wa-button'>
+                            <span>💬</span> Contactar {rival}
+                        </a>
+                        """
+                
+                # Renderizamos el bloque info pegado
                 st.markdown(f"""
-                    <hr style="border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0, 0, 0, 0), {color_maestro}99, rgba(0, 0, 0, 0)); margin: 30px 0;">
+                <div class='info-block'>
+                    <div class='status-text' style='color:{color_css}'>
+                        {icon_est} <b>{estado_str}</b>
+                    </div>
+                    {btn_wa_html}
+                </div>
                 """, unsafe_allow_html=True)
 
+                # 4. EXPANDER DE ACCIÓN (Solo si es necesario)
+                if estado_str in ["Programado", "Revision", "Conflicto"]:
+                    mi_col_foto = "url_foto_l" if es_local else "url_foto_v"
+                    ya_reporte = pd.notnull(p[mi_col_foto]) and p[mi_col_foto] != ""
+
+                    if ya_reporte and estado_str != "Conflicto":
+                        # Mensaje compacto si ya cumplió
+                        st.info("👍 Reporte enviado. Esperando rival.")
+                    else:
+                        # Expander minimizado
+                        with st.expander(f"📸 Subir Marcador", expanded=False):
+                            st.caption("Evidencia del resultado final:")
+                            tab_cam, tab_gal = st.tabs(["📷 Cámara", "📂 Galería"])
+                            
+                            img_file = None
+                            with tab_cam:
+                                img_cam = st.camera_input("Foto", key=f"cam_{p['id']}", label_visibility="collapsed")
+                                if img_cam: img_file = img_cam
+                            with tab_gal:
+                                img_upl = st.file_uploader("Archivo", type=['jpg','png'], key=f"upl_{p['id']}", label_visibility="collapsed")
+                                if img_upl: img_file = img_upl
+
+                            if img_file:
+                                st.image(img_file, width=150)
+                                if st.button("Enviar", key=f"s_{p['id']}", use_container_width=True):
+                                    # ... (LÓGICA DE ENVÍO DE SIEMPRE) ...
+                                    # Para brevedad, aquí va tu bloque de IA/DB existente
+                                    st.toast("Procesando...") 
+                                    pass
+
+                # 5. EL DIVISOR NOTORIO (Solo si no es el último partido)
+                if index < len(mis) - 1:
+                    st.markdown("<hr class='mega-divider'>", unsafe_allow_html=True)
+
         except Exception as e:
-            st.error(f"Error cargando el panel de gestión: {e}")
+            st.error(f"Error panel gestión: {e}")
 
 
 
@@ -1415,6 +1518,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
