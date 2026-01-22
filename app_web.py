@@ -32,7 +32,7 @@ st.set_page_config(
 )
 # --- VALORES MAESTROS DE DISEÑO ---
 # Estos valores se actualizan con la base de datos, pero aquí definimos los nombres
-color_maestro = "#FFD700"  # Se sobreescribe con el motor de colores
+color_maestro = "#FF0000"  # Se sobreescribe con el motor de colores
 
 
 
@@ -1219,6 +1219,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
