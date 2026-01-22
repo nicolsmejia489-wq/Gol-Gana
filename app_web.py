@@ -422,7 +422,6 @@ def generar_calendario():
 
 
 #####EN DESARROLLO/PRUEBA
-# --- FUNCIÓN GRÁFICA: TARJETA DE PARTIDO (VERSIÓN ELEGANTE & ESPACIOSA) ---
 def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
     if not color_tema: color_tema = "#FFD700"
     
@@ -433,9 +432,8 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             width: 100%;
             max-width: 840px; 
             height: 108px;    
-            margin: 0 auto 15px auto; /* Un poco más de separación vertical entre partidos */
+            margin: 0 auto 15px auto;
             
-            /* FONDO: La plantilla metálica que te gusta */
             background-image: url('{url_fondo}');
             background-size: 100% 100%;
             background-repeat: no-repeat;
@@ -446,39 +444,25 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             font-family: 'Oswald', sans-serif;
             color: white;
             
-            /* NUEVO EFECTO DE COLOR MESURADO */
-            /* Quitamos el filtro agresivo y usamos sombras sutiles */
-            box-shadow: 
-                0 4px 6px -2px rgba(0,0,0,0.5), /* Sombra de profundidad base */
-                0 2px 10px -3px {color_tema}60; /* El color del tema difuminado abajo */
-            
-            /* Un borde inferior muy fino del color del tema para definir */
+            /* Sombra sutil y elegante */
+            box-shadow: 0 4px 6px -2px rgba(0,0,0,0.5), 0 2px 10px -3px {color_tema}60;
             border-bottom: 1px solid {color_tema}30;
-
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: transform 0.2s;
         }}
         
-        /* Efecto Hover sutil */
-        .card-container:hover {{
-            transform: translateY(-2px); /* Se levanta un poquito */
-            box-shadow: 
-                0 6px 8px -2px rgba(0,0,0,0.6),
-                0 4px 15px -3px {color_tema}80; /* El brillo se intensifica suavemente al pasar el mouse */
-        }}
+        .card-container:hover {{ transform: translateY(-2px); }}
 
-        /* ZONAS MÁS AMPLIAS PARA NOMBRES */
         .zona-equipo {{
-            width: 44%; /* AUMENTADO al máximo */
+            width: 44%; 
             height: 100%;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px; /* Un poco más de aire entre escudo y nombre */
             overflow: hidden; 
         }}
         
-        /* ZONA CENTRAL MÁS COMPACTA */
         .zona-centro {{
-            width: 8%; /* REDUCIDO al mínimo viable */
+            width: 8%; 
             height: 100%;
             display: flex;
             align-items: center;
@@ -486,47 +470,47 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             font-size: 30px; 
             font-weight: bold;
             text-shadow: 0 2px 4px black;
-            color: {color_tema}; /* El marcador mantiene el color fuerte */
+            color: {color_tema}; 
             padding-top: 6px;
             z-index: 2;
         }}
         
-        /* TEXTO MÁS PEQUEÑO Y OPTIMIZADO */
+        /* TEXTO AUMENTADO (De 15px a 19px) */
         .txt-local {{ 
             text-align: right; width: 100%; 
-            font-size: 15px; /* REDUCIDO de 17px */
+            font-size: 19px; /* ¡AQUÍ ESTÁ EL CAMBIO! */
             font-weight: 500;
             text-transform: uppercase; 
-            padding-right: 2px; /* Padding mínimo */
+            padding-right: 5px; 
             line-height: 1.1; 
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.5px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+            letter-spacing: 0.5px;
         }}
         .txt-visit {{ 
             text-align: left; width: 100%; 
-            font-size: 15px; /* REDUCIDO de 17px */
+            font-size: 19px; /* ¡AQUÍ TAMBIÉN! */
             font-weight: 500;
             text-transform: uppercase; 
-            padding-left: 2px; /* Padding mínimo */
+            padding-left: 5px; 
             line-height: 1.1; 
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.5px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+            letter-spacing: 0.5px;
         }}
         
         .logo-img {{
-            width: 46px; height: 46px; min-width: 46px; /* Ajuste ligero de escudo */
+            width: 50px; height: 50px; min-width: 50px; /* Escudo un pelín más grande */
             object-fit: contain; filter: drop-shadow(0 3px 3px black);
         }}
         
-        .pad-l {{ padding-left: 22px; }}
-        .pad-r {{ padding-right: 22px; justify-content: flex-end; }}
+        .pad-l {{ padding-left: 20px; }}
+        .pad-r {{ padding-right: 20px; justify-content: flex-end; }}
 
         @media (max-width: 480px) {{
             .card-container {{ height: 84px; }} 
-            .txt-local, .txt-visit {{ font-size: 11px; }} /* Letra más pequeña en móvil */
-            .logo-img {{ width: 34px; height: 34px; min-width: 34px; }} 
-            .zona-centro {{ font-size: 20px; width: 10%; }} 
-            .zona-equipo {{ width: 43%; }}
-            .pad-l {{ padding-left: 15px; }}
-            .pad-r {{ padding-right: 15px; }}
+            .txt-local, .txt-visit {{ font-size: 13px; }} /* Ajuste móvil */
+            .logo-img {{ width: 38px; height: 38px; min-width: 38px; }} 
+            .zona-centro {{ font-size: 20px; width: 12%; }} 
+            .zona-equipo {{ width: 42%; }}
         }}
     </style>
     """
@@ -545,7 +529,6 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
     </div>
     """
     return estilo + html
-    
 ####FIN DESARROLLO/PRUEBA
 
 
@@ -1046,7 +1029,7 @@ elif fase_actual == "clasificacion":
         # 🔴 PEGA AQUÍ LA URL DE TU IMAGEN HORIZONTAL DE CLOUDINARY
         URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..../tu_imagen_barra.png" 
         
-        placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+        placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/33/33736.png"
 
         try:
             # Lectura de datos
@@ -1414,6 +1397,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
