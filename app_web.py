@@ -585,11 +585,10 @@ with tabs[2]:
 
 
 
-# --- TAB: CLASIFICACIÓN (Versión Blindada y Sincronizada) ---
+# --- TAB: CLASIFICACIÓN (Versión Alineación Elite) ---
 with tabs[0]:
     try:
         # A. VALIDACIÓN DE SEGURIDAD
-        # Si color_maestro no existe, usamos dorado por defecto
         if 'color_maestro' not in locals() and 'color_maestro' not in globals():
             color_maestro = "#FFD700" 
 
@@ -618,14 +617,13 @@ with tabs[0]:
                     else: 
                         stats[l]['PTS'] += 1; stats[v]['PTS'] += 1
             
-            # Procesar DataFrame de posiciones
             df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
             df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
             df_f['DG'] = df_f['GF'] - df_f['GC']
             df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
             df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
-            # 2. DISEÑO DE TABLA (Usando reemplazo para evitar errores de llaves)
+            # 2. DISEÑO DE TABLA (Espaciado Estandarizado)
             plantilla_tabla = """
             <style>
                 .tabla-pro { 
@@ -644,16 +642,22 @@ with tabs[0]:
                     vertical-align: middle !important; border-bottom: 1px solid #222; 
                     font-size: 13px; color: white; height: 30px !important; 
                 }
+                /* Contenedor del escudo para estandarizar espacio */
+                .escudo-wrapper {
+                    display: inline-block;
+                    width: 25px; /* Ancho fijo para el área del escudo */
+                    text-align: center;
+                    margin-right: 12px; /* Espacio estándar hacia el texto */
+                    vertical-align: middle;
+                }
             </style>
             """
             
-            # Aplicamos el color dinámico a la plantilla CSS
             estilo_tabla_final = plantilla_tabla.replace("COLOR_MAESTRO", color_maestro)
 
-            # Construcción del HTML de la tabla
             tabla_html = '<table class="tabla-pro"><thead><tr>'
             tabla_html += '<th style="width:8%">POS</th>'
-            tabla_html += '<th style="width:47%; text-align:left; padding-left:5px">EQUIPO</th>'
+            tabla_html += '<th style="width:47%; text-align:left; padding-left:10px">EQUIPO</th>'
             tabla_html += '<th style="width:10%">PTS</th>'
             tabla_html += '<th style="width:9%">PJ</th>'
             tabla_html += '<th style="width:9%">GF</th>'
@@ -663,12 +667,22 @@ with tabs[0]:
 
             for _, r in df_f.iterrows():
                 url = mapa_escudos.get(r['EQ'])
-                escudo = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle; margin-right:5px;">' if url else '🛡️'
+                
+                # Definimos el contenido del escudo
+                if url:
+                    img_html = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain; vertical-align:middle;">'
+                else:
+                    img_html = '<span style="font-size:16px;">🛡️</span>'
+                
+                # Envolvemos el escudo en el contenedor de ancho fijo
+                escudo_final = f'<div class="escudo-wrapper">{img_html}</div>'
                 
                 tabla_html += "<tr>"
                 tabla_html += f"<td>{r['POS']}</td>"
-                tabla_html += f"<td style='text-align:left; padding-left:5px; font-weight:bold;'>{escudo}{r['EQ']}</td>"
-                # PTS brilla con el color dinámico
+                # Aplicamos el escudo y el nombre con el nuevo wrapper
+                tabla_html += f"<td style='text-align:left; padding-left:10px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>"
+                tabla_html += f"{escudo_final}{r['EQ']}</td>"
+                
                 tabla_html += f"<td style='color:{color_maestro}; font-weight:bold;'>{r['PTS']}</td>"
                 tabla_html += f"<td>{r['PJ']}</td>"
                 tabla_html += f"<td>{r['GF']}</td>"
@@ -678,12 +692,10 @@ with tabs[0]:
 
             tabla_html += "</tbody></table>"
 
-            # Inyección final
             st.markdown(estilo_tabla_final + tabla_html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Error al cargar la clasificación: {e}")
-        
         
 
             
@@ -1259,6 +1271,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
