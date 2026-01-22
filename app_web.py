@@ -82,9 +82,9 @@ st.markdown(f"""
             background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 0;
         }}
 
-        /* ================================================================
-           3. ACENTOS DINÁMICOS (USANDO {color_primario})
-        ================================================================ */
+     
+        #   3. ACENTOS DINÁMICOS (USANDO {color_primario})
+      
         
         /* Línea superior de Streamlit */
         [data-testid="stDecoration"] {{ 
@@ -1231,6 +1231,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
