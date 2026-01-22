@@ -348,10 +348,14 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
 
 
 def generar_calendario():
-    import random # Aseguramos la importación dentro o al inicio del script
+    import random
     try:
         with conn.connect() as db:
-            # 1. Obtener equipos reales aprobados (ignorando 'Sistema')
+            # 1. LIMPIEZA CRÍTICA: Borramos partidos previos
+            # Sin esto, los partidos de intentos fallidos o anteriores se acumulan
+            db.execute(text("DELETE FROM partidos"))
+            
+            # 2. Obtener solo los equipos reales aprobados
             res = db.execute(text("SELECT nombre FROM equipos WHERE estado = 'aprobado' AND nombre != 'Sistema'"))
             equipos = [row[0] for row in res.fetchall()]
             n_reales = len(equipos)
@@ -360,54 +364,53 @@ def generar_calendario():
                 st.error("Se necesitan al menos 2 equipos para generar un calendario.")
                 return
 
-            # 2. DETERMINAR CUPOS PARA PLAY-OFFS (Tus nuevas reglas)
-            if 25 <= n_reales <= 32:
-                cupos = 16  # Clasifican a Octavos
-            elif 16 <= n_reales <= 24:
-                cupos = 8   # Clasifican a Cuartos
-            elif 8 <= n_reales < 16:
-                cupos = 4   # Clasifican a Semifinales
-            else:
-                cupos = 2   # Final directa
+            # 3. DETERMINAR CUPOS PARA PLAY-OFFS
+            if 25 <= n_reales <= 32: cupos = 16
+            elif 16 <= n_reales <= 24: cupos = 8
+            elif 8 <= n_reales < 16: cupos = 4
+            else: cupos = 2
 
-            # Guardamos los cupos en la tabla 'config' (Sincronizado)
+            # Guardamos los cupos en la tabla 'config'
             db.execute(text("""
                 INSERT INTO config (clave, valor) 
                 VALUES ('cupos_clasificados', :v) 
                 ON CONFLICT (clave) DO UPDATE SET valor = :v
             """), {"v": str(cupos)})
 
-            # 3. Mezclar equipos para aleatoriedad total
+            # 4. PREPARACIÓN ROUND ROBIN
             random.shuffle(equipos)
-
-            # 4. Generar 3 Jornadas (Sistema Round Robin sin WO)
-            # Si es impar, el algoritmo manejará un "descanso" automáticamente
             equipos_sorteo = equipos.copy()
-            if len(equipos_sorteo) % 2 != 0:
-                equipos_sorteo.append(None) # None = Equipo que descansa
+            
+            # Si es impar, añadimos un 'Descanso' (None) para que el algoritmo sea par
+            if n_reales % 2 != 0:
+                equipos_sorteo.append(None)
 
-            n_sorteo = len(equipos_sorteo)
-            indices = list(range(n_sorteo))
+            n = len(equipos_sorteo)
+            indices = list(range(n))
 
-            for jor in range(1, 4): # 3 Jornadas fijas
-                for i in range(n_sorteo // 2):
-                    loc = equipos_sorteo[indices[i]]
-                    vis = equipos_sorteo[indices[n_sorteo - 1 - i]]
+            # 5. GENERACIÓN DE 3 JORNADAS REALES
+            for jor in range(1, 4):
+                # Emparejamiento por extremos (1° vs último, 2° vs penúltimo...)
+                for i in range(n // 2):
+                    idx_l = indices[i]
+                    idx_v = indices[n - 1 - i]
+                    
+                    loc = equipos_sorteo[idx_l]
+                    vis = equipos_sorteo[idx_v]
 
-                    # Solo insertamos si ninguno es 'None' (el descanso no se escribe en la DB)
+                    # Solo insertamos si ninguno es 'None' (el que descanse no tiene partido)
                     if loc and vis:
                         db.execute(text("""
                             INSERT INTO partidos (local, visitante, jornada, estado) 
                             VALUES (:l, :v, :j, 'Programado')
                         """), {"l": loc, "v": vis, "j": jor})
-
-                # Rotación de índices (Algoritmo de la Tuerca)
+                
+                # ROTACIÓN BERGER (Mantiene el índice 0 fijo y rota el resto)
+                # Esto garantiza que NO se repitan partidos en las primeras jornadas
                 indices = [indices[0]] + [indices[-1]] + indices[1:-1]
 
-            # 5. ACTUALIZAR FASE DEL TORNEO (Sincronizado con tu tabla 'config')
+            # 6. ACTUALIZAR FASE Y CONFIRMAR
             db.execute(text("UPDATE config SET valor = 'clasificacion' WHERE clave = 'fase_actual'"))
-            
-            # Confirmar cambios en Neon
             db.commit()
             
     except Exception as e:
@@ -1235,6 +1238,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
