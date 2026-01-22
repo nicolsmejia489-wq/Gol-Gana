@@ -1152,13 +1152,16 @@ if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Panel de Director Técnico: {equipo_usuario}")
         
-        # URL DEL FONDO (Asegúrate de tenerla definida)
-        URL_FONDO_GESTION = "https://res.cloudinary.com/..../tu_imagen_barra.png" 
+        # URL DEL FONDO (Asegúrate de que esta variable tenga tu link de Cloudinary)
+        # Si ya la definiste arriba en el código, puedes borrar esta línea.
+        URL_FONDO_GESTION = "https://res.cloudinary.com/dvdup4m0p/image/upload/v1737666352/Enfrentamientos_tnk3l0.jpg" 
         
         try:
+            # 1. Consultar partidos del usuario
             query_mis = text("SELECT * FROM partidos WHERE (local=:eq OR visitante=:eq) ORDER BY jornada ASC")
             mis = pd.read_sql_query(query_mis, conn, params={"eq": equipo_usuario})
             
+            # 2. Consultar datos de equipos (escudos y celulares)
             df_esc = pd.read_sql_query("SELECT nombre, escudo, prefijo, celular FROM equipos", conn)
             dict_escudos = dict(zip(df_esc['nombre'], df_esc['escudo']))
             dict_celulares = dict(zip(df_esc['nombre'], zip(df_esc['prefijo'], df_esc['celular'])))
@@ -1166,19 +1169,22 @@ if rol == "dt":
             if mis.empty:
                 st.info("🏖️ No tienes partidos programados por ahora.")
             
-            for _, p in mis.iterrows():
+            # 3. Recorrer partidos
+            for index, p in mis.iterrows():
                 es_local = (p['local'] == equipo_usuario)
                 rival = p['visitante'] if es_local else p['local']
                 
+                # Obtener escudos
                 esc_l = dict_escudos.get(p['local']) or "https://cdn-icons-png.flaticon.com/512/33/33736.png"
                 esc_v = dict_escudos.get(p['visitante']) or "https://cdn-icons-png.flaticon.com/512/33/33736.png"
                 
+                # Texto del marcador
                 if p['goles_l'] is not None and p['goles_v'] is not None:
                     txt_score = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
                 else:
                     txt_score = "VS"
 
-                # Renderizado Visual (Usa la función actualizada arriba)
+                # A. Renderizado Visual (Tarjeta Gráfica)
                 html_card = renderizar_tarjeta_partido(
                     local=p['local'],
                     visita=p['visitante'],
@@ -1190,6 +1196,7 @@ if rol == "dt":
                 )
                 st.markdown(html_card, unsafe_allow_html=True)
 
+                # B. Bloque de Estado y Contacto
                 with st.container():
                     # Estado del Partido
                     estado_str = p['estado']
@@ -1213,7 +1220,7 @@ if rol == "dt":
                             </a>
                             """, unsafe_allow_html=True)
 
-                    # Lógica de Carga (Expander colapsado por defecto)
+                    # C. Lógica de Carga (Expander colapsado por defecto)
                     if estado_str in ["Programado", "Revision", "Conflicto"]:
                         mi_col_foto = "url_foto_l" if es_local else "url_foto_v"
                         ya_reporte = pd.notnull(p[mi_col_foto]) and p[mi_col_foto] != ""
@@ -1221,7 +1228,7 @@ if rol == "dt":
                         if ya_reporte and estado_str != "Conflicto":
                             st.info("✅ Ya enviaste tu reporte. Esperando confirmación del rival.")
                         else:
-                            # CAMBIO AQUÍ: expanded=False (Minimizado)
+                            # Expander cerrado por defecto (expanded=False)
                             with st.expander(f"📸 Publicar Marcador (J{p['jornada']})", expanded=False):
                                 st.write("Sube la foto del resultado final:")
                                 tab_cam, tab_gal = st.tabs(["📷 Usar Cámara", "📂 Subir Archivo"])
@@ -1236,20 +1243,85 @@ if rol == "dt":
 
                                 if img_file:
                                     st.image(img_file, width=200, caption="Previsualización")
+                                    
+                                    # BOTÓN DE ENVÍO CON LÓGICA COMPLETA
                                     if st.button("🚀 Enviar Resultado", key=f"btn_send_{p['id']}", use_container_width=True):
-                                        with st.spinner("🤖 Procesando..."):
+                                        with st.spinner("🤖 La IA está analizando tu evidencia..."):
                                             try:
-                                                # ... (Tu lógica de IA y Cloudinary se mantiene igual) ...
-                                                # Para ahorrar espacio aquí, asumo que mantienes tu bloque
-                                                # de lectura de IA, subida y DB que ya tenías funcionando.
-                                                pass 
-                                            except Exception as e:
-                                                st.error(f"Error: {e}")
+                                                # 1. ANÁLISIS DE IA
+                                                # (Asegúrate de tener la función 'leer_marcador_ia' importada o definida arriba)
+                                                res_ia, msg_ia = leer_marcador_ia(img_file, p['local'], p['visitante'])
+                                                
+                                                if res_ia is None:
+                                                    st.error(msg_ia) # Falló la lectura
+                                                else:
+                                                    gl_ia, gv_ia = res_ia
+                                                    
+                                                    # 2. SUBIDA A CLOUDINARY
+                                                    img_file.seek(0) # Rebobinar archivo
+                                                    res_cloud = cloudinary.uploader.upload(img_file, folder="gol_gana_evidencias")
+                                                    url_foto = res_cloud['secure_url']
 
-                # CAMBIO AQUÍ: Separador Notorio (Línea Dorada con Degradado)
-                st.markdown(f"""
-                    <hr style="border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0, 0, 0, 0), {color_maestro}99, rgba(0, 0, 0, 0)); margin: 30px 0;">
-                """, unsafe_allow_html=True)
+                                                    # 3. ACTUALIZACIÓN EN BASE DE DATOS (Neon)
+                                                    with conn.connect() as db:
+                                                        # Leemos estado actual por seguridad
+                                                        check = db.execute(text("SELECT goles_l, goles_v FROM partidos WHERE id=:id"), {"id": p['id']}).fetchone()
+                                                        gl_db, gv_db = check
+                                                        
+                                                        # Params comunes
+                                                        params = {
+                                                            "url": url_foto, 
+                                                            "gl": gl_ia, "gv": gv_ia, 
+                                                            "id": p['id']
+                                                        }
+
+                                                        # CASO A: Primer reporte (No hay goles previos en DB)
+                                                        if gl_db is None:
+                                                            q = text(f"""
+                                                                UPDATE partidos SET 
+                                                                goles_l=:gl, goles_v=:gv, {mi_col_foto}=:url,
+                                                                ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision'
+                                                                WHERE id=:id
+                                                            """)
+                                                            db.execute(q, params)
+                                                            msg_final = "✅ Reporte guardado. Esperando al rival."
+
+                                                        # CASO B: Segundo reporte (Validamos Coincidencia)
+                                                        else:
+                                                            # Comparamos
+                                                            if int(gl_db) == gl_ia and int(gv_db) == gv_ia:
+                                                                # COINCIDENCIA -> FINALIZAR
+                                                                q = text(f"""
+                                                                    UPDATE partidos SET 
+                                                                    {mi_col_foto}=:url, estado='Finalizado', conflicto=0
+                                                                    WHERE id=:id
+                                                                """)
+                                                                db.execute(q, params)
+                                                                msg_final = "🏆 ¡Coincidencia confirmada! Partido finalizado."
+                                                            else:
+                                                                # CONFLICTO -> ALERTAR ADMIN
+                                                                q = text(f"""
+                                                                    UPDATE partidos SET 
+                                                                    {mi_col_foto}=:url, estado='Conflicto', conflicto=1
+                                                                    WHERE id=:id
+                                                                """)
+                                                                db.execute(q, params)
+                                                                msg_final = "⚠️ Conflicto detectado. El Admin revisará."
+                                                        
+                                                        db.commit()
+                                                    
+                                                    st.success(f"IA detectó: {gl_ia}-{gv_ia}. {msg_final}")
+                                                    time.sleep(2)
+                                                    st.rerun()
+
+                                            except Exception as e:
+                                                st.error(f"Error técnico al procesar: {e}")
+
+                # D. Divisor de Jornadas (Separador)
+                if index < len(mis) - 1:
+                    st.markdown(f"""
+                        <hr style="border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0, 0, 0, 0), {color_maestro}99, rgba(0, 0, 0, 0)); margin: 30px 0;">
+                    """, unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"Error cargando el panel de gestión: {e}")
@@ -1416,6 +1488,7 @@ if rol == "admin":
                 st.session_state.clear()
                 st.rerun()
                 
+
 
 
 
