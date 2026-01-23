@@ -1074,19 +1074,19 @@ if fase_actual == "inscripcion":
 
 
 
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (DISEÑO PREMIUM) ---
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (CORREGIDO) ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
+        st.subheader("📅 Calendario Oficial")
         
-        # --- CONFIGURACIÓN GRÁFICA ---
-        # 🔴 PEGA AQUÍ LA URL DE TU IMAGEN HORIZONTAL DE CLOUDINARY
-        URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..../tu_imagen_barra.png" 
-        
-        placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/33/33736.png"
+        # URL de Fondo (Asegúrate de tener la URL correcta aquí si usas imagen)
+        URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..." 
+        placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
         try:
-            # Lectura de datos
+            # Leemos los partidos
             df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
+            # Leemos escudos
             df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
             escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
         except Exception as e:
@@ -1098,50 +1098,49 @@ elif fase_actual == "clasificacion":
             
             for i, jt in enumerate(j_tabs):
                 with jt:
-                    # Filtramos por jornada
                     df_j = df_p[df_p['jornada'] == (i + 1)]
                     
                     if df_j.empty:
                         st.info("No hay partidos programados para esta fecha.")
                     
-                    # BUCLE DE GENERACIÓN DE TARJETAS
                     for _, p in df_j.iterrows():
-                        
                         # 1. Preparar Escudos
                         esc_l = escudos_dict.get(p['local']) or placeholder_escudo
                         esc_v = escudos_dict.get(p['visitante']) or placeholder_escudo
                         
-                        # 2. Preparar Marcador
-                        if p['goles_l'] is not None and p['goles_v'] is not None:
-                            txt_marcador = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
-                        else:
+                        # 2. Preparar Marcador (CORRECCIÓN ANTI-ERROR)
+                        # Usamos pd.notna() para validar que no sea NaN (Not a Number)
+                        try:
+                            if pd.notna(p['goles_l']) and pd.notna(p['goles_v']):
+                                txt_marcador = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                            else:
+                                txt_marcador = "VS"
+                        except ValueError:
                             txt_marcador = "VS"
                         
                         # 3. Construir la Tarjeta HTML
+                        # Asegúrate de tener la función 'renderizar_tarjeta_partido' definida arriba en tu código
                         html_tarjeta = renderizar_tarjeta_partido(
                             local=p['local'],
                             visita=p['visitante'],
                             escudo_l=esc_l,
                             escudo_v=esc_v,
                             marcador_texto=txt_marcador,
-                            color_tema=color_maestro, # Usa el color del equipo activo
+                            color_tema=color_maestro,
                             url_fondo=URL_PLANTILLA_FONDO
                         )
                         
-                        # 4. Renderizar en Pantalla
                         st.markdown(html_tarjeta, unsafe_allow_html=True)
                         
-                        # 5. (Opcional) Botón de Evidencia discreto debajo de la tarjeta
+                        # 4. Evidencias (Opcional)
                         if p.get('url_foto_l') or p.get('url_foto_v'):
                             with st.expander(f"📷 Ver evidencia {p['local']} vs {p['visitante']}"):
                                 c1, c2 = st.columns(2)
                                 if p['url_foto_l']: c1.image(p['url_foto_l'])
                                 if p['url_foto_v']: c2.image(p['url_foto_v'])
-                            st.write("") # Espacio extra
-
+                            st.write("") # Espacio
         else:
             st.info("El calendario se mostrará cuando inicie el torneo.")
-
 
 
 
@@ -1391,38 +1390,26 @@ if rol == "admin":
         # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
-        # --- A. OPCIÓN: RESULTADOS (COMPACTO Y ESTILIZADO) ---
+       # --- A. OPCIÓN: RESULTADOS (CORREGIDO Y BLINDADO) ---
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Gestión de Resultados")
             
-            # --- CSS EXCLUSIVO PARA MINI-INPUTS ---
-            # Esto hace que las cajitas de números se vean delgadas y elegantes
+            # Estilos para inputs pequeños
             st.markdown("""
             <style>
-                /* Forzamos altura pequeña y texto centrado en los inputs */
                 div[data-testid="stNumberInput"] div[data-baseweb="input"] {
-                    height: 35px !important;
-                    min-height: 35px !important;
-                    padding: 0px !important;
-                    border-radius: 5px !important;
-                    background-color: rgba(255, 255, 255, 0.05) !important; /* Fondo sutil */
+                    height: 35px !important; min-height: 35px !important;
+                    padding: 0px !important; border-radius: 5px !important;
+                    background-color: rgba(255, 255, 255, 0.05) !important;
                 }
                 div[data-testid="stNumberInput"] input {
-                    text-align: center !important;
-                    font-size: 16px !important;
-                    font-weight: bold !important;
-                    color: white !important;
-                    padding-top: 0px !important;
-                    padding-bottom: 0px !important;
-                    height: 35px !important;
+                    text-align: center !important; font-size: 16px !important;
+                    font-weight: bold !important; color: white !important;
+                    padding: 0 !important; height: 35px !important;
                 }
-                /* Ajustamos los botones +/- para que no ocupen tanto espacio */
                 div[data-testid="stNumberInput"] button {
-                    height: 35px !important;
-                    width: 25px !important;
-                    padding: 0 !important;
-                    border: none !important;
-                    background: transparent !important;
+                    height: 35px !important; width: 25px !important;
+                    border: none !important; background: transparent !important;
                 }
             </style>
             """, unsafe_allow_html=True)
@@ -1433,7 +1420,7 @@ if rol == "admin":
                 df_partidos = pd.DataFrame()
 
             if df_partidos.empty:
-                st.warning("No hay partidos generados. Ve a 'Control Global' e inicia el torneo.")
+                st.warning("No hay partidos generados. Inicia el torneo primero.")
             else:
                 tabs_j = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
                 
@@ -1448,51 +1435,50 @@ if rol == "admin":
 
                         for _, row in df_j.iterrows():
                             with st.container():
-                                # COLUMNAS MÁS APRETADAS EN EL CENTRO
-                                # Antes: [3, 1.2, 0.5, 1.2, 3, 1] -> Muy ancho
-                                # Ahora: [3.5, 0.7, 0.2, 0.7, 3.5, 0.8] -> Cintura de avispa
+                                # Columnas ajustadas
                                 col_local, col_g_l, col_vs, col_g_v, col_visit, col_save = st.columns([3.5, 0.7, 0.2, 0.7, 3.5, 0.8], vertical_alignment="center")
                                 
                                 estado_color = "#25D366" if row['estado'] == "Finalizado" else "#666"
                                 
-                                # Equipo Local
+                                # Local
                                 with col_local:
                                     st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['local']}</div>", unsafe_allow_html=True)
                                 
-                                # Input Local
-                                val_l = int(row['goles_l']) if row['goles_l'] is not None else 0
+                                # Input GL (Validación segura de NaN)
+                                try:
+                                    val_l = int(row['goles_l']) if pd.notna(row['goles_l']) else 0
+                                except: val_l = 0
+                                
                                 with col_g_l:
                                     goles_l = st.number_input("GL", value=val_l, min_value=0, max_value=20, label_visibility="collapsed", key=f"gl_{row['id']}")
                                 
-                                # Guion central
+                                # Guion
                                 with col_vs:
                                     st.markdown("<div style='text-align:center; font-weight:bold; color:#aaa;'>-</div>", unsafe_allow_html=True)
                                 
-                                # Input Visitante
-                                val_v = int(row['goles_v']) if row['goles_v'] is not None else 0
+                                # Input GV (Validación segura de NaN)
+                                try:
+                                    val_v = int(row['goles_v']) if pd.notna(row['goles_v']) else 0
+                                except: val_v = 0
+
                                 with col_g_v:
                                     goles_v = st.number_input("GV", value=val_v, min_value=0, max_value=20, label_visibility="collapsed", key=f"gv_{row['id']}")
                                 
-                                # Equipo Visitante
+                                # Visitante
                                 with col_visit:
                                     st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['visitante']}</div>", unsafe_allow_html=True)
                                     
                                 with col_save:
-                                    # Botón Guardar (con color dinámico según estado)
                                     btn_label = "💾" if row['estado'] != "Finalizado" else "✅"
-                                    if st.button(btn_label, key=f"save_{row['id']}", help="Guardar Resultado"):
+                                    if st.button(btn_label, key=f"save_{row['id']}", help="Guardar"):
                                         with conn.connect() as db:
                                             db.execute(text("""
                                                 UPDATE partidos 
                                                 SET goles_l = :gl, goles_v = :gv, estado = 'Finalizado' 
                                                 WHERE id = :id
                                             """), {"gl": goles_l, "gv": goles_v, "id": row['id']})
-                                            
-                                            # AQUÍ INYECTAMOS TU FUTURO "ORÁCULO" (Historial)
-                                            # actualizar_historial_post_partido(row['local'], row['visitante'], goles_l, goles_v, conn)
-                                            
                                             db.commit()
-                                        st.toast(f"Resultado guardado: {goles_l} - {goles_v}")
+                                        st.toast(f"Guardado: {goles_l} - {goles_v}")
                                         time.sleep(0.5)
                                         st.rerun()
 
@@ -1593,6 +1579,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
