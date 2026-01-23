@@ -1492,27 +1492,40 @@ if rol == "admin":
         # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
-     # --- A. OPCIÓN: RESULTADOS (ADMIN - MODO AUDITOR) ---
+    # --- A. OPCIÓN: RESULTADOS (ADMIN - DISEÑO COMPACTO HORIZONTAL) ---
 if opcion_admin == "⚽ Resultados":
     st.subheader("📝 Gestión de Resultados")
     
-    # Estilos CSS (Mantenemos tus estilos y añadimos el de alerta)
+    # CSS Inyectado para forzar la horizontalidad y el estilo "Ghost"
     st.markdown("""
     <style>
-        div[data-testid="stNumberInput"] div[data-baseweb="input"] {
-            height: 35px !important; min-height: 35px !important;
-            padding: 0px !important; border-radius: 5px !important;
-            background-color: rgba(255, 255, 255, 0.05) !important;
+        /* Contenedor principal del partido */
+        .match-card {
+            background-color: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-left: 5px solid #333;
+        }
+        .match-revision {
+            border-left: 5px solid #FF4B4B !important;
+            background-color: rgba(255, 75, 75, 0.05) !important;
+        }
+        
+        /* Ajuste de los inputs de goles */
+        div[data-testid="stNumberInput"] {
+            width: 55px !important;
         }
         div[data-testid="stNumberInput"] input {
-            text-align: center !important; font-size: 16px !important;
-            font-weight: bold !important; color: white !important;
+            padding: 0px !important;
+            height: 35px !important;
+            font-size: 18px !important;
         }
-        .revision-alert {
-            background-color: rgba(255, 75, 75, 0.2);
-            border: 1px solid #FF4B4B;
-            border-radius: 5px;
-            padding: 5px;
+        
+        /* Estética de los botones de acción */
+        .stButton button {
+            padding: 0px 5px !important;
+            height: 35px !important;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -1525,7 +1538,6 @@ if opcion_admin == "⚽ Resultados":
     if df_partidos.empty:
         st.warning("No hay partidos generados.")
     else:
-        # Pestañas dinámicas según jornadas existentes
         jornadas = sorted(df_partidos['jornada'].unique())
         tabs_j = st.tabs([f"Jornada {int(j)}" for j in jornadas])
         
@@ -1534,67 +1546,54 @@ if opcion_admin == "⚽ Resultados":
                 df_j = df_partidos[df_partidos['jornada'] == jornadas[i]]
                 
                 for _, row in df_j.iterrows():
-                    # --- LÓGICA DE ESTADO Y ALERTAS ---
-                    en_revision = row['estado'] == 'Revision' or row['conflicto'] == 1
-                    metodo = row.get('metodo_registro', 'Algoritmo')
+                    rev = row['estado'] == 'Revision' or row['conflicto'] == 1
+                    card_class = "match-revision" if rev else ""
                     
-                    # Contenedor especial si está en revisión
+                    # --- PLANTILLA FANTASMA HORIZONTAL ---
                     with st.container():
-                        if en_revision:
-                            st.markdown('<div class="revision-alert">', unsafe_allow_html=True)
-                            st.caption(f"🚨 REVISIÓN NECESARIA: {row['local']} vs {row['visitante']}")
+                        st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
                         
-                        col_local, col_g_l, col_vs, col_g_v, col_visit, col_save = st.columns([3, 0.8, 0.2, 0.8, 3, 1], vertical_alignment="center")
+                        # Pesos de columna: [NombreL, GolesL, Separador, GolesV, NombreV, Acciones]
+                        # El 0.8 para goles asegura que se vean cuadrados y pequeños
+                        col_l, col_gl, col_vs, col_gv, col_v, col_acc = st.columns([3, 0.8, 0.3, 0.8, 3, 1.2], vertical_alignment="center")
                         
-                        # 1. Local
-                        with col_local:
-                            prefix = "🚨 " if en_revision else ""
-                            st.markdown(f"<div style='text-align:right; font-weight:bold;'>{prefix}{row['local']}</div>", unsafe_allow_html=True)
+                        with col_l:
+                            st.markdown(f"<div style='text-align:right; font-size:14px; font-weight:600; color:white;'>{row['local']}</div>", unsafe_allow_html=True)
                         
-                        # 2. Goles Local (Permite estar vacío)
-                        with col_g_l:
-                            val_l = int(row['goles_l']) if pd.notna(row['goles_l']) else None
-                            goles_l = st.number_input("GL", value=val_l, min_value=0, max_value=20, step=1, label_visibility="collapsed", key=f"gl_adm_{row['id']}")
+                        with col_gl:
+                            v_l = int(row['goles_l']) if pd.notna(row['goles_l']) else None
+                            g_l = st.number_input("L", value=v_l, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gl_{row['id']}")
                         
                         with col_vs:
-                            st.markdown("<div style='text-align:center; color:#aaa;'>-</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='text-align:center; opacity:0.5;'>-</div>", unsafe_allow_html=True)
                         
-                        # 3. Goles Visitante (Permite estar vacío)
-                        with col_g_v:
-                            val_v = int(row['goles_v']) if pd.notna(row['goles_v']) else None
-                            goles_v = st.number_input("GV", value=val_v, min_value=0, max_value=20, step=1, label_visibility="collapsed", key=f"gv_adm_{row['id']}")
+                        with col_gv:
+                            v_v = int(row['goles_v']) if pd.notna(row['goles_v']) else None
+                            g_v = st.number_input("V", value=v_v, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gv_{row['id']}")
+                            
+                        with col_v:
+                            st.markdown(f"<div style='text-align:left; font-size:14px; font-weight:600; color:white;'>{row['visitante']}</div>", unsafe_allow_html=True)
                         
-                        # 4. Visitante
-                        with col_visit:
-                            st.markdown(f"<div style='text-align:left; font-weight:bold;'>{row['visitante']}</div>", unsafe_allow_html=True)
-                        
-                        # 5. Botón de Guardar / Evidencia
-                        with col_save:
+                        with col_acc:
+                            # Sub-columnas para botones para que no se apilen verticalmente
                             c1, c2 = st.columns(2)
                             with c1:
-                                if st.button("💾", key=f"save_adm_{row['id']}", help="Guardar como Manual"):
+                                if st.button("💾", key=f"sv_{row['id']}", help="Guardar"):
                                     with conn.connect() as db:
-                                        db.execute(text("""
-                                            UPDATE partidos 
-                                            SET goles_l = :gl, goles_v = :gv, estado = 'Finalizado', 
-                                                conflicto = 0, metodo_registro = 'Manual'
-                                            WHERE id = :id
-                                        """), {"gl": goles_l, "gv": goles_v, "id": row['id']})
+                                        db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"), 
+                                                   {"l": g_l, "v": g_v, "id": row['id']})
                                         db.commit()
                                     st.rerun()
-                            
                             with c2:
-                                # Si fue por algoritmo y hay conflicto/revisión, mostrar ojo para ver foto
-                                if metodo == "Algoritmo" and (pd.notna(row['url_foto_l']) or pd.notna(row['url_foto_v'])):
-                                    # Usamos un expander o link para ver la evidencia
-                                    url_evidencia = row['url_foto_l'] if pd.notna(row['url_foto_l']) else row['url_foto_v']
-                                    st.link_button("👁️", url_evidencia, help="Ver evidencia de la IA")
-
-                        if en_revision:
-                            st.markdown('</div>', unsafe_allow_html=True)
+                                url = row['url_foto_l'] if pd.notna(row['url_foto_l']) else row['url_foto_v']
+                                if url:
+                                    # Usamos un expander minúsculo para la "plantilla fantasma" de la foto
+                                    with st.popover("👁️", help="Ver Evidencia"):
+                                        st.image(url, caption=f"Evidencia de {row['metodo_registro']}")
+                                else:
+                                    st.button("🚫", key=f"no_{row['id']}", disabled=True)
                         
-                        # Línea divisoria sutil
-                        st.divider()
+                        st.markdown('</div>', unsafe_allow_html=True)
 
 
                         
@@ -1747,6 +1746,7 @@ if opcion_admin == "⚽ Resultados":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
