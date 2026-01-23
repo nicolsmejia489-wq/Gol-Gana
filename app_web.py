@@ -1341,8 +1341,24 @@ if rol == "dt":
                     st.markdown("<div style='height:1px; background-color:#333; margin: 15px 0;'></div>", unsafe_allow_html=True)
 
                     # 2. ZONA DE ACCIÓN
+                    # Si el partido ya está finalizado (por IA o coincidencia)
                     if p['estado'] == 'Finalizado':
-                         st.success(f"✅ Finalizado: {int(p['goles_l'])} - {int(p['goles_v'])}")
+                        st.success(f"✅ Finalizado: {int(p['goles_l'])} - {int(p['goles_v'])}")
+                        
+                        # BOTÓN DE CORRECCIÓN: Si el DT nota que la IA leyó mal
+                        if st.button("❌ Marcador Incorrecto", key=f"err_{p['id']}", use_container_width=True):
+                            try:
+                                with conn.connect() as db:
+                                    # Resetear goles y mandar a revisión por conflicto
+                                    q = text("UPDATE partidos SET estado='Revision', conflicto=1, goles_l=NULL, goles_v=NULL WHERE id=:id")
+                                    db.execute(q, {"id": p['id']})
+                                    db.commit()
+                                st.warning("Partido enviado a revisión manual. Los goles han sido reseteados.")
+                                time.sleep(1.5)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al corregir: {e}")
+
                     else:
                         st.caption("📸 CARGAR RESULTADO")
                         tipo_carga = st.radio("Método:", ["Ocultar", "Usar Cámara", "Subir Foto"], horizontal=True, label_visibility="collapsed", key=f"radio_{p['id']}")
@@ -1360,7 +1376,6 @@ if rol == "dt":
                             if st.button("📤 ENVIAR AHORA", key=f"send_{p['id']}", type="primary", use_container_width=True):
                                 with st.spinner("🔍 Analizando imagen..."):
                                     
-                                    # --- AQUÍ ESTÁ LA CORRECCIÓN ---
                                     # Pasamos la foto Y los nombres de los equipos de la base de datos
                                     res_ia, msg_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
 
@@ -1368,7 +1383,7 @@ if rol == "dt":
                                         gl_ia, gv_ia = res_ia
                                         st.info(f"🔢 Resultado Detectado: {gl_ia} - {gv_ia}")
 
-                                        # --- GUARDADO ---
+                                        # --- PROCESO DE GUARDADO Y ESTADO ---
                                         try:
                                             foto.seek(0)
                                             res_c = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
@@ -1380,20 +1395,27 @@ if rol == "dt":
                                                 gv_ex = int(p['goles_v']) if pd.notna(p['goles_v']) else None
 
                                                 if gl_ex is not None:
+                                                    # Si ya existe un reporte (del rival), verificamos coincidencia
                                                     if gl_ex != gl_ia or gv_ex != gv_ia:
-                                                        q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv WHERE id=:id")
+                                                        # Conflicto: Se borra lo anterior y va a revisión
+                                                        q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
                                                         db.execute(q, {"u": url, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
-                                                        st.warning("⚠️ Conflicto reportado.")
+                                                        st.warning("⚠️ Conflicto reportado: Los resultados no coinciden con el rival.")
                                                     else:
+                                                        # Coinciden: Finalizamos
                                                         q = text(f"UPDATE partidos SET {cf}=:u, conflicto=0, estado='Finalizado' WHERE id=:id")
                                                         db.execute(q, {"u": url, "id": p['id']})
                                                         st.balloons()
-                                                        st.success("✅ Verificado.")
+                                                        st.success("✅ Verificado y Finalizado.")
                                                 else:
-                                                    q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
+                                                    # PRIMER REPORTE: Marcamos como Finalizado automáticamente
+                                                    q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Finalizado', conflicto=0 WHERE id=:id")
                                                     db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url, "id": p['id']})
-                                                    st.success("📤 Enviado.")
+                                                    st.balloons()
+                                                    st.success("✅ ¡Resultado registrado y finalizado!")
+                                                
                                                 db.commit()
+                                            
                                             time.sleep(2)
                                             st.rerun()
                                         except Exception as e:
@@ -1405,7 +1427,6 @@ if rol == "dt":
 
         except Exception as e:
             st.error(f"Error carga: {e}")
-            
             
 
 
@@ -1713,6 +1734,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
