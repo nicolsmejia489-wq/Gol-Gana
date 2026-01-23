@@ -342,6 +342,19 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 ###############  FUNCION LEER RESULTADO DE FOTO - EN PRUEBA
 # Cargamos el motor una vez (Cache)
 @st.cache_resource
@@ -1159,7 +1172,8 @@ if fase_actual == "inscripcion":
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo", value=d['n']).strip()
                 
-                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54", "Chile": "+56", "Venezuela": "+58"}
+               paises = {"Colombia": "+57",    "EEUU": "+1",    "México": "+52",    "Canadá": "+1",    "Costa Rica": "+506",    "Ecuador": "+593",    "Panamá": "+507",    "Perú": "+51",    "Uruguay": "+598",    "Argentina": "+54",    "Bolivia": "+591", "Brasil": "+55",    "Chile": "+56",    "Venezuela": "+58",    "Belice": "+501",    "Guatemala": "+502",    "El Salvador": "+503",    "Honduras": "+504",    "Nicaragua": "+505"}
+
                 opciones = [f"{p} ({pref})" for p, pref in paises.items()]
                 
                 try:
@@ -1277,8 +1291,7 @@ elif fase_actual == "clasificacion":
 
 
             
-
-# --- TAB: MIS PARTIDOS (DT - VISIÓN LOCAL V2) ---
+# --- TAB: MIS PARTIDOS (DT - CORREGIDO Y CONECTADO) ---
 if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
@@ -1322,7 +1335,7 @@ if rol == "dt":
                                     link_wa = f"https://wa.me/{num}"
                         except: pass
                         if link_wa:
-                            st.link_button("💬 Chatear con DT", link_wa, type="primary")
+                            st.link_button("💬 Chat", link_wa, type="primary")
                         else:
                             st.caption("🚫")
 
@@ -1343,17 +1356,20 @@ if rol == "dt":
 
                         if foto:
                             st.image(foto, width=200)
+                            
+                            # Botón de envío
                             if st.button("📤 ENVIAR AHORA", key=f"send_{p['id']}", type="primary", use_container_width=True):
                                 with st.spinner("🔍 Analizando imagen..."):
                                     
-                                    # --- LLAMADA A FUNCIÓN LOCAL ---
-                                    res_ocr, msg_ocr = leer_marcador_ia(foto)
+                                    # --- AQUÍ ESTÁ LA CORRECCIÓN ---
+                                    # Pasamos la foto Y los nombres de los equipos de la base de datos
+                                    res_ia, msg_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
 
-                                    if res_ocr:
-                                        gl_ocr, gv_ocr = res_ocr
-                                        st.info(f"🔢 {msg_ocr}") # Feedback al usuario
+                                    if res_ia:
+                                        gl_ia, gv_ia = res_ia
+                                        st.info(f"🔢 Resultado Detectado: {gl_ia} - {gv_ia}")
 
-                                        # --- GUARDADO EN BD ---
+                                        # --- GUARDADO ---
                                         try:
                                             foto.seek(0)
                                             res_c = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
@@ -1365,9 +1381,9 @@ if rol == "dt":
                                                 gv_ex = int(p['goles_v']) if pd.notna(p['goles_v']) else None
 
                                                 if gl_ex is not None:
-                                                    if gl_ex != gl_ocr or gv_ex != gv_ocr:
+                                                    if gl_ex != gl_ia or gv_ex != gv_ia:
                                                         q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv WHERE id=:id")
-                                                        db.execute(q, {"u": url, "gl": gl_ocr, "gv": gv_ocr, "id": p['id']})
+                                                        db.execute(q, {"u": url, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
                                                         st.warning("⚠️ Conflicto reportado.")
                                                     else:
                                                         q = text(f"UPDATE partidos SET {cf}=:u, conflicto=0, estado='Finalizado' WHERE id=:id")
@@ -1376,7 +1392,7 @@ if rol == "dt":
                                                         st.success("✅ Verificado.")
                                                 else:
                                                     q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
-                                                    db.execute(q, {"gl": gl_ocr, "gv": gv_ocr, "u": url, "id": p['id']})
+                                                    db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url, "id": p['id']})
                                                     st.success("📤 Enviado.")
                                                 db.commit()
                                             time.sleep(2)
@@ -1384,9 +1400,9 @@ if rol == "dt":
                                         except Exception as e:
                                             st.error(f"Error BD: {e}")
                                     else:
-                                        # Fallo de lectura
-                                        st.error(f"❌ {msg_ocr}")
-                                        st.caption("Tip: Asegúrate que el marcador esté arriba y no sea tapado por luz.")
+                                        # Error de lectura
+                                        st.error(f"❌ {msg_ia}")
+                                        st.caption("Tip: Intenta que la foto no tenga reflejos y el marcador esté centrado.")
 
         except Exception as e:
             st.error(f"Error carga: {e}")
@@ -1698,6 +1714,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
