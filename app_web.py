@@ -1214,7 +1214,7 @@ elif fase_actual == "clasificacion":
 
             
 
-# --- TAB: MIS PARTIDOS (DT - DISEÑO MINIMALISTA FINAL) ---
+# --- TAB: MIS PARTIDOS (DT - CORRECCIÓN FINAL GLITCH EXPANDER) ---
 if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
@@ -1235,7 +1235,6 @@ if rol == "dt":
                 # --- A. SEPARADOR DE JORNADA ---
                 if p['jornada'] != ultima_jornada_vista:
                     st.divider()
-                    # Centrado visual del título
                     c_spacer, c_title, c_spacer2 = st.columns([1, 2, 1])
                     with c_title:
                         st.header(f"📅 JORNADA {p['jornada']}")
@@ -1255,7 +1254,6 @@ if rol == "dt":
                         st.subheader(f"🆚 {rival}")
                     
                     with col_wa:
-                        # Lógica WhatsApp
                         link_wa = None
                         try:
                             with conn.connect() as db:
@@ -1265,21 +1263,19 @@ if rol == "dt":
                                     link_wa = f"https://wa.me/{num}"
                         except: pass
                         
-                        st.write("") # Espacio vertical
+                        st.write("") 
                         if link_wa:
-                            # Botón Primary para evitar el error de blanco sobre blanco
-                            st.link_button("💬 Chat", link_wa, type="primary")
+                            st.link_button("💬 Chat", link_wa, type="primary", use_container_width=True)
                         else:
                             st.caption("🚫 Sin No.")
 
-                    st.write("") # Un poco de aire antes del desplegable
+                    st.write("") # Espacio
 
-                    # 2. ÁREA DE REPORTE (DIRECTA Y LIMPIA)
-                    # El título del expander ES la instrucción. No necesitamos más.
-                    with st.expander(f"📸 Reportar Marcador J{p['jornada']}", expanded=False):
+                    # 2. ÁREA DE REPORTE (CORREGIDA)
+                    # SIN EMOJI AL INICIO para evitar el bug visual. Texto plano y directo.
+                    with st.expander("Reportar Resultado y Evidencia", expanded=False):
                         
-                        # Selección de fuente (Horizontal para ahorrar espacio)
-                        opcion = st.radio("Selecciona fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True, label_visibility="collapsed")
+                        opcion = st.radio("Selecciona fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
                         
                         foto = None
                         if opcion == "Cámara":
@@ -1293,7 +1289,7 @@ if rol == "dt":
                             # Botón Primary para visibilidad garantizada
                             if st.button("📤 Enviar Marcador", key=f"dt_btn_ia_{p['id']}", type="primary", use_container_width=True):
                                 with st.spinner("Analizando evidencia..."):
-                                    # --- LÓGICA DE PROCESAMIENTO (Misma que tenías) ---
+                                    # --- LÓGICA DE PROCESAMIENTO ---
                                     try:
                                         res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
                                     except:
@@ -1310,7 +1306,6 @@ if rol == "dt":
                                             col_foto = "url_foto_l" if es_local else "url_foto_v"
 
                                             with conn.connect() as db:
-                                                # Protección Nulos
                                                 gl_existente = int(p['goles_l']) if pd.notna(p['goles_l']) else None
                                                 gv_existente = int(p['goles_v']) if pd.notna(p['goles_v']) else None
 
@@ -1643,6 +1638,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
