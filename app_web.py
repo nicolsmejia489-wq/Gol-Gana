@@ -1214,7 +1214,7 @@ elif fase_actual == "clasificacion":
 
             
 
-# --- TAB: MIS PARTIDOS (VERSIÓN NATIVA - CERO HTML) ---
+# --- TAB: MIS PARTIDOS (DT - DISEÑO MINIMALISTA FINAL) ---
 if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
@@ -1232,34 +1232,30 @@ if rol == "dt":
 
             for _, p in mis.iterrows():
                 
-                # --- A. SEPARADOR DE JORNADA (NATIVO) ---
+                # --- A. SEPARADOR DE JORNADA ---
                 if p['jornada'] != ultima_jornada_vista:
-                    st.divider() # Línea divisoria nativa (gris elegante)
-                    
-                    # Usamos columnas para "centrar" el título visualmente
+                    st.divider()
+                    # Centrado visual del título
                     c_spacer, c_title, c_spacer2 = st.columns([1, 2, 1])
                     with c_title:
-                        # Título grande y limpio
-                        st.header(f" JORNADA {p['jornada']}")
-                    
+                        st.header(f"📅 JORNADA {p['jornada']}")
                     ultima_jornada_vista = p['jornada']
 
                 # Datos del partido
                 es_local = (p['local'] == equipo_usuario)
                 rival = p['visitante'] if es_local else p['local']
                 
-                # --- B. TARJETA DE PARTIDO (NATIVA) ---
-                # st.container(border=True) crea un recuadro limpio automáticamente
+                # --- B. TARJETA DE PARTIDO ---
                 with st.container(border=True):
                     
-                    # 1. Cabecera del Rival
+                    # 1. INFO DEL RIVAL + WHATSAPP
                     col_rival, col_wa = st.columns([3, 1])
                     with col_rival:
                         st.caption("Tu Rival")
-                        st.subheader(f" {rival}")
+                        st.subheader(f"🆚 {rival}")
                     
                     with col_wa:
-                        # Buscamos el WhatsApp
+                        # Lógica WhatsApp
                         link_wa = None
                         try:
                             with conn.connect() as db:
@@ -1269,31 +1265,35 @@ if rol == "dt":
                                     link_wa = f"https://wa.me/{num}"
                         except: pass
                         
-                        st.write("") # Espacio para bajar el botón
+                        st.write("") # Espacio vertical
                         if link_wa:
-                            # COMPONENTE NATIVO: link_button (Reemplaza al HTML <a>)
-                            st.link_button("📱 Contactar DT", link_wa, type="secondary")
+                            # Botón Primary para evitar el error de blanco sobre blanco
+                            st.link_button("💬 Chat", link_wa, type="primary")
                         else:
                             st.caption("🚫 Sin No.")
 
-                    # 2. Área de Reporte (Expander Nativo)
-                    with st.expander("            📸 Reportar Marcador", expanded=False):
-                        st.caption("Sube tu evidencia para validar el resultado")
+                    st.write("") # Un poco de aire antes del desplegable
+
+                    # 2. ÁREA DE REPORTE (DIRECTA Y LIMPIA)
+                    # El título del expander ES la instrucción. No necesitamos más.
+                    with st.expander("📝 CARGAR RESULTADO / EVIDENCIA", expanded=False):
                         
-                        opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
+                        # Selección de fuente (Horizontal para ahorrar espacio)
+                        opcion = st.radio("Selecciona fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True, label_visibility="collapsed")
                         
                         foto = None
                         if opcion == "Cámara":
                             foto = st.camera_input("Tomar foto", key=f"dt_cam_{p['id']}")
                         else:
-                            foto = st.file_uploader("Subir archivo", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
+                            foto = st.file_uploader("Subir imagen", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
                         
                         if foto:
                             st.image(foto, width=200)
                             
-                            if st.button("📤 Enviar Resultado", key=f"dt_btn_ia_{p['id']}", type="primary", use_container_width=True):
-                                with st.spinner("Procesando..."):
-                                    # Fallback IA
+                            # Botón Primary para visibilidad garantizada
+                            if st.button("📤 Enviar Marcador", key=f"dt_btn_ia_{p['id']}", type="primary", use_container_width=True):
+                                with st.spinner("Analizando evidencia..."):
+                                    # --- LÓGICA DE PROCESAMIENTO (Misma que tenías) ---
                                     try:
                                         res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
                                     except:
@@ -1305,13 +1305,12 @@ if rol == "dt":
 
                                         try:
                                             foto.seek(0)
-                                            # Subida Cloudinary
                                             res_cloud = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
                                             url_nueva = res_cloud['secure_url']
                                             col_foto = "url_foto_l" if es_local else "url_foto_v"
 
                                             with conn.connect() as db:
-                                                # PROTECCIÓN NULOS
+                                                # Protección Nulos
                                                 gl_existente = int(p['goles_l']) if pd.notna(p['goles_l']) else None
                                                 gv_existente = int(p['goles_v']) if pd.notna(p['goles_v']) else None
 
@@ -1319,11 +1318,12 @@ if rol == "dt":
                                                     if gl_existente != gl_ia or gv_existente != gv_ia:
                                                         q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {col_foto}=:u, ia_goles_l=:gl, ia_goles_v=:gv WHERE id=:id")
                                                         db.execute(q, {"u": url_nueva, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
-                                                        st.warning("⚠️ Conflicto reportado.")
+                                                        st.warning("⚠️ Conflicto reportado al Admin.")
                                                     else:
                                                         q = text(f"UPDATE partidos SET {col_foto}=:u, conflicto=0, estado='Finalizado' WHERE id=:id")
                                                         db.execute(q, {"u": url_nueva, "id": p['id']})
-                                                        st.success("✅ Verificado.")
+                                                        st.balloons()
+                                                        st.success("✅ Marcador Verificado.")
                                                 else:
                                                     q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {col_foto}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
                                                     db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url_nueva, "id": p['id']})
@@ -1336,7 +1336,6 @@ if rol == "dt":
                     
         except Exception as e:
             st.error(f"Error cargando partidos: {e}")
-            
             
 
 
@@ -1644,6 +1643,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
