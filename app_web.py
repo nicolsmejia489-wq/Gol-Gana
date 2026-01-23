@@ -1146,76 +1146,78 @@ elif fase_actual == "clasificacion":
 
             
 
-# --- TAB: MIS PARTIDOS (DT - ESTÉTICA NEÓN SUTIL) ---
+# --- TAB: MIS PARTIDOS (DT - ESTÉTICA CORREGIDA Y LIMPIA) ---
 if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
         
-        # DEFINICIÓN DEL SEPARADOR (CSS)
-        # Usamos el color maestro pero muy transparente (hex '40' al final es 25% opacidad)
-        # Margin-top: 60px da el espacio amplio que pediste.
+        # --- FUNCIÓN: SEPARADOR DE JORNADA MEJORADO ---
         def html_separador_jornada(num_jornada):
             color_linea = color_maestro if 'color_maestro' in locals() else "#FFD700"
             return f"""
             <div style="
-                margin-top: 60px; 
-                margin-bottom: 20px;
+                margin-top: 40px; 
+                margin-bottom: 25px;
                 text-align: center;
+                position: relative;
+                z-index: 1;
             ">
                 <div style="
-                    height: 1px;
-                    background: linear-gradient(90deg, rgba(0,0,0,0) 0%, {color_linea}50 50%, rgba(0,0,0,0) 100%);
-                    box-shadow: 0 0 15px {color_linea}30;
+                    height: 2px;
+                    background: linear-gradient(90deg, rgba(0,0,0,0) 0%, {color_linea} 50%, rgba(0,0,0,0) 100%);
+                    box-shadow: 0 0 20px {color_linea};
                     border: none;
+                    margin-bottom: -14px; /* Truco para superponer el texto a la línea */
                 "></div>
-                <div style="
-                    color: {color_linea}80; 
-                    font-size: 12px; 
+                
+                <span style="
+                    color: white; 
+                    font-family: 'Oswald', sans-serif;
+                    font-size: 18px; 
+                    font-weight: bold;
                     text-transform: uppercase; 
-                    letter-spacing: 3px; 
-                    margin-top: -10px; 
+                    letter-spacing: 4px; 
                     background-color: #0e1117; 
-                    display: inline-block; 
-                    padding: 0 10px;
-                ">Jornada {num_jornada}</div>
+                    padding: 5px 20px;
+                    border-radius: 20px;
+                    border: 1px solid {color_linea}40;
+                ">JORNADA {num_jornada}</span>
             </div>
             """
 
         try:
-            # Ordenamos estrictamente por jornada para que el separador funcione
+            # Consulta ordenada
             query_mis = text("SELECT * FROM partidos WHERE (local=:eq OR visitante=:eq) ORDER BY jornada ASC")
             mis = pd.read_sql_query(query_mis, conn, params={"eq": equipo_usuario})
             
             if mis.empty:
                 st.info("Aún no tienes partidos asignados.")
             
-            # VARIABLE DE CONTROL PARA DETECTAR CAMBIO DE JORNADA
+            # CONTROL DE JORNADAS
             ultima_jornada_vista = -1
 
             for _, p in mis.iterrows():
                 
-                # --- LÓGICA DEL SEPARADOR ---
-                # Si la jornada de este partido es diferente a la anterior, ponemos la linea
+                # --- 1. SEPARADOR DE JORNADA (Lógica arreglada) ---
+                # Ahora se muestra SIEMPRE que cambie la jornada, incluida la 1
                 if p['jornada'] != ultima_jornada_vista:
-                    # No ponemos separador antes del primer partido (para que no quede feo arriba)
-                    if ultima_jornada_vista != -1: 
-                        st.markdown(html_separador_jornada(p['jornada']), unsafe_allow_html=True)
+                    st.markdown(html_separador_jornada(p['jornada']), unsafe_allow_html=True)
                     ultima_jornada_vista = p['jornada']
 
-                # --- RENDERIZADO DEL PARTIDO (Igual que antes) ---
+                # Datos del partido
                 es_local = (p['local'] == equipo_usuario)
                 rival = p['visitante'] if es_local else p['local']
                 
                 with st.container():
-                    # Caja de información visual
+                    # --- 2. TARJETA LIMPIA (Sin "Jornada" redundante) ---
                     st.markdown(f"""
-                        <div class='match-box'>
-                            <b>Jornada {p['jornada']}</b><br>
-                            Rival: {rival}
+                        <div class='match-box' style="margin-bottom: 10px;">
+                            <div style="font-size: 14px; color: #aaa;">Rival</div>
+                            <div style="font-size: 20px; font-weight: bold; color: white;">{rival}</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Whatsapp
+                    # WhatsApp
                     numero_wa = None
                     try:
                         with conn.connect() as db:
@@ -1227,27 +1229,31 @@ if rol == "dt":
 
                     if numero_wa:
                         st.markdown(f"""
-                            <a href='https://wa.me/{numero_wa}' class='wa-btn' style='text-decoration: none;'>
-                                💬 Contactar Rival (WhatsApp)
+                            <a href='https://wa.me/{numero_wa}' class='wa-btn' style='display:inline-block; text-decoration:none; margin-bottom:15px; font-size:14px;'>
+                                💬 Contactar Rival
                             </a>
                         """, unsafe_allow_html=True)
                     else:
                         st.caption("🚫 Sin contacto registrado.")
 
-                    # Expander
-                    with st.expander(f"📸 Reportar Marcador J{p['jornada']}", expanded=False):
+                    # --- 3. EXPANDER (Arreglo visual) ---
+                    # Usamos un texto limpio sin emojis raros al inicio para evitar conflictos de fuente
+                    with st.expander(f"REPORTAR MARCADOR", expanded=False):
+                        st.caption("Sube tu evidencia para validar el resultado")
+                        
                         opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
                         
                         foto = None
                         if opcion == "Cámara":
-                            foto = st.camera_input("Capturar", key=f"dt_cam_{p['id']}")
+                            foto = st.camera_input("Tomar foto", key=f"dt_cam_{p['id']}")
                         else:
-                            foto = st.file_uploader("Subir", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
+                            foto = st.file_uploader("Subir archivo", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
                         
                         if foto:
-                            st.image(foto, width=250)
+                            st.image(foto, width=200)
                             
-                            if st.button("Enviar Resultado", key=f"dt_btn_ia_{p['id']}"):
+                            # Botón de acción principal
+                            if st.button("📤 Enviar Resultado", key=f"dt_btn_ia_{p['id']}", type="primary"):
                                 with st.spinner("Procesando..."):
                                     # Fallback simple de IA
                                     try:
@@ -1257,7 +1263,7 @@ if rol == "dt":
 
                                     if res_ia:
                                         gl_ia, gv_ia = res_ia
-                                        st.info(f"🤖 Detectado: {gl_ia} - {gv_ia}")
+                                        st.info(f"🤖 IA Detectó: {gl_ia} - {gv_ia}")
 
                                         try:
                                             foto.seek(0)
@@ -1282,16 +1288,13 @@ if rol == "dt":
                                                 else:
                                                     q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {col_foto}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
                                                     db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url_nueva, "id": p['id']})
-                                                    st.success("⚽ Enviado.")
+                                                    st.success("⚽ Resultado Enviado.")
                                                 db.commit() 
                                             time.sleep(1.5)
                                             st.rerun()
                                         except Exception as e:
-                                            st.error(f"Error: {e}")
+                                            st.error(f"Error técnico: {e}")
                     
-                    # Separador sutil entre partidos DE LA MISMA JORNADA
-                    st.markdown("<hr style='margin:15px 0; border:0; border-top: 1px solid rgba(255,255,255,0.05);'>", unsafe_allow_html=True)
-        
         except Exception as e:
             st.error(f"Error cargando partidos: {e}")
             
@@ -1602,6 +1605,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
