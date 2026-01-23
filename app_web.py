@@ -1172,8 +1172,7 @@ if fase_actual == "inscripcion":
             with st.form("reg_preventivo"):
                 nom = st.text_input("Nombre Equipo", value=d['n']).strip()
                 
-               paises = {"Colombia": "+57",    "EEUU": "+1",    "México": "+52",    "Canadá": "+1",    "Costa Rica": "+506",    "Ecuador": "+593",    "Panamá": "+507",    "Perú": "+51",    "Uruguay": "+598",    "Argentina": "+54",    "Bolivia": "+591", "Brasil": "+55",    "Chile": "+56",    "Venezuela": "+58",    "Belice": "+501",    "Guatemala": "+502",    "El Salvador": "+503",    "Honduras": "+504",    "Nicaragua": "+505"}
-
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54", "Chile": "+56", "Venezuela": "+58"}
                 opciones = [f"{p} ({pref})" for p, pref in paises.items()]
                 
                 try:
@@ -1714,6 +1713,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
