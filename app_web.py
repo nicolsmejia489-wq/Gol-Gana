@@ -1276,7 +1276,7 @@ if rol == "dt":
 
                     # 2. ÁREA DE REPORTE (DIRECTA Y LIMPIA)
                     # El título del expander ES la instrucción. No necesitamos más.
-                    with st.expander("📝 CARGAR RESULTADO / EVIDENCIA", expanded=False):
+                    with st.expander(f"          📸 Reportar Marcador J{p['jornada']}", expanded=False):
                         
                         # Selección de fuente (Horizontal para ahorrar espacio)
                         opcion = st.radio("Selecciona fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True, label_visibility="collapsed")
@@ -1643,6 +1643,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
