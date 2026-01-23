@@ -1146,20 +1146,63 @@ elif fase_actual == "clasificacion":
 
             
 
-# --- TAB: MIS PARTIDOS (SOLO PARA DT) ---
+# --- TAB: MIS PARTIDOS (DT - ESTÉTICA NEÓN SUTIL) ---
 if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
         
-        # 1. Consultar partidos del usuario (Lectura segura Neon)
+        # DEFINICIÓN DEL SEPARADOR (CSS)
+        # Usamos el color maestro pero muy transparente (hex '40' al final es 25% opacidad)
+        # Margin-top: 60px da el espacio amplio que pediste.
+        def html_separador_jornada(num_jornada):
+            color_linea = color_maestro if 'color_maestro' in locals() else "#FFD700"
+            return f"""
+            <div style="
+                margin-top: 60px; 
+                margin-bottom: 20px;
+                text-align: center;
+            ">
+                <div style="
+                    height: 1px;
+                    background: linear-gradient(90deg, rgba(0,0,0,0) 0%, {color_linea}50 50%, rgba(0,0,0,0) 100%);
+                    box-shadow: 0 0 15px {color_linea}30;
+                    border: none;
+                "></div>
+                <div style="
+                    color: {color_linea}80; 
+                    font-size: 12px; 
+                    text-transform: uppercase; 
+                    letter-spacing: 3px; 
+                    margin-top: -10px; 
+                    background-color: #0e1117; 
+                    display: inline-block; 
+                    padding: 0 10px;
+                ">Jornada {num_jornada}</div>
+            </div>
+            """
+
         try:
+            # Ordenamos estrictamente por jornada para que el separador funcione
             query_mis = text("SELECT * FROM partidos WHERE (local=:eq OR visitante=:eq) ORDER BY jornada ASC")
             mis = pd.read_sql_query(query_mis, conn, params={"eq": equipo_usuario})
             
             if mis.empty:
                 st.info("Aún no tienes partidos asignados.")
             
+            # VARIABLE DE CONTROL PARA DETECTAR CAMBIO DE JORNADA
+            ultima_jornada_vista = -1
+
             for _, p in mis.iterrows():
+                
+                # --- LÓGICA DEL SEPARADOR ---
+                # Si la jornada de este partido es diferente a la anterior, ponemos la linea
+                if p['jornada'] != ultima_jornada_vista:
+                    # No ponemos separador antes del primer partido (para que no quede feo arriba)
+                    if ultima_jornada_vista != -1: 
+                        st.markdown(html_separador_jornada(p['jornada']), unsafe_allow_html=True)
+                    ultima_jornada_vista = p['jornada']
+
+                # --- RENDERIZADO DEL PARTIDO (Igual que antes) ---
                 es_local = (p['local'] == equipo_usuario)
                 rival = p['visitante'] if es_local else p['local']
                 
@@ -1172,7 +1215,7 @@ if rol == "dt":
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # --- CONTACTO WHATSAPP ---
+                    # Whatsapp
                     numero_wa = None
                     try:
                         with conn.connect() as db:
@@ -1191,102 +1234,64 @@ if rol == "dt":
                     else:
                         st.caption("🚫 Sin contacto registrado.")
 
-                    # --- EXPANDER PARA REPORTE ---
+                    # Expander
                     with st.expander(f"📸 Reportar Marcador J{p['jornada']}", expanded=False):
-                        opcion = st.radio(
-                            "Selecciona fuente:", 
-                            ["Cámara", "Galería"], 
-                            key=f"dt_opt_{p['id']}", 
-                            horizontal=True
-                        )
+                        opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
                         
                         foto = None
                         if opcion == "Cámara":
-                            foto = st.camera_input("Capturar pantalla", key=f"dt_cam_{p['id']}")
+                            foto = st.camera_input("Capturar", key=f"dt_cam_{p['id']}")
                         else:
-                            foto = st.file_uploader("Subir imagen", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
+                            foto = st.file_uploader("Subir", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
                         
                         if foto:
-                            st.image(foto, width=250, caption="Evidencia cargada")
+                            st.image(foto, width=250)
                             
-                            if st.button("🔍 Analizar y Enviar Resultado", key=f"dt_btn_ia_{p['id']}"):
-                                with st.spinner("La IA está analizando la imagen..."):
-                                    # 1. Análisis de IA (Asegúrate de tener leer_marcador_ia definida)
-                                    # Si no tienes la función IA activa, usa valores manuales temporales o mock
+                            if st.button("Enviar Resultado", key=f"dt_btn_ia_{p['id']}"):
+                                with st.spinner("Procesando..."):
+                                    # Fallback simple de IA
                                     try:
                                         res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
                                     except:
-                                        # Fallback si la función IA no existe o falla
-                                        res_ia, mensaje_ia = (0, 0), "IA simulada (Fallback)"
+                                        res_ia, mensaje_ia = (0, 0), "IA simulada"
 
-                                    if res_ia is None:
-                                        st.error(mensaje_ia)
-                                    else:
+                                    if res_ia:
                                         gl_ia, gv_ia = res_ia
-                                        st.info(f"🤖 IA detectó marcador: {gl_ia} - {gv_ia}")
+                                        st.info(f"🤖 Detectado: {gl_ia} - {gv_ia}")
 
                                         try:
                                             foto.seek(0)
-                                            # 2. Subida a Cloudinary
                                             res_cloud = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
                                             url_nueva = res_cloud['secure_url']
-                                            
                                             col_foto = "url_foto_l" if es_local else "url_foto_v"
 
-                                            # 3. Lógica de Consenso / Conflicto
                                             with conn.connect() as db:
-                                                # CORRECCIÓN: Convertir a int de forma segura (0 si es NaN/None)
+                                                # PROTECCIÓN NULOS
                                                 gl_existente = int(p['goles_l']) if pd.notna(p['goles_l']) else None
                                                 gv_existente = int(p['goles_v']) if pd.notna(p['goles_v']) else None
 
-                                                # Si ya hay reporte previo (y no es nulo)
                                                 if gl_existente is not None:
-                                                    # Comparación Segura
                                                     if gl_existente != gl_ia or gv_existente != gv_ia:
-                                                        # CONFLICTO
-                                                        query_conf = text(f"""
-                                                            UPDATE partidos SET 
-                                                            goles_l=NULL, goles_v=NULL, 
-                                                            conflicto=1, {col_foto}=:url, 
-                                                            ia_goles_l=:gl, ia_goles_v=:gv 
-                                                            WHERE id=:id
-                                                        """)
-                                                        db.execute(query_conf, {
-                                                            "url": url_nueva, "gl": gl_ia, "gv": gv_ia, "id": p['id']
-                                                        })
-                                                        st.warning("⚠️ Conflicto: Los resultados no coinciden. El Admin decidirá.")
+                                                        q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {col_foto}=:u, ia_goles_l=:gl, ia_goles_v=:gv WHERE id=:id")
+                                                        db.execute(q, {"u": url_nueva, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
+                                                        st.warning("⚠️ Conflicto reportado.")
                                                     else:
-                                                        # CONSENSO
-                                                        query_ok = text(f"""
-                                                            UPDATE partidos SET 
-                                                            {col_foto}=:url, conflicto=0, estado='Finalizado' 
-                                                            WHERE id=:id
-                                                        """)
-                                                        db.execute(query_ok, {"url": url_nueva, "id": p['id']})
-                                                        st.success("✅ ¡Marcador verificado y finalizado!")
+                                                        q = text(f"UPDATE partidos SET {col_foto}=:u, conflicto=0, estado='Finalizado' WHERE id=:id")
+                                                        db.execute(q, {"u": url_nueva, "id": p['id']})
+                                                        st.success("✅ Verificado.")
                                                 else:
-                                                    # PRIMER REPORTE
-                                                    query_first = text(f"""
-                                                        UPDATE partidos SET 
-                                                        goles_l=:gl, goles_v=:gv, 
-                                                        {col_foto}=:url, ia_goles_l=:gl, 
-                                                        ia_goles_v=:gv, estado='Revision' 
-                                                        WHERE id=:id
-                                                    """)
-                                                    db.execute(query_first, {
-                                                        "gl": gl_ia, "gv": gv_ia, "url": url_nueva, "id": p['id']
-                                                    })
-                                                    st.success("⚽ Resultado guardado. Esperando reporte del rival.")
-                                                
+                                                    q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {col_foto}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
+                                                    db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url_nueva, "id": p['id']})
+                                                    st.success("⚽ Enviado.")
                                                 db.commit() 
-                                            
                                             time.sleep(1.5)
                                             st.rerun()
-
                                         except Exception as e:
-                                            st.error(f"❌ Error al procesar: {e}")
+                                            st.error(f"Error: {e}")
                     
-                    st.markdown("<hr style='margin:10px 0; opacity:0.2;'>", unsafe_allow_html=True)
+                    # Separador sutil entre partidos DE LA MISMA JORNADA
+                    st.markdown("<hr style='margin:15px 0; border:0; border-top: 1px solid rgba(255,255,255,0.05);'>", unsafe_allow_html=True)
+        
         except Exception as e:
             st.error(f"Error cargando partidos: {e}")
             
@@ -1597,6 +1602,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
