@@ -24,6 +24,50 @@ import requests
 import extcolors
 
 
+# --- BLINDAJE VISUAL: FORZAR MODO OSCURO EN WIDGETS ---
+st.markdown("""
+    <style>
+        /* 1. Forzar fondo oscuro general */
+        .stApp {
+            background-color: #0E1117;
+            color: white;
+        }
+        
+        /* 2. Arreglar Inputs de Texto (PIN, Nombres) */
+        /* Fuerza fondo gris oscuro y texto blanco */
+        div[data-baseweb="input"] {
+            background-color: #262730 !important;
+            border: 1px solid #444 !important;
+        }
+        div[data-baseweb="input"] > div {
+            background-color: transparent !important;
+            color: white !important;
+        }
+        input {
+            color: white !important; /* Lo que escribes se ve blanco */
+        }
+        
+        /* 3. Arreglar Cajas Numéricas (Resultados) */
+        div[data-testid="stNumberInput"] div[data-baseweb="input"] {
+            background-color: #262730 !important;
+        }
+        
+        /* 4. Arreglar Selectbox (Listas desplegables) */
+        div[data-baseweb="select"] > div {
+            background-color: #262730 !important;
+            color: white !important;
+        }
+        
+        /* 5. Etiquetas de los inputs (Labels) */
+        label, .stMarkdown p {
+            color: #E0E0E0 !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+
+
+
 
 
 
@@ -1576,6 +1620,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
