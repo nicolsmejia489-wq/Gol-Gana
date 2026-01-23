@@ -1214,25 +1214,24 @@ elif fase_actual == "clasificacion":
 
             
 
-# --- TAB: MIS PARTIDOS (DT - CORRECCIÓN FINAL GLITCH EXPANDER) ---
+# --- TAB: MIS PARTIDOS (DT - SIN EXPANDER / CONTROLES DIRECTOS) ---
 if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
         
         try:
-            # 1. CONSULTA DE DATOS
+            # 1. CONSULTA
             query_mis = text("SELECT * FROM partidos WHERE (local=:eq OR visitante=:eq) ORDER BY jornada ASC")
             mis = pd.read_sql_query(query_mis, conn, params={"eq": equipo_usuario})
             
             if mis.empty:
                 st.info("Aún no tienes partidos asignados.")
             
-            # CONTROL DE JORNADAS
             ultima_jornada_vista = -1
 
             for _, p in mis.iterrows():
                 
-                # --- A. SEPARADOR DE JORNADA ---
+                # --- A. SEPARADOR JORNADA ---
                 if p['jornada'] != ultima_jornada_vista:
                     st.divider()
                     c_spacer, c_title, c_spacer2 = st.columns([1, 2, 1])
@@ -1240,20 +1239,21 @@ if rol == "dt":
                         st.header(f"📅 JORNADA {p['jornada']}")
                     ultima_jornada_vista = p['jornada']
 
-                # Datos del partido
+                # Datos
                 es_local = (p['local'] == equipo_usuario)
                 rival = p['visitante'] if es_local else p['local']
                 
                 # --- B. TARJETA DE PARTIDO ---
                 with st.container(border=True):
                     
-                    # 1. INFO DEL RIVAL + WHATSAPP
-                    col_rival, col_wa = st.columns([3, 1])
-                    with col_rival:
+                    # 1. INFO RIVAL
+                    c_riv, c_wa = st.columns([3, 1])
+                    with c_riv:
                         st.caption("Tu Rival")
                         st.subheader(f"🆚 {rival}")
                     
-                    with col_wa:
+                    with c_wa:
+                        # WA Link
                         link_wa = None
                         try:
                             with conn.connect() as db:
@@ -1263,74 +1263,85 @@ if rol == "dt":
                                     link_wa = f"https://wa.me/{num}"
                         except: pass
                         
-                        st.write("") 
+                        st.write("")
                         if link_wa:
-                            st.link_button("💬 Chat", link_wa, type="primary", use_container_width=True)
+                            st.link_button("Chat", link_wa, type="primary") # Primary para evitar blanco/blanco
                         else:
-                            st.caption("🚫 Sin No.")
+                            st.caption("🚫")
 
-                    st.write("") # Espacio
+                    # Línea sutil de separación interna
+                    st.markdown("<div style='height:1px; background-color:#333; margin: 15px 0;'></div>", unsafe_allow_html=True)
 
-                    # 2. ÁREA DE REPORTE (CORREGIDA)
-                    # SIN EMOJI AL INICIO para evitar el bug visual. Texto plano y directo.
-                    with st.expander("", expanded=False):
-                        
-                        opcion = st.radio("Selecciona fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
-                        
-                        foto = None
-                        if opcion == "Cámara":
-                            foto = st.camera_input("Tomar foto", key=f"dt_cam_{p['id']}")
-                        else:
-                            foto = st.file_uploader("Subir imagen", type=['png', 'jpg', 'jpeg'], key=f"dt_gal_{p['id']}")
-                        
-                        if foto:
-                            st.image(foto, width=200)
-                            
-                            # Botón Primary para visibilidad garantizada
-                            if st.button("📤 Enviar Marcador", key=f"dt_btn_ia_{p['id']}", type="primary", use_container_width=True):
-                                with st.spinner("Analizando evidencia..."):
-                                    # --- LÓGICA DE PROCESAMIENTO ---
-                                    try:
-                                        res_ia, mensaje_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
-                                    except:
-                                        res_ia, mensaje_ia = (0, 0), "IA Off"
-
-                                    if res_ia:
-                                        gl_ia, gv_ia = res_ia
-                                        st.info(f"🤖 IA Detectó: {gl_ia} - {gv_ia}")
-
-                                        try:
-                                            foto.seek(0)
-                                            res_cloud = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
-                                            url_nueva = res_cloud['secure_url']
-                                            col_foto = "url_foto_l" if es_local else "url_foto_v"
-
-                                            with conn.connect() as db:
-                                                gl_existente = int(p['goles_l']) if pd.notna(p['goles_l']) else None
-                                                gv_existente = int(p['goles_v']) if pd.notna(p['goles_v']) else None
-
-                                                if gl_existente is not None:
-                                                    if gl_existente != gl_ia or gv_existente != gv_ia:
-                                                        q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {col_foto}=:u, ia_goles_l=:gl, ia_goles_v=:gv WHERE id=:id")
-                                                        db.execute(q, {"u": url_nueva, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
-                                                        st.warning("⚠️ Conflicto reportado al Admin.")
-                                                    else:
-                                                        q = text(f"UPDATE partidos SET {col_foto}=:u, conflicto=0, estado='Finalizado' WHERE id=:id")
-                                                        db.execute(q, {"u": url_nueva, "id": p['id']})
-                                                        st.balloons()
-                                                        st.success("✅ Marcador Verificado.")
-                                                else:
-                                                    q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {col_foto}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
-                                                    db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url_nueva, "id": p['id']})
-                                                    st.success("⚽ Resultado Enviado.")
-                                                db.commit() 
-                                            time.sleep(1.5)
-                                            st.rerun()
-                                        except Exception as e:
-                                            st.error(f"Error técnico: {e}")
+                    # 2. ZONA DE ACCIÓN (SIN EXPANDER)
+                    st.caption("📝 CARGAR RESULTADO")
                     
+                    # Selector horizontal simple (Actúa como pestañas)
+                    # Usamos 'format_func' para ponerle iconos bonitos sin romper nada
+                    tipo_carga = st.radio(
+                        "Método:", 
+                        ["Ocultar", "Usar Cámara", "Subir Foto"], 
+                        horizontal=True, 
+                        label_visibility="collapsed",
+                        key=f"radio_{p['id']}"
+                    )
+                    
+                    foto = None
+                    
+                    # Lógica de visualización condicional
+                    if tipo_carga == "Usar Cámara":
+                        foto = st.camera_input("Toma la foto del marcador", key=f"cam_{p['id']}")
+                    
+                    elif tipo_carga == "Subir Foto":
+                        foto = st.file_uploader("Selecciona imagen", type=['jpg','png','jpeg'], key=f"upl_{p['id']}")
+
+                    # 3. PROCESAMIENTO (Solo aparece si hay foto)
+                    if foto:
+                        st.image(foto, width=200)
+                        
+                        # Botón Primary (Rojo/Dorado) para que se lea bien
+                        if st.button("📤 ENVIAR AHORA", key=f"send_{p['id']}", type="primary", use_container_width=True):
+                            with st.spinner("Validando..."):
+                                try:
+                                    res_ia, msg = leer_marcador_ia(foto, p['local'], p['visitante'])
+                                except:
+                                    res_ia, msg = (0, 0), "IA Off"
+
+                                if res_ia:
+                                    gl_ia, gv_ia = res_ia
+                                    st.info(f"🤖 IA: {gl_ia} - {gv_ia}")
+
+                                    try:
+                                        foto.seek(0)
+                                        res_c = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
+                                        url = res_c['secure_url']
+                                        cf = "url_foto_l" if es_local else "url_foto_v"
+
+                                        with conn.connect() as db:
+                                            # Protección float NaN
+                                            gl_ex = int(p['goles_l']) if pd.notna(p['goles_l']) else None
+                                            gv_ex = int(p['goles_v']) if pd.notna(p['goles_v']) else None
+
+                                            if gl_ex is not None:
+                                                if gl_ex != gl_ia or gv_ex != gv_ia:
+                                                    q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv WHERE id=:id")
+                                                    db.execute(q, {"u": url, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
+                                                    st.warning("⚠️ Conflicto reportado.")
+                                                else:
+                                                    q = text(f"UPDATE partidos SET {cf}=:u, conflicto=0, estado='Finalizado' WHERE id=:id")
+                                                    db.execute(q, {"u": url, "id": p['id']})
+                                                    st.success("✅ Verificado.")
+                                            else:
+                                                q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
+                                                db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url, "id": p['id']})
+                                                st.success("⚽ Enviado.")
+                                            db.commit()
+                                        time.sleep(1.5)
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error: {e}")
+
         except Exception as e:
-            st.error(f"Error cargando partidos: {e}")
+            st.error(f"Error carga: {e}")
             
 
 
@@ -1638,6 +1649,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
