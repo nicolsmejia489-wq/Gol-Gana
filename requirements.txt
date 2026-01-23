@@ -14,8 +14,10 @@ openai
 colorgram.py
 requests
 extcolors
-google-generativeai
-google-generativeai>=0.7.2
+
+
+
+torch --index-url https://download.pytorch.org/whl/cpu
 
 
 
