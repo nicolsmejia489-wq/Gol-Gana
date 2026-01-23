@@ -1273,7 +1273,7 @@ if rol == "dt":
 
                     # 2. ÁREA DE REPORTE (CORREGIDA)
                     # SIN EMOJI AL INICIO para evitar el bug visual. Texto plano y directo.
-                    with st.expander("Reportar Resultado y Evidencia", expanded=False):
+                    with st.expander("", expanded=False):
                         
                         opcion = st.radio("Selecciona fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
                         
@@ -1638,6 +1638,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
