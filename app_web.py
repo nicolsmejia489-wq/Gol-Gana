@@ -22,6 +22,9 @@ from io import BytesIO
 import PIL.Image
 import requests
 import extcolors
+import google.generativeai as genai
+
+
 
 
 # --- BLINDAJE VISUAL V2: FORZAR MODO OSCURO TOTAL ---
@@ -338,80 +341,85 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo):
 
 
 
-##LEER MARCADOR
-def limpiar_nombre(nombre):
-    """Elimina sufijos comunes para quedarse con la raíz del nombre."""
-    palabras_basura = ["FC", "MX", "CLUB", "REAL", "DEPORTIVO", "10", "A", "B"]
-    nombre = nombre.upper()
-    for palabra in palabras_basura:
-        nombre = nombre.replace(palabra, "")
-    return nombre.strip().split()
 
-@st.cache_resource
-def obtener_lector():
-    return easyocr.Reader(['es', 'en'], gpu=False)
 
-def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
+
+
+# --- CONFIGURACIÓN DE LA IA ---
+# 1. Ve a https://aistudio.google.com/app/apikey
+# 2. Crea una API Key gratuita y pégala aquí abajo entre las comillas.
+API_KEY_GOOGLE = "AIzaSyBwKKQMQJ2h9p5xb6PXwnfmERnLiAkLaDM" 
+
+try:
+    genai.configure(api_key=API_KEY_GOOGLE)
+    MODELO_IA = genai.GenerativeModel('gemini-1.5-flash')
+    IA_ACTIVA = True
+except:
+    IA_ACTIVA = False
+
+def leer_marcador_ia(foto_upload, local_esperado, visita_esperado):
+    """
+    Usa Inteligencia Artificial para ver la foto, entender el contexto (TV/Videojuego)
+    y extraer el marcador exacto ignorando el fondo.
+    """
+    # 1. Si no hay API Key configurada, devolvemos error controlado
+    if not IA_ACTIVA or "PEGA_TU_API_KEY" in API_KEY_GOOGLE:
+        return None, "⚠️ Falta configurar la API Key de Google (Gratis)."
+
     try:
-        datos_puros = imagen_bytes.getvalue()  
-        reader = obtener_lector()
-        file_bytes = np.asarray(bytearray(datos_puros), dtype=np.uint8) 
-        # --- PASO 1: MEJORA DE IMAGEN PROFESIONAL ---
-        file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
-        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        
-        # Convertir a escala de grises
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # Aumentar contraste y binarizar (hacer que lo gris sea negro y lo blanco brille)
-        # Esto es clave para leer pantallas
-        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
-        
-        # --- PASO 2: OCR ---
-        # Leemos sobre la imagen procesada (thresh)
-        resultados = reader.readtext(thresh, detail=1) # detail=1 nos da la posición
-        
-        textos_detectados = [res[1].upper() for res in resultados]
-        toda_la_data = " ".join(textos_detectados)
-        
-        # --- PASO 3: VALIDACIÓN FLEXIBLE DE EQUIPOS ---
-        keywords_l = limpiar_nombre(local_real)
-        keywords_v = limpiar_nombre(visitante_real)
-        
-        # Buscamos si AL MENOS UNA palabra clave de cada equipo aparece
-        encontrado_l = any(fuzz.partial_ratio(kw, toda_la_data) > 85 for kw in keywords_l)
-        encontrado_v = any(fuzz.partial_ratio(kw, toda_la_data) > 85 for kw in keywords_v)
+        # 2. Preparamos la imagen
+        imagen_bytes = foto_upload.getvalue()
+        img = Image.open(io.BytesIO(imagen_bytes))
 
-        # Si no encuentra nombres, intentamos una segunda pasada con el texto original
-        if not (encontrado_l or encontrado_v):
-            # A veces el pre-procesamiento es muy agresivo, probamos con la original
-            resultados_raw = reader.readtext(img, detail=0)
-            toda_la_data = " ".join(resultados_raw).upper()
-            encontrado_l = any(fuzz.partial_ratio(kw, toda_la_data) > 85 for kw in keywords_l)
-            encontrado_v = any(fuzz.partial_ratio(kw, toda_la_data) > 85 for kw in keywords_v)
-
-        if not encontrado_l and not encontrado_v:
-             return None, f"⚠️ No identifico a {local_real} o {visitante_real}. Asegúrate de que el marcador sea legible."
-
-        # --- PASO 4: EXTRACCIÓN DE GOLES ---
-        # Buscamos patrones tipo "2-0", "2 - 0", "2 0"
-        patron_marcador = re.findall(r'(\d+)\s*[-|]\s*(\d+)', toda_la_data)
+        # 3. El Prompt: Instrucciones precisas para tus fotos de FIFA
+        prompt = f"""
+        Actúa como un árbitro de E-Sports. Analiza esta fotografía de una pantalla mostrando un partido de FIFA/EAFC.
         
-        if patron_marcador:
-            gl, gv = patron_marcador[0]
-            return (int(gl), int(gv)), "OK"
+        CONTEXTO:
+        - Es una foto tomada a una TV o monitor.
+        - Arriba suele haber una barra de marcador con el tiempo (ej: 90:00) y los equipos.
+        - Los equipos esperados son aproximadamente: "{local_esperado}" (Local/Izquierda) vs "{visita_esperado}" (Visitante/Derecha).
+        - A veces los nombres en pantalla son abreviados (ej: 'ATL' en vez de 'ATLAS'). Usa la lógica.
         
-        # Si no hay guion, buscamos números sueltos pero filtramos el "90" del tiempo
-        numeros = [int(n) for n in re.findall(r'\d+', toda_la_data) if int(n) < 20]
-        if len(numeros) >= 2:
-            return (numeros[0], numeros[1]), "OK"
+        OBJETIVO:
+        Extrae el marcador numérico central.
+        
+        FORMATO DE RESPUESTA (JSON PURO):
+        {{
+            "goles_local": número_entero,
+            "goles_visita": número_entero,
+            "confianza": "alta" o "baja"
+        }}
+        
+        Si no ves ningún marcador de fútbol claro, responde null.
+        """
 
-        return None, "🚫 No detecto el puntaje (ej: 2-0). Limpia el lente o evita reflejos."
+        # 4. Enviamos a la IA
+        response = MODELO_IA.generate_content([prompt, img])
+        
+        # 5. Limpiamos la respuesta (a veces la IA pone ```json ... ```)
+        texto_limpio = response.text.replace("```json", "").replace("```", "").strip()
+        
+        # 6. Convertimos texto a datos
+        datos = json.loads(texto_limpio)
+        
+        if datos and datos.get("goles_local") is not None:
+            gl = int(datos["goles_local"])
+            gv = int(datos["goles_visita"])
+            return (gl, gv), "Éxito IA"
+        else:
+            return None, "No se detectó un marcador claro en la imagen."
 
     except Exception as e:
-        return None, f"Error en el motor de visión: {str(e)}"
+        # Si algo falla (internet, api, imagen corrupta)
+        print(f"Error IA: {e}")
+        return None, "No se pudo procesar la imagen. Inténtalo de nuevo."
 
+        
 #####FIN IA
+
+
+
 
 
 
@@ -1649,6 +1657,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
