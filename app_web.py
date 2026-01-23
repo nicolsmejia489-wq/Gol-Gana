@@ -342,82 +342,135 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo):
 
 
 
+###############  FUNCION LEER RESULTADO DE FOTO - EN PRUEBA
+# Cargamos el motor una vez (Cache)
+@st.cache_resource
+def obtener_lector():
+    # 'en' funciona mejor para números y nombres universales que 'es'
+    return easyocr.Reader(['en'], gpu=False)
 
+def similitud(a, b):
+    """Calcula qué tan parecidas son dos palabras (0 a 1)."""
+    return SequenceMatcher(None, a.upper(), b.upper()).ratio()
 
+def limpiar_texto_ocr(texto):
+    """Quita caracteres raros que el OCR confunde."""
+    return re.sub(r'[^A-Z0-9\- ]', '', texto.upper())
 
-
-
-
-
-# --- TU API KEY REAL ---
-API_KEY_GOOGLE = "AIzaSyBwKKQMQJ2h9p5xb6PXwnfmERnLiAkLaDM" 
-
-# Configuración Global
-try:
-    genai.configure(api_key=API_KEY_GOOGLE)
-    IA_DISPONIBLE = True
-except:
-    IA_DISPONIBLE = False
-
-def obtener_modelo_activo():
-    """
-    Intenta conectar con varios modelos hasta encontrar uno que funcione.
-    Esto evita el error 404 si Google cambia nombres.
-    """
-    # Lista de intentos por orden de preferencia (Velocidad -> Potencia -> Legado)
-    modelos_a_probar = [
-        'gemini-1.5-flash', 
-        'gemini-1.5-flash-latest', 
-        'gemini-1.5-pro',
-        'gemini-pro-vision', # El viejo confiable (Legacy)
-    ]
-    
-    for nombre in modelos_a_probar:
-        try:
-            m = genai.GenerativeModel(nombre)
-            return m, nombre
-        except:
-            continue
-    return None, None
-
-def leer_marcador_ia(foto_bytes, local, visita):
-    if not IA_DISPONIBLE:
-        return None, "⚠️ API Key no configurada."
-
+def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     try:
-        # 1. Rebobinar archivo (Siempre necesario)
-        foto_bytes.seek(0)
-        image = Image.open(foto_bytes)
+        # 1. CORRECCIÓN DE LECTURA DE ARCHIVO
+        # Usamos getvalue() directamente y rebobinamos por seguridad
+        imagen_bytes.seek(0)
+        file_bytes = np.asarray(bytearray(imagen_bytes.getvalue()), dtype=np.uint8)
+        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         
-        # 2. Obtener un modelo que sí exista
-        modelo, nombre_modelo = obtener_modelo_activo()
-        if not modelo:
-            return None, "❌ Error Google: No se encontró ningún modelo disponible (404)."
+        if img is None: return None, "Error: Imagen corrupta."
 
-        # 3. Prompt
-        prompt = f"""
-        Analiza esta imagen de FIFA/EAFC.
-        Equipos: "{local}" vs "{visita}".
-        Extrae el marcador numérico de arriba.
-        Responde SOLO JSON: {{"gl": numero, "gv": numero}}
-        Si no hay marcador, responde null.
-        """
+        # 2. PRE-PROCESAMIENTO INTELIGENTE (CLAHE)
+        # Convertimos a escala de grises
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        # 4. Generar (Probamos con el modelo encontrado)
-        response = modelo.generate_content([prompt, image])
+        # Aplicamos CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        # Esto es MUCHO mejor que un threshold fijo para pantallas con brillo/reflejos
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        gray = clahe.apply(gray)
         
-        # 5. Procesar
-        texto = response.text.replace("```json", "").replace("```", "").strip()
+        # Opcional: Reducir ruido
+        gray = cv2.fastNlMeansDenoising(gray, h=10)
+
+        # 3. LECTURA ESPACIAL (EasyOCR)
+        reader = obtener_lector()
+        # detail=1 devuelve: [ [[x1,y1], [x2,y2]...], "texto", confianza ]
+        # Leemos solo la mitad superior para optimizar (asumiendo que nadie toma foto al suelo)
+        alto, ancho = gray.shape
+        zona_interes = gray[0:int(alto*0.6), :] 
         
-        if "null" in texto.lower() or not texto:
-            return None, f"No se detectó marcador ({nombre_modelo})."
+        resultados = reader.readtext(zona_interes, detail=1)
+
+        # 4. LÓGICA DE ANCLAJE
+        # Vamos a buscar dónde están los equipos y los números
+        candidatos_local = []
+        candidatos_visita = []
+        candidatos_numeros = []
+
+        # Palabras clave limpias de la BD
+        keywords_local = local_real.upper().split()
+        keywords_visita = visitante_real.upper().split()
+
+        for (bbox, texto, prob) in resultados:
+            texto_limpio = limpiar_texto_ocr(texto)
+            if not texto_limpio: continue
+
+            # Coordenadas del centro de la palabra (Eje X)
+            # bbox = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+            centro_x = (bbox[0][0] + bbox[1][0]) / 2
+
+            # A. ¿Es un número (posible gol)?
+            if re.match(r'^\d+$', texto_limpio) and int(texto_limpio) < 25:
+                candidatos_numeros.append({'val': int(texto_limpio), 'x': centro_x, 'conf': prob})
+                continue
             
-        data = json.loads(texto)
-        return (int(data['gl']), int(data['gv'])), f"Leído con {nombre_modelo}"
+            # B. ¿Es el marcador completo (ej: "3-1")?
+            match_completo = re.match(r'(\d+)\s*[-]\s*(\d+)', texto_limpio)
+            if match_completo:
+                return (int(match_completo.group(1)), int(match_completo.group(2))), "Marcador Directo Detectado"
+
+            # C. ¿Es el equipo LOCAL?
+            # Si alguna palabra coincide con el nombre del local
+            if any(similitud(k, texto_limpio) > 0.8 for k in keywords_local):
+                candidatos_local.append({'x': centro_x, 'conf': prob})
+            
+            # D. ¿Es el equipo VISITANTE?
+            if any(similitud(k, texto_limpio) > 0.8 for k in keywords_visita):
+                candidatos_visita.append({'x': centro_x, 'conf': prob})
+
+        # 5. TRIANGULACIÓN DEL RESULTADO
+        # Ordenamos los números encontrados de izquierda a derecha
+        candidatos_numeros.sort(key=lambda k: k['x'])
         
+        # Caso Ideal: Encontramos números sueltos
+        if len(candidatos_numeros) >= 2:
+            
+            # Si encontramos la posición de los equipos, usamos esa info
+            x_local = candidatos_local[0]['x'] if candidatos_local else 0
+            x_visita = candidatos_visita[0]['x'] if candidatos_visita else ancho
+            
+            # Filtramos números que estén "entre" los equipos (geográficamente)
+            # O si no hay equipos, tomamos los dos más centrales o claros
+            
+            goles_finales = []
+            
+            # Estrategia: Tomar los dos números con mayor confianza que estén cerca uno del otro
+            # Pero respetando el orden izquierda (Local) -> derecha (Visita)
+            
+            # Si detectamos equipos, validamos que los números estén en medio
+            numeros_validos = []
+            for n in candidatos_numeros:
+                # Un número válido suele estar a la derecha del nombre local (si existe)
+                # y a la izquierda del nombre visitante (si existe)
+                # Damos un margen de error de pixeles
+                es_valido = True
+                if candidatos_local and n['x'] < x_local: es_valido = False
+                if candidatos_visita and n['x'] > x_visita: es_valido = False
+                
+                if es_valido:
+                    numeros_validos.append(n)
+            
+            # Si el filtro fue muy agresivo y nos quedamos sin nada, volvemos a todos los números
+            if len(numeros_validos) < 2:
+                numeros_validos = candidatos_numeros
+
+            # Tomamos los 2 primeros (Izquierda -> Derecha)
+            if len(numeros_validos) >= 2:
+                gl = numeros_validos[0]['val']
+                gv = numeros_validos[1]['val']
+                return (gl, gv), "Lectura por Posición"
+
+        return None, "No se pudo triangular el marcador. Intenta tomar la foto más cerca."
+
     except Exception as e:
-        # Si falla, devolvemos el error exacto para que lo veas en pantalla
-        return None, f"Error Técnico: {str(e)}"
+        return None, f"Error Visión: {str(e)}"
         
 #####FIN IA
 
@@ -1645,5 +1698,6 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
