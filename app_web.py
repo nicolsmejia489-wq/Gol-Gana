@@ -25,8 +25,6 @@ import extcolors
 import google.generativeai as genai
 
 
-
-
 # --- BLOQUE DE DIAGNÓSTICO (BORRAR CUANDO FUNCIONE) ---
 import sys
 try:
@@ -367,16 +365,20 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo):
 
 
 
-# --- CONFIGURACIÓN DE LA IA ---
-# 1. Ve a https://aistudio.google.com/app/apikey
-# 2. Crea una API Key gratuita y pégala aquí abajo entre las comillas.
+
+
+# --- CONFIGURACIÓN DE LA IA (CORREGIDA) ---
+# ⚠️ IMPORTANTE: Esta es tu llave real. No la compartas públicamente.
 API_KEY_GOOGLE = "AIzaSyBwKKQMQJ2h9p5xb6PXwnfmERnLiAkLaDM" 
 
 try:
-    genai.configure(api_key=API_KEY)
+    # CORRECCIÓN: Usamos la variable correcta API_KEY_GOOGLE
+    genai.configure(api_key=API_KEY_GOOGLE)
     modelo_vision = genai.GenerativeModel('gemini-1.5-flash')
     IA_DISPONIBLE = True
-except:
+except Exception as e:
+    # Si falla la configuración inicial, lo registramos pero no rompemos la app aún
+    print(f"Error Config Gemini: {e}")
     IA_DISPONIBLE = False
 
 def leer_marcador_ia(foto_bytes, local, visita):
@@ -385,35 +387,50 @@ def leer_marcador_ia(foto_bytes, local, visita):
     Retorna: ((goles_l, goles_v), "Mensaje") o (None, "Error")
     """
     if not IA_DISPONIBLE:
-        return None, "⚠️ API Key no configurada o librería faltante."
+        return None, "⚠️ Error de configuración de IA (Librería o Llave)."
 
     try:
+        # CORRECCIÓN VITAL: Rebobinar el archivo antes de leerlo
+        # Si ya mostraste la imagen con st.image(), el puntero está al final.
+        foto_bytes.seek(0)
+        
         # Convertir bytes a imagen PIL
         image = Image.open(foto_bytes)
         
         prompt = f"""
-        Analiza esta imagen de un partido de FIFA/EAFC.
-        Equipos: "{local}" vs "{visita}".
+        Actúa como un árbitro de E-Sports. Analiza esta imagen de un partido de FIFA/EAFC.
+        Los equipos son: "{local}" (Local/Izquierda) vs "{visita}" (Visitante/Derecha).
         
         Tu tarea:
-        1. Encuentra el marcador numérico en la parte superior (ignorando el reloj).
-        2. Asigna los goles correctamente a cada equipo.
+        1. Localiza el marcador en la parte superior.
+        2. Extrae los números.
+        3. Asocia el número de la izquierda al Local y el de la derecha al Visitante.
         
-        Responde SOLO un JSON: {{"gl": entero, "gv": entero}}
-        Si no es legible, responde null.
+        Responde SOLO un objeto JSON crudo sin formato markdown:
+        {{"gl": numero, "gv": numero}}
+        
+        Si la imagen no es clara o no es un marcador, responde: null
         """
         
+        # Enviamos a Gemini
         response = modelo_vision.generate_content([prompt, image])
         
-        # Limpieza de la respuesta (Gemini a veces usa markdown)
+        # Limpieza robusta de la respuesta
         texto = response.text.replace("```json", "").replace("```", "").strip()
-        if "null" in texto or not texto:
-            return None, "No se detectaron números claros."
+        
+        if "null" in texto.lower() or not texto:
+            return None, "No se detectó un marcador claro."
             
         data = json.loads(texto)
-        return (int(data['gl']), int(data['gv'])), "Lectura exitosa"
+        
+        # Validación extra: que sean números
+        gl = int(data['gl'])
+        gv = int(data['gv'])
+        
+        return (gl, gv), "Lectura exitosa"
         
     except Exception as e:
+        # Captura errores de API (ej: llave inválida, sin internet, cuota excedida)
         return None, f"Error de visión: {str(e)}"
 
         
@@ -1669,6 +1686,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
