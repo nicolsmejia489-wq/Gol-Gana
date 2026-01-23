@@ -367,79 +367,75 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo):
 
 
 
-# --- CONFIGURACIÓN DE LA IA ---
+# --- TU API KEY REAL ---
 API_KEY_GOOGLE = "AIzaSyBwKKQMQJ2h9p5xb6PXwnfmERnLiAkLaDM" 
 
-# Lista de modelos a probar (del más nuevo al más compatible)
-MODELOS_POSIBLES = ['gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-1.5-flash-001']
-MODELO_ACTUAL = None
-
+# Configuración Global
 try:
     genai.configure(api_key=API_KEY_GOOGLE)
-    
-    # Intentamos encontrar un modelo válido
-    for nombre_modelo in MODELOS_POSIBLES:
-        try:
-            # Hacemos una prueba "ficticia" para ver si el modelo responde
-            m = genai.GenerativeModel(nombre_modelo)
-            MODELO_ACTUAL = m
-            break # Si funciona, nos quedamos con este
-        except:
-            continue
-            
-    if MODELO_ACTUAL:
-        IA_DISPONIBLE = True
-        print(f"IA Configurada con: {MODELO_ACTUAL.model_name}")
-    else:
-        # Fallback de emergencia si ninguno carga
-        MODELO_ACTUAL = genai.GenerativeModel('gemini-1.5-flash') 
-        IA_DISPONIBLE = True
-
-except Exception as e:
-    print(f"Error Config Gemini: {e}")
+    IA_DISPONIBLE = True
+except:
     IA_DISPONIBLE = False
 
+def obtener_modelo_activo():
+    """
+    Intenta conectar con varios modelos hasta encontrar uno que funcione.
+    Esto evita el error 404 si Google cambia nombres.
+    """
+    # Lista de intentos por orden de preferencia (Velocidad -> Potencia -> Legado)
+    modelos_a_probar = [
+        'gemini-1.5-flash', 
+        'gemini-1.5-flash-latest', 
+        'gemini-1.5-pro',
+        'gemini-pro-vision', # El viejo confiable (Legacy)
+    ]
+    
+    for nombre in modelos_a_probar:
+        try:
+            m = genai.GenerativeModel(nombre)
+            return m, nombre
+        except:
+            continue
+    return None, None
+
 def leer_marcador_ia(foto_bytes, local, visita):
-    """
-    Función que envía la foto a Google Gemini para leer el marcador.
-    """
     if not IA_DISPONIBLE:
-        return None, "⚠️ Error de configuración de IA."
+        return None, "⚠️ API Key no configurada."
 
     try:
-        # 1. Rebobinado (Vital)
+        # 1. Rebobinar archivo (Siempre necesario)
         foto_bytes.seek(0)
-        
-        # 2. Convertir imagen
         image = Image.open(foto_bytes)
         
+        # 2. Obtener un modelo que sí exista
+        modelo, nombre_modelo = obtener_modelo_activo()
+        if not modelo:
+            return None, "❌ Error Google: No se encontró ningún modelo disponible (404)."
+
+        # 3. Prompt
         prompt = f"""
-        Actúa como árbitro. Analiza esta imagen de FIFA/EAFC.
-        Equipos: "{local}" (Izq) vs "{visita}" (Der).
-        
-        Tarea:
-        Extrae el marcador numérico superior.
-        
-        Responde SOLO JSON crudo: {{"gl": numero, "gv": numero}}
-        Si no es claro, responde: null
+        Analiza esta imagen de FIFA/EAFC.
+        Equipos: "{local}" vs "{visita}".
+        Extrae el marcador numérico de arriba.
+        Responde SOLO JSON: {{"gl": numero, "gv": numero}}
+        Si no hay marcador, responde null.
         """
         
-        # 3. Generar
-        response = MODELO_ACTUAL.generate_content([prompt, image])
+        # 4. Generar (Probamos con el modelo encontrado)
+        response = modelo.generate_content([prompt, image])
         
-        # 4. Limpieza
+        # 5. Procesar
         texto = response.text.replace("```json", "").replace("```", "").strip()
         
         if "null" in texto.lower() or not texto:
-            return None, "No se detectó marcador."
+            return None, f"No se detectó marcador ({nombre_modelo})."
             
         data = json.loads(texto)
-        return (int(data['gl']), int(data['gv'])), "Lectura exitosa"
+        return (int(data['gl']), int(data['gv'])), f"Leído con {nombre_modelo}"
         
     except Exception as e:
-        # Si falla por modelo no encontrado aquí, es útil verlo
-        return None, f"Error IA ({type(e).__name__}): {str(e)}"
-
+        # Si falla, devolvemos el error exacto para que lo veas en pantalla
+        return None, f"Error Técnico: {str(e)}"
         
 #####FIN IA
 
@@ -1693,6 +1689,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
