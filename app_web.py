@@ -351,69 +351,48 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo):
 API_KEY_GOOGLE = "AIzaSyBwKKQMQJ2h9p5xb6PXwnfmERnLiAkLaDM" 
 
 try:
-    genai.configure(api_key=API_KEY_GOOGLE)
-    MODELO_IA = genai.GenerativeModel('gemini-1.5-flash')
-    IA_ACTIVA = True
+    genai.configure(api_key=API_KEY)
+    modelo_vision = genai.GenerativeModel('gemini-1.5-flash')
+    IA_DISPONIBLE = True
 except:
-    IA_ACTIVA = False
+    IA_DISPONIBLE = False
 
-def leer_marcador_ia(foto_upload, local_esperado, visita_esperado):
+def leer_marcador_ia(foto_bytes, local, visita):
     """
-    Usa Inteligencia Artificial para ver la foto, entender el contexto (TV/Videojuego)
-    y extraer el marcador exacto ignorando el fondo.
+    Función que envía la foto a Google Gemini para leer el marcador.
+    Retorna: ((goles_l, goles_v), "Mensaje") o (None, "Error")
     """
-    # 1. Si no hay API Key configurada, devolvemos error controlado
-    if not IA_ACTIVA or "PEGA_TU_API_KEY" in API_KEY_GOOGLE:
-        return None, "⚠️ Falta configurar la API Key de Google (Gratis)."
+    if not IA_DISPONIBLE:
+        return None, "⚠️ API Key no configurada o librería faltante."
 
     try:
-        # 2. Preparamos la imagen
-        imagen_bytes = foto_upload.getvalue()
-        img = Image.open(io.BytesIO(imagen_bytes))
-
-        # 3. El Prompt: Instrucciones precisas para tus fotos de FIFA
+        # Convertir bytes a imagen PIL
+        image = Image.open(foto_bytes)
+        
         prompt = f"""
-        Actúa como un árbitro de E-Sports. Analiza esta fotografía de una pantalla mostrando un partido de FIFA/EAFC.
+        Analiza esta imagen de un partido de FIFA/EAFC.
+        Equipos: "{local}" vs "{visita}".
         
-        CONTEXTO:
-        - Es una foto tomada a una TV o monitor.
-        - Arriba suele haber una barra de marcador con el tiempo (ej: 90:00) y los equipos.
-        - Los equipos esperados son aproximadamente: "{local_esperado}" (Local/Izquierda) vs "{visita_esperado}" (Visitante/Derecha).
-        - A veces los nombres en pantalla son abreviados (ej: 'ATL' en vez de 'ATLAS'). Usa la lógica.
+        Tu tarea:
+        1. Encuentra el marcador numérico en la parte superior (ignorando el reloj).
+        2. Asigna los goles correctamente a cada equipo.
         
-        OBJETIVO:
-        Extrae el marcador numérico central.
-        
-        FORMATO DE RESPUESTA (JSON PURO):
-        {{
-            "goles_local": número_entero,
-            "goles_visita": número_entero,
-            "confianza": "alta" o "baja"
-        }}
-        
-        Si no ves ningún marcador de fútbol claro, responde null.
+        Responde SOLO un JSON: {{"gl": entero, "gv": entero}}
+        Si no es legible, responde null.
         """
-
-        # 4. Enviamos a la IA
-        response = MODELO_IA.generate_content([prompt, img])
         
-        # 5. Limpiamos la respuesta (a veces la IA pone ```json ... ```)
-        texto_limpio = response.text.replace("```json", "").replace("```", "").strip()
+        response = modelo_vision.generate_content([prompt, image])
         
-        # 6. Convertimos texto a datos
-        datos = json.loads(texto_limpio)
+        # Limpieza de la respuesta (Gemini a veces usa markdown)
+        texto = response.text.replace("```json", "").replace("```", "").strip()
+        if "null" in texto or not texto:
+            return None, "No se detectaron números claros."
+            
+        data = json.loads(texto)
+        return (int(data['gl']), int(data['gv'])), "Lectura exitosa"
         
-        if datos and datos.get("goles_local") is not None:
-            gl = int(datos["goles_local"])
-            gv = int(datos["goles_visita"])
-            return (gl, gv), "Éxito IA"
-        else:
-            return None, "No se detectó un marcador claro en la imagen."
-
     except Exception as e:
-        # Si algo falla (internet, api, imagen corrupta)
-        print(f"Error IA: {e}")
-        return None, "No se pudo procesar la imagen. Inténtalo de nuevo."
+        return None, f"Error de visión: {str(e)}"
 
         
 #####FIN IA
@@ -1222,7 +1201,7 @@ elif fase_actual == "clasificacion":
 
             
 
-# --- TAB: MIS PARTIDOS (DT - SIN EXPANDER / CONTROLES DIRECTOS) ---
+# --- TAB: MIS PARTIDOS (DT - CON FEEDBACK DE IA) ---
 if rol == "dt":
     with tabs[2]:
         st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
@@ -1261,7 +1240,6 @@ if rol == "dt":
                         st.subheader(f"{rival}")
                     
                     with c_wa:
-                        # WA Link
                         link_wa = None
                         try:
                             with conn.connect() as db:
@@ -1273,83 +1251,95 @@ if rol == "dt":
                         
                         st.write("")
                         if link_wa:
-                            st.link_button(" 💬 Chatear con DT", link_wa, type="primary") # Primary para evitar blanco/blanco
+                            st.link_button("💬 Chatear", link_wa, type="primary")
                         else:
                             st.caption("🚫")
 
-                    # Línea sutil de separación interna
                     st.markdown("<div style='height:1px; background-color:#333; margin: 15px 0;'></div>", unsafe_allow_html=True)
 
-                    # 2. ZONA DE ACCIÓN (SIN EXPANDER)
-                    st.caption("📸 CARGAR RESULTADO")
+                    # 2. ZONA DE ACCIÓN
+                    # Si ya está finalizado, mostramos el resultado y no dejamos subir más
+                    if p['estado'] == 'Finalizado':
+                         st.success(f"✅ Partido Finalizado: {int(p['goles_l'])} - {int(p['goles_v'])}")
                     
-                    # Selector horizontal simple (Actúa como pestañas)
-                    # Usamos 'format_func' para ponerle iconos bonitos sin romper nada
-                    tipo_carga = st.radio(
-                        "Método:", 
-                        ["Ocultar", "Usar Cámara", "Subir Foto"], 
-                        horizontal=True, 
-                        label_visibility="collapsed",
-                        key=f"radio_{p['id']}"
-                    )
-                    
-                    foto = None
-                    
-                    # Lógica de visualización condicional
-                    if tipo_carga == "Usar Cámara":
-                        foto = st.camera_input("Toma la foto del marcador", key=f"cam_{p['id']}")
-                    
-                    elif tipo_carga == "Subir Foto":
-                        foto = st.file_uploader("Selecciona imagen", type=['jpg','png','jpeg'], key=f"upl_{p['id']}")
-
-                    # 3. PROCESAMIENTO (Solo aparece si hay foto)
-                    if foto:
-                        st.image(foto, width=200)
+                    else:
+                        st.caption("📸 CARGAR RESULTADO")
                         
-                        # Botón Primary (Rojo/Dorado) para que se lea bien
-                        if st.button("📤 ENVIAR AHORA", key=f"send_{p['id']}", type="primary", use_container_width=True):
-                            with st.spinner("Validando..."):
-                                try:
-                                    res_ia, msg = leer_marcador_ia(foto, p['local'], p['visitante'])
-                                except:
-                                    res_ia, msg = (0, 0), "IA Off"
+                        tipo_carga = st.radio(
+                            "Método:", 
+                            ["Ocultar", "Usar Cámara", "Subir Foto"], 
+                            horizontal=True, 
+                            label_visibility="collapsed",
+                            key=f"radio_{p['id']}"
+                        )
+                        
+                        foto = None
+                        if tipo_carga == "Usar Cámara":
+                            foto = st.camera_input("Toma la foto", key=f"cam_{p['id']}")
+                        elif tipo_carga == "Subir Foto":
+                            foto = st.file_uploader("Selecciona imagen", type=['jpg','png','jpeg'], key=f"upl_{p['id']}")
 
-                                if res_ia:
-                                    gl_ia, gv_ia = res_ia
-                                    st.info(f"🤖 IA: {gl_ia} - {gv_ia}")
+                        # 3. PROCESAMIENTO
+                        if foto:
+                            st.image(foto, width=200)
+                            
+                            if st.button("📤 ENVIAR AHORA", key=f"send_{p['id']}", type="primary", use_container_width=True):
+                                with st.spinner("🤖 La IA está leyendo el marcador..."):
+                                    
+                                    # Llamamos a la función
+                                    res_ia, msg_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
 
-                                    try:
-                                        foto.seek(0)
-                                        res_c = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
-                                        url = res_c['secure_url']
-                                        cf = "url_foto_l" if es_local else "url_foto_v"
+                                    # CASO ÉXITO: La IA encontró números
+                                    if res_ia:
+                                        gl_ia, gv_ia = res_ia
+                                        st.info(f"🔍 Lectura IA: {gl_ia} - {gv_ia}")
 
-                                        with conn.connect() as db:
-                                            # Protección float NaN
-                                            gl_ex = int(p['goles_l']) if pd.notna(p['goles_l']) else None
-                                            gv_ex = int(p['goles_v']) if pd.notna(p['goles_v']) else None
+                                        try:
+                                            # Subir a Cloudinary
+                                            foto.seek(0)
+                                            res_c = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
+                                            url = res_c['secure_url']
+                                            cf = "url_foto_l" if es_local else "url_foto_v"
 
-                                            if gl_ex is not None:
-                                                if gl_ex != gl_ia or gv_ex != gv_ia:
-                                                    q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv WHERE id=:id")
-                                                    db.execute(q, {"u": url, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
-                                                    st.warning("⚠️ Conflicto reportado.")
+                                            with conn.connect() as db:
+                                                # Comprobamos si el rival ya subió datos
+                                                gl_ex = int(p['goles_l']) if pd.notna(p['goles_l']) else None
+                                                gv_ex = int(p['goles_v']) if pd.notna(p['goles_v']) else None
+
+                                                if gl_ex is not None:
+                                                    # Comparar con lo que ya existe
+                                                    if gl_ex != gl_ia or gv_ex != gv_ia:
+                                                        q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv WHERE id=:id")
+                                                        db.execute(q, {"u": url, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
+                                                        st.warning("⚠️ Conflicto: Tu foto no coincide con el rival. Admin notificado.")
+                                                    else:
+                                                        q = text(f"UPDATE partidos SET {cf}=:u, conflicto=0, estado='Finalizado' WHERE id=:id")
+                                                        db.execute(q, {"u": url, "id": p['id']})
+                                                        st.balloons()
+                                                        st.success("✅ ¡Coincidencia! Partido finalizado.")
                                                 else:
-                                                    q = text(f"UPDATE partidos SET {cf}=:u, conflicto=0, estado='Finalizado' WHERE id=:id")
-                                                    db.execute(q, {"u": url, "id": p['id']})
-                                                    st.success("✅ Verificado.")
-                                            else:
-                                                q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
-                                                db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url, "id": p['id']})
-                                                st.success("⚽ Enviado.")
-                                            db.commit()
-                                        time.sleep(1.5)
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Error: {e}")
+                                                    # Primer reporte
+                                                    q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision' WHERE id=:id")
+                                                    db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url, "id": p['id']})
+                                                    st.success("📤 Resultado enviado. Esperando confirmación del rival.")
+                                                
+                                                db.commit()
+                                            
+                                            time.sleep(2)
+                                            st.rerun()
+
+                                        except Exception as e:
+                                            st.error(f"Error guardando: {e}")
+                                    
+                                    # CASO FALLO: La IA no pudo leer
+                                    else:
+                                        st.error(f"❌ {msg_ia}")
+                                        st.caption("Intenta tomar la foto más cerca o sin reflejos.")
 
         except Exception as e:
             st.error(f"Error carga: {e}")
+
+            
             
 
 
@@ -1657,6 +1647,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
