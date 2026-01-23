@@ -486,7 +486,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
         
         .zona-centro {{
             /* TANTEAR: Espacio para el marcador. Si los números no caben, sube a 10% o 12% */
-            width: 8%; 
+            width: 12%; 
             height: 100%;
             display: flex;
             align-items: center;
@@ -1579,6 +1579,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
