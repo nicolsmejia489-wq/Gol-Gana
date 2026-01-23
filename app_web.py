@@ -1236,7 +1236,7 @@ if rol == "dt":
                     st.divider()
                     c_spacer, c_title, c_spacer2 = st.columns([1, 2, 1])
                     with c_title:
-                        st.header(f"📅 JORNADA {p['jornada']}")
+                        st.header(f"JORNADA {p['jornada']}")
                     ultima_jornada_vista = p['jornada']
 
                 # Datos
@@ -1250,7 +1250,7 @@ if rol == "dt":
                     c_riv, c_wa = st.columns([3, 1])
                     with c_riv:
                         st.caption("Tu Rival")
-                        st.subheader(f"🆚 {rival}")
+                        st.subheader(f"{rival}")
                     
                     with c_wa:
                         # WA Link
@@ -1265,7 +1265,7 @@ if rol == "dt":
                         
                         st.write("")
                         if link_wa:
-                            st.link_button("Chat", link_wa, type="primary") # Primary para evitar blanco/blanco
+                            st.link_button("Chatear con DT", link_wa, type="primary") # Primary para evitar blanco/blanco
                         else:
                             st.caption("🚫")
 
@@ -1273,7 +1273,7 @@ if rol == "dt":
                     st.markdown("<div style='height:1px; background-color:#333; margin: 15px 0;'></div>", unsafe_allow_html=True)
 
                     # 2. ZONA DE ACCIÓN (SIN EXPANDER)
-                    st.caption("📝 CARGAR RESULTADO")
+                    st.caption("📸 CARGAR RESULTADO")
                     
                     # Selector horizontal simple (Actúa como pestañas)
                     # Usamos 'format_func' para ponerle iconos bonitos sin romper nada
@@ -1649,6 +1649,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
