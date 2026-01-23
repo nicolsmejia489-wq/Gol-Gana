@@ -367,71 +367,78 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo):
 
 
 
-# --- CONFIGURACIÓN DE LA IA (CORREGIDA) ---
-# ⚠️ IMPORTANTE: Esta es tu llave real. No la compartas públicamente.
+# --- CONFIGURACIÓN DE LA IA ---
 API_KEY_GOOGLE = "AIzaSyBwKKQMQJ2h9p5xb6PXwnfmERnLiAkLaDM" 
 
+# Lista de modelos a probar (del más nuevo al más compatible)
+MODELOS_POSIBLES = ['gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-1.5-flash-001']
+MODELO_ACTUAL = None
+
 try:
-    # CORRECCIÓN: Usamos la variable correcta API_KEY_GOOGLE
     genai.configure(api_key=API_KEY_GOOGLE)
-    modelo_vision = genai.GenerativeModel('gemini-1.5-flash')
-    IA_DISPONIBLE = True
+    
+    # Intentamos encontrar un modelo válido
+    for nombre_modelo in MODELOS_POSIBLES:
+        try:
+            # Hacemos una prueba "ficticia" para ver si el modelo responde
+            m = genai.GenerativeModel(nombre_modelo)
+            MODELO_ACTUAL = m
+            break # Si funciona, nos quedamos con este
+        except:
+            continue
+            
+    if MODELO_ACTUAL:
+        IA_DISPONIBLE = True
+        print(f"IA Configurada con: {MODELO_ACTUAL.model_name}")
+    else:
+        # Fallback de emergencia si ninguno carga
+        MODELO_ACTUAL = genai.GenerativeModel('gemini-1.5-flash') 
+        IA_DISPONIBLE = True
+
 except Exception as e:
-    # Si falla la configuración inicial, lo registramos pero no rompemos la app aún
     print(f"Error Config Gemini: {e}")
     IA_DISPONIBLE = False
 
 def leer_marcador_ia(foto_bytes, local, visita):
     """
     Función que envía la foto a Google Gemini para leer el marcador.
-    Retorna: ((goles_l, goles_v), "Mensaje") o (None, "Error")
     """
     if not IA_DISPONIBLE:
-        return None, "⚠️ Error de configuración de IA (Librería o Llave)."
+        return None, "⚠️ Error de configuración de IA."
 
     try:
-        # CORRECCIÓN VITAL: Rebobinar el archivo antes de leerlo
-        # Si ya mostraste la imagen con st.image(), el puntero está al final.
+        # 1. Rebobinado (Vital)
         foto_bytes.seek(0)
         
-        # Convertir bytes a imagen PIL
+        # 2. Convertir imagen
         image = Image.open(foto_bytes)
         
         prompt = f"""
-        Actúa como un árbitro de E-Sports. Analiza esta imagen de un partido de FIFA/EAFC.
-        Los equipos son: "{local}" (Local/Izquierda) vs "{visita}" (Visitante/Derecha).
+        Actúa como árbitro. Analiza esta imagen de FIFA/EAFC.
+        Equipos: "{local}" (Izq) vs "{visita}" (Der).
         
-        Tu tarea:
-        1. Localiza el marcador en la parte superior.
-        2. Extrae los números.
-        3. Asocia el número de la izquierda al Local y el de la derecha al Visitante.
+        Tarea:
+        Extrae el marcador numérico superior.
         
-        Responde SOLO un objeto JSON crudo sin formato markdown:
-        {{"gl": numero, "gv": numero}}
-        
-        Si la imagen no es clara o no es un marcador, responde: null
+        Responde SOLO JSON crudo: {{"gl": numero, "gv": numero}}
+        Si no es claro, responde: null
         """
         
-        # Enviamos a Gemini
-        response = modelo_vision.generate_content([prompt, image])
+        # 3. Generar
+        response = MODELO_ACTUAL.generate_content([prompt, image])
         
-        # Limpieza robusta de la respuesta
+        # 4. Limpieza
         texto = response.text.replace("```json", "").replace("```", "").strip()
         
         if "null" in texto.lower() or not texto:
-            return None, "No se detectó un marcador claro."
+            return None, "No se detectó marcador."
             
         data = json.loads(texto)
-        
-        # Validación extra: que sean números
-        gl = int(data['gl'])
-        gv = int(data['gv'])
-        
-        return (gl, gv), "Lectura exitosa"
+        return (int(data['gl']), int(data['gv'])), "Lectura exitosa"
         
     except Exception as e:
-        # Captura errores de API (ej: llave inválida, sin internet, cuota excedida)
-        return None, f"Error de visión: {str(e)}"
+        # Si falla por modelo no encontrado aquí, es útil verlo
+        return None, f"Error IA ({type(e).__name__}): {str(e)}"
 
         
 #####FIN IA
@@ -1686,6 +1693,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
