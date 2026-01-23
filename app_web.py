@@ -512,7 +512,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             text-transform: uppercase; 
             
             /* TANTEAR: Distancia entre el final del nombre y el marcador central */
-            padding-right: 2px; 
+            padding-right: 5px; 
             line-height: 1.1; 
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.5px;
         }}
@@ -1579,6 +1579,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
