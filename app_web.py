@@ -1077,7 +1077,7 @@ if fase_actual == "inscripcion":
 # --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (CORREGIDO) ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
-        st.subheader("📅 Calendario Oficial")
+      # st.subheader("📅 Calendario Oficial")
         
         # URL de Fondo (Asegúrate de tener la URL correcta aquí si usas imagen)
         URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..." 
@@ -1579,6 +1579,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
