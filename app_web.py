@@ -25,24 +25,6 @@ import extcolors
 import google.generativeai as genai
 
 
-# --- BLOQUE DE DIAGNÓSTICO (BORRAR CUANDO FUNCIONE) ---
-import sys
-try:
-    import google.generativeai as genai
-    st.success("✅ Librería de Google instalada correctamente.")
-except ImportError:
-    st.error("❌ ERROR CRÍTICO: Falta instalar la librería 'google-generativeai'. Revisa tu requirements.txt")
-
-if "API_KEY" not in locals() and "API_KEY" not in globals():
-     # Define tu API KEY aquí temporalmente para probar
-     API_KEY = "PEGA_AQUI_TU_CLAVE_QUE_EMPIEZA_CON_AIza" 
-
-if API_KEY == "TU_API_KEY_AQUI" or not API_KEY:
-    st.error("❌ ERROR CRÍTICO: No has puesto tu API Key real en el código.")
-else:
-    st.success(f"✅ API Key configurada (Empieza con: {API_KEY[:4]}...)")
-# ------------------------------------------------------
-
 
 
 
@@ -1663,43 +1645,5 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
