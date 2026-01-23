@@ -556,7 +556,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
             .logo-img {{ width: 34px; height: 38px; min-width: 34px; }} 
             
             /* TANTEAR: Tamaño del marcador en celular y ancho de la zona central */
-            .zona-centro {{ font-size: 20px; width: 10%; }} 
+            .zona-centro {{ font-size: 20px; width: 30%; }} 
             
             /* TANTEAR: Ancho para equipos en celular. (43% + 43% + 10% = 96%) */
             .zona-equipo {{ width: 50%; }}
@@ -1579,6 +1579,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
