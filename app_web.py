@@ -1492,40 +1492,27 @@ if rol == "admin":
         # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
-  # --- A. OPCIÓN: RESULTADOS (ADMIN - GHOST TEMPLATE INTERACTIVO) ---
+ # --- A. OPCIÓN: RESULTADOS (ADMIN - GHOST EDITION BLINDADO) ---
 if opcion_admin == "⚽ Resultados":
     st.subheader("📝 Gestión de Resultados")
     
-    # 1. CSS para recrear la plantilla "Ghost" en los controles de Admin
-    # Usamos la misma lógica visual que tu calendario oficial
-    st.markdown(f"""
+    # 1. Filtro de Emergencia
+    solo_revision = st.toggle("🚨 Ver solo partidos en Revisión / Conflicto", value=False)
+    
+    # CSS para la plantilla
+    st.markdown("""
     <style>
-        .ghost-card-admin {{
-            background: linear-gradient(135deg, rgba(20,20,20,0.9) 0%, rgba(40,40,40,0.8) 100%);
-            background-image: url("https://res.cloudinary.com/..."); /* Misma URL de tu fondo */
-            background-size: cover;
-            border: 1px solid rgba(255,255,255,0.1);
+        .ghost-card-admin {
+            background: rgba(255, 255, 255, 0.03);
             border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }}
-        .revision-glow {{
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .revision-glow {
             border: 2px solid #FF4B4B !important;
-            box-shadow: 0 0 15px rgba(255, 75, 75, 0.3);
-        }}
-        /* Forzar horizontalidad en móvil */
-        [data-testid="stHorizontalBlock"] {{
-            align-items: center;
-            gap: 0.5rem;
-        }}
-        /* Estilo para los marcadores vacíos */
-        div[data-testid="stNumberInput"] input {{
-            background-color: rgba(0,0,0,0.5) !important;
-            color: #FFD700 !important; /* Dorado FIFA */
-            font-size: 20px !important;
-            border: 1px solid rgba(255,255,255,0.2) !important;
-        }}
+            background: rgba(255, 75, 75, 0.08) !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1537,9 +1524,15 @@ if opcion_admin == "⚽ Resultados":
         df_partidos = pd.DataFrame()
         escudos_dict = {}
 
+    placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+
     if df_partidos.empty:
-        st.warning("Inicia el torneo para ver partidos.")
+        st.warning("No hay partidos.")
     else:
+        # Aplicar filtro de revisión si está activo
+        if solo_revision:
+            df_partidos = df_partidos[(df_partidos['estado'] == 'Revision') | (df_partidos['conflicto'] == 1)]
+
         jornadas = sorted(df_partidos['jornada'].unique())
         tabs_j = st.tabs([f"Jornada {int(j)}" for j in jornadas])
         
@@ -1547,49 +1540,46 @@ if opcion_admin == "⚽ Resultados":
             with tab:
                 df_j = df_partidos[df_partidos['jornada'] == jornadas[i]]
                 
+                if df_j.empty:
+                    st.info("No hay partidos que requieran revisión en esta jornada.")
+                
                 for _, row in df_j.iterrows():
-                    # Lógica de estados
-                    necesita_revision = row['estado'] == 'Revision' or row['conflicto'] == 1
-                    clase_card = "ghost-card-admin revision-glow" if necesita_revision else "ghost-card-admin"
+                    rev = row['estado'] == 'Revision' or row['conflicto'] == 1
+                    clase = "ghost-card-admin revision-glow" if rev else "ghost-card-admin"
                     
-                    # Iniciamos el contenedor con estilo de plantilla
-                    st.markdown(f'<div class="{clase_card}">', unsafe_allow_html=True)
+                    # Validación segura de escudos para evitar el AttributeError
+                    esc_l = escudos_dict.get(row['local'])
+                    if not esc_l or pd.isna(esc_l): esc_l = placeholder_escudo
                     
-                    # Usamos columnas con anchos fijos para evitar colapsos
-                    # [EscudoL, NombreL, InputL, VS, InputV, NombreV, EscudoV, Acciones]
-                    col_esc_l, col_nom_l, col_gl, col_vs, col_gv, col_nom_v, col_esc_v, col_btn = st.columns(
-                        [0.6, 2, 0.8, 0.3, 0.8, 2, 0.6, 1.2], vertical_alignment="center"
+                    esc_v = escudos_dict.get(row['visitante'])
+                    if not esc_v or pd.isna(esc_v): esc_v = placeholder_escudo
+
+                    st.markdown(f'<div class="{clase}">', unsafe_allow_html=True)
+                    
+                    col_esc_l, col_nom_l, col_gl, col_vs, col_gv, col_nom_v, col_esc_v, col_acc = st.columns(
+                        [0.6, 2.2, 0.8, 0.3, 0.8, 2.2, 0.6, 1.4], vertical_alignment="center"
                     )
                     
-                    with col_esc_l:
-                        st.image(escudos_dict.get(row['local'], "https://..."), width=35)
-                    
-                    with col_nom_l:
-                        st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:13px;'>{row['local']}</div>", unsafe_allow_html=True)
+                    with col_esc_l: st.image(esc_l, width=30)
+                    with col_nom_l: st.markdown(f"<div style='text-align:right; font-size:13px; font-weight:bold;'>{row['local']}</div>", unsafe_allow_html=True)
                     
                     with col_gl:
-                        # Si es nulo, value=None muestra el campo vacío
-                        val_l = int(row['goles_l']) if pd.notna(row['goles_l']) else None
-                        g_l = st.number_input("L", value=val_l, min_value=0, max_value=20, label_visibility="collapsed", key=f"adm_gl_{row['id']}")
+                        v_l = int(row['goles_l']) if pd.notna(row['goles_l']) else None
+                        g_l = st.number_input("L", value=v_l, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gl_{row['id']}")
                     
-                    with col_vs:
-                        st.markdown("<div style='text-align:center; opacity:0.6;'>-</div>", unsafe_allow_html=True)
+                    with col_vs: st.markdown("<div style='text-align:center; opacity:0.5;'>-</div>", unsafe_allow_html=True)
                     
                     with col_gv:
-                        val_v = int(row['goles_v']) if pd.notna(row['goles_v']) else None
-                        g_v = st.number_input("V", value=val_v, min_value=0, max_value=20, label_visibility="collapsed", key=f"adm_gv_{row['id']}")
+                        v_v = int(row['goles_v']) if pd.notna(row['goles_v']) else None
+                        g_v = st.number_input("V", value=v_v, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gv_{row['id']}")
                     
-                    with col_nom_v:
-                        st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:13px;'>{row['visitante']}</div>", unsafe_allow_html=True)
-                        
-                    with col_esc_v:
-                        st.image(escudos_dict.get(row['visitante'], "https://..."), width=35)
+                    with col_nom_v: st.markdown(f"<div style='text-align:left; font-size:13px; font-weight:bold;'>{row['visitante']}</div>", unsafe_allow_html=True)
+                    with col_esc_v: st.image(esc_v, width=30)
 
-                    with col_btn:
-                        # Botones compactos
+                    with col_acc:
                         c1, c2 = st.columns(2)
                         with c1:
-                            if st.button("💾", key=f"sv_{row['id']}", help="Validar y Finalizar"):
+                            if st.button("💾", key=f"sv_{row['id']}", help="Finalizar"):
                                 with conn.connect() as db:
                                     db.execute(text("""
                                         UPDATE partidos SET goles_l=:l, goles_v=:v, 
@@ -1599,19 +1589,14 @@ if opcion_admin == "⚽ Resultados":
                                     db.commit()
                                 st.rerun()
                         with c2:
-                            # Evidencia si fue Algoritmo
                             url = row['url_foto_l'] if pd.notna(row['url_foto_l']) else row['url_foto_v']
                             if url:
                                 with st.popover("👁️", help="Ver Evidencia"):
-                                    st.image(url, caption=f"Leído por {row['metodo_registro']}")
+                                    st.image(url, caption=f"Evidencia: {row['metodo_registro']}")
                             else:
                                 st.button("🚫", key=f"no_{row['id']}", disabled=True)
-
-                    if necesita_revision:
-                        st.markdown("<div style='color:#FF4B4B; font-weight:bold; font-size:12px; text-align:center;'>🚨 ATENCIÓN REQUERIDA</div>", unsafe_allow_html=True)
                     
-                    st.markdown("</div>", unsafe_allow_html=True)
-
+                    st.markdown('</div>', unsafe_allow_html=True)
 
                         
 
@@ -1763,6 +1748,7 @@ if opcion_admin == "⚽ Resultados":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
