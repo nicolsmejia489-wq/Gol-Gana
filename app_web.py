@@ -1347,7 +1347,7 @@ if rol == "dt":
                                 with st.spinner("🔍 Analizando imagen..."):
                                     
                                     # --- LLAMADA A FUNCIÓN LOCAL ---
-                                    res_ocr, msg_ocr = leer_marcador_local(foto)
+                                    res_ocr, msg_ocr = leer_marcador_ia(foto)
 
                                     if res_ocr:
                                         gl_ocr, gv_ocr = res_ocr
@@ -1698,6 +1698,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
