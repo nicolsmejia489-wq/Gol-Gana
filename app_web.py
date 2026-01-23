@@ -1172,7 +1172,7 @@ if rol == "dt":
                     c_spacer, c_title, c_spacer2 = st.columns([1, 2, 1])
                     with c_title:
                         # Título grande y limpio
-                        st.header(f"📅 JORNADA {p['jornada']}")
+                        st.header(f" JORNADA {p['jornada']}")
                     
                     ultima_jornada_vista = p['jornada']
 
@@ -1188,7 +1188,7 @@ if rol == "dt":
                     col_rival, col_wa = st.columns([3, 1])
                     with col_rival:
                         st.caption("Tu Rival")
-                        st.subheader(f"🆚 {rival}")
+                        st.subheader(f" {rival}")
                     
                     with col_wa:
                         # Buscamos el WhatsApp
@@ -1204,12 +1204,12 @@ if rol == "dt":
                         st.write("") # Espacio para bajar el botón
                         if link_wa:
                             # COMPONENTE NATIVO: link_button (Reemplaza al HTML <a>)
-                            st.link_button("💬 Chat", link_wa, type="secondary")
+                            st.link_button("📱 Contactar DT", link_wa, type="secondary")
                         else:
                             st.caption("🚫 Sin No.")
 
                     # 2. Área de Reporte (Expander Nativo)
-                    with st.expander("📝 Reportar Marcador", expanded=False):
+                    with st.expander("            📸 Reportar Marcador", expanded=False):
                         st.caption("Sube tu evidencia para validar el resultado")
                         
                         opcion = st.radio("Fuente:", ["Cámara", "Galería"], key=f"dt_opt_{p['id']}", horizontal=True)
@@ -1576,6 +1576,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
