@@ -1265,7 +1265,7 @@ if rol == "dt":
                         
                         st.write("")
                         if link_wa:
-                            st.link_button("Chatear con DT", link_wa, type="primary") # Primary para evitar blanco/blanco
+                            st.link_button(" 💬 Chatear con DT", link_wa, type="primary") # Primary para evitar blanco/blanco
                         else:
                             st.caption("🚫")
 
@@ -1649,6 +1649,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
