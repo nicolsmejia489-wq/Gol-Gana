@@ -24,17 +24,16 @@ import requests
 import extcolors
 
 
-# --- BLINDAJE VISUAL: FORZAR MODO OSCURO EN WIDGETS ---
+# --- BLINDAJE VISUAL V2: FORZAR MODO OSCURO TOTAL ---
 st.markdown("""
     <style>
-        /* 1. Forzar fondo oscuro general */
+        /* 1. FONDO GENERAL */
         .stApp {
             background-color: #0E1117;
             color: white;
         }
         
-        /* 2. Arreglar Inputs de Texto (PIN, Nombres) */
-        /* Fuerza fondo gris oscuro y texto blanco */
+        /* 2. ARREGLO DE INPUTS (PIN, Nombres, Números) */
         div[data-baseweb="input"] {
             background-color: #262730 !important;
             border: 1px solid #444 !important;
@@ -43,24 +42,49 @@ st.markdown("""
             background-color: transparent !important;
             color: white !important;
         }
-        input {
-            color: white !important; /* Lo que escribes se ve blanco */
-        }
+        input { color: white !important; }
         
-        /* 3. Arreglar Cajas Numéricas (Resultados) */
-        div[data-testid="stNumberInput"] div[data-baseweb="input"] {
-            background-color: #262730 !important;
-        }
-        
-        /* 4. Arreglar Selectbox (Listas desplegables) */
-        div[data-baseweb="select"] > div {
+        /* 3. ARREGLO DE BOTONES (Contactar DT, Guardar) */
+        /* Ataca tanto a botones normales como a link_buttons */
+        button[kind="secondary"], div[data-testid="stLinkButton"] a {
             background-color: #262730 !important;
             color: white !important;
+            border: 1px solid #555 !important;
         }
-        
-        /* 5. Etiquetas de los inputs (Labels) */
-        label, .stMarkdown p {
-            color: #E0E0E0 !important;
+        /* Efecto Hover para que se note que es botón */
+        button[kind="secondary"]:hover, div[data-testid="stLinkButton"] a:hover {
+            border-color: #FFD700 !important;
+            color: #FFD700 !important;
+        }
+
+        /* 4. ARREGLO DE EXPANDERS (Reportar Marcador) */
+        /* El encabezado del expander */
+        div[data-testid="stExpander"] details summary {
+            background-color: #262730 !important;
+            color: white !important;
+            border-radius: 5px;
+        }
+        /* El contenido interno del expander */
+        div[data-testid="stExpander"] details {
+            border-color: #444 !important;
+            background-color: #0E1117 !important; 
+        }
+        /* Texto del título del expander */
+        div[data-testid="stExpander"] p {
+            color: white !important;
+        }
+
+        /* 5. ARREGLO DE FILE UPLOADER (Subir Foto) */
+        div[data-testid="stFileUploader"] section {
+            background-color: #262730 !important;
+        }
+        div[data-testid="stFileUploader"] span {
+            color: #ccc !important;
+        }
+
+        /* 6. Textos generales */
+        p, label, h1, h2, h3 {
+            color: white !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -1620,6 +1644,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
