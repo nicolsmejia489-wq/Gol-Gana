@@ -23,7 +23,7 @@ import PIL.Image
 import requests
 import extcolors
 import google.generativeai as genai
-
+from difflib import SequenceMatcher
 
 
 
@@ -1713,6 +1713,7 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
