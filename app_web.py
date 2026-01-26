@@ -1427,12 +1427,12 @@ if rol == "dt":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: 3 PESTAÑAS) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: AJUSTE NOMBRE + FASE ACTUAL) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control")
 
-        # 0. OBTENER COLOR PRIMARIO (Para usar en CSS local)
+        # 0. OBTENER COLOR PRIMARIO
         try:
             c_res = pd.read_sql_query("SELECT valor FROM config WHERE clave='color_primario'", conn)
             color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
@@ -1442,7 +1442,7 @@ if rol == "admin":
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
-                st.info(f"🔔 Tienes {len(pend)} solicitudes de inscripción pendientes.")
+                st.info(f"🔔 Tienes {len(pend)} solicitudes pendientes.")
                 for _, r in pend.iterrows():
                     with st.container():
                         c1, c2, c3 = st.columns([0.8, 3, 1], vertical_alignment="center")
@@ -1470,7 +1470,7 @@ if rol == "admin":
 
         st.write("") 
 
-        # --- CREACIÓN DE LAS 3 PESTAÑAS ---
+        # --- PESTAÑAS PRINCIPALES ---
         tab_resultados, tab_directorio, tab_config = st.tabs(["⚽ Resultados", "🛠️ Directorio", "⚙️ Configuración"])
 
         # ==========================================
@@ -1481,7 +1481,7 @@ if rol == "admin":
             
             filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True)
             
-            # CSS Específico (Inputs limpios y tarjetas)
+            # CSS Específico
             st.markdown(f"""
             <style>
                 @media (max-width: 640px) {{
@@ -1628,39 +1628,25 @@ if rol == "admin":
                 df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
-                st.write("") # Espacio
+                st.write("") 
                 
-                # LISTA SIMPLE (NEON + PREFIJO)
                 for _, eq in df_maestro.iterrows():
-                    # Preparar datos
                     src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                    
-                    # Limpieza para la URL (sin espacios ni símbolos)
                     celular_url = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
-                    # Texto visual (con espacios y +)
                     celular_texto = f"{eq['prefijo']} {eq['celular']}"
                     
-                    # Layout Mínimo: [Imagen] [Texto con Vínculo]
                     c_img, c_txt = st.columns([0.15, 0.85], vertical_alignment="center")
                     
                     with c_img:
                         st.image(src_escudo, width=35)
                     
                     with c_txt:
-                        # Vínculo Markdown
                         linea = f"**{eq['nombre']}** | <span style='color:#888'>PIN: `{eq['pin']}`</span> | 📞 [{celular_texto}](https://wa.me/{celular_url})"
                         st.markdown(linea, unsafe_allow_html=True)
                     
-                    # --- LÍNEA SEPARADORA NEÓN ---
                     st.markdown(f"""
-                        <hr style='
-                            border: 0; 
-                            height: 1px; 
-                            background-color: {color_primario}; 
-                            box-shadow: 0 0 4px {color_primario}; 
-                            margin: 5px 0; 
-                            opacity: 0.6;
-                        '>""", unsafe_allow_html=True)
+                        <hr style='border: 0; height: 1px; background-color: {color_primario}; box-shadow: 0 0 4px {color_primario}; margin: 5px 0; opacity: 0.6;'>
+                        """, unsafe_allow_html=True)
 
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
@@ -1674,9 +1660,10 @@ if rol == "admin":
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
                     with st.form("edit_master_form"):
-                        c_nm, c_pin = st.columns([2, 1])
+                        # --- AJUSTE: NOMBRE OCUPA CASI TODO EL ANCHO (5 a 1) ---
+                        c_nm, c_pin = st.columns([5, 1])
                         new_name = c_nm.text_input("Nombre del Equipo", datos_sel['nombre'])
-                        new_pin = c_pin.text_input("PIN de acceso", str(datos_sel['pin']))
+                        new_pin = c_pin.text_input("PIN", str(datos_sel['pin']))
                         
                         st.write("**🛡️ Actualizar Escudo**")
                         c_e1, c_e2 = st.columns([1, 3])
@@ -1727,7 +1714,7 @@ if rol == "admin":
                 st.info("No hay equipos registrados.")
 
         # ==========================================
-        # PESTAÑA 3: CONFIGURACIÓN (NUEVA)
+        # PESTAÑA 3: CONFIGURACIÓN
         # ==========================================
         with tab_config:
             st.subheader("⚙️ Configuración General")
@@ -1740,11 +1727,8 @@ if rol == "admin":
             with col_btn_c:
                 if st.button("Aplicar Color"):
                     with conn.connect() as db:
-                        # Upsert para guardar configuración
-                        # Primero intentamos actualizar
                         res = db.execute(text("UPDATE config SET valor=:v WHERE clave='color_primario'"), {"v":nuevo_color})
                         if res.rowcount == 0:
-                            # Si no existe, insertamos
                             db.execute(text("INSERT INTO config (clave, valor) VALUES ('color_primario', :v)"), {"v":nuevo_color})
                         db.commit()
                     st.toast("Color actualizado")
@@ -1753,23 +1737,22 @@ if rol == "admin":
 
             st.divider()
 
-            # 2. CONTROL DE FASES (DINÁMICO)
+            # 2. CONTROL DE FASES (CORREGIDO A 'fase_actual')
             st.markdown("##### 🚀 Estado del Torneo")
             
-            # Consultamos la fase actual
             try:
-                res_fase = pd.read_sql_query("SELECT valor FROM config WHERE clave='estado_torneo'", conn)
+                # --- CORRECCIÓN: usamos 'fase_actual' ---
+                res_fase = pd.read_sql_query("SELECT valor FROM config WHERE clave='fase_actual'", conn)
                 fase_actual_db = res_fase.iloc[0,0] if not res_fase.empty else "inscripcion"
             except: fase_actual_db = "inscripcion"
             
             st.info(f"Fase actual: **{fase_actual_db.upper()}**")
             
-            # Botón Dinámico
             if fase_actual_db == "inscripcion":
                 st.write("¿Ya tienes todos los equipos listos?")
                 if st.button("🚀 Iniciar Torneo (Ir a Clasificación)", type="primary", use_container_width=True):
                     with conn.connect() as db:
-                        db.execute(text("UPDATE config SET valor='clasificacion' WHERE clave='estado_torneo'"))
+                        db.execute(text("UPDATE config SET valor='clasificacion' WHERE clave='fase_actual'"))
                         db.commit()
                     st.balloons()
                     time.sleep(1)
@@ -1779,7 +1762,7 @@ if rol == "admin":
                 st.write("¿Terminó la fase de grupos?")
                 if st.button("⚔️ Pasar a Eliminatorias", type="primary", use_container_width=True):
                     with conn.connect() as db:
-                        db.execute(text("UPDATE config SET valor='eliminatorias' WHERE clave='estado_torneo'"))
+                        db.execute(text("UPDATE config SET valor='eliminatorias' WHERE clave='fase_actual'"))
                         db.commit()
                     st.snow()
                     time.sleep(1)
@@ -1800,11 +1783,9 @@ if rol == "admin":
                 
                 if st.button("Reiniciar Torneo", type="secondary", disabled=not confirmar_reset, use_container_width=True):
                     with conn.connect() as db:
-                        # 1. Borrar todos los partidos
                         db.execute(text("DELETE FROM partidos"))
-                        # 2. Resetear fase
-                        db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='estado_torneo'"))
-                        # 3. Resetear estadísticas de equipos (Opcional, si tuvieras tabla stats)
+                        # --- CORRECCIÓN: usamos 'fase_actual' ---
+                        db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
                         db.commit()
                     st.success("Torneo reiniciado.")
                     time.sleep(1)
