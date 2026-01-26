@@ -1392,7 +1392,7 @@ if rol == "admin":
                     background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%);
                     border: 1px solid rgba(255,255,255,0.15);
                     border-radius: 12px; 
-                    padding: 4px 2px; /* Relleno interno apretado */
+                    padding: 2px 1px; /* Relleno interno apretado */
                     
                     /* --- ESTO SEPARA LOS PARTIDOS ENTRE SÍ --- */
                     margin-bottom: 30px; 
@@ -1480,7 +1480,7 @@ if rol == "admin":
 
                             # --- ESPACIO MINIMO ENTRE PISOS ---
                             # Reducimos esto para que estén más pegados
-                            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+                            st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
                             
                             # --- PISO 2: ACCIONES (GRID 2x2) ---
                             # FILA A: GUARDAR Y FOTO
@@ -1562,5 +1562,6 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
 
