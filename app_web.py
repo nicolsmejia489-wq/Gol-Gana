@@ -1289,13 +1289,13 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (BLOQUE COMPLETO CORREGIDO) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: LAYOUT MÓVIL + FIX IMÁGENES) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
         
         # ==========================================
-        # 1. APROBACIONES (Si hay pendientes)
+        # 1. APROBACIONES
         # ==========================================
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
@@ -1303,13 +1303,15 @@ if rol == "admin":
                 st.info(f"Tienes {len(pend)} solicitudes nuevas.")
                 for _, r in pend.iterrows():
                     with st.container():
-                        # Columnas sin padding extra
                         c1, c2, c3 = st.columns([0.8, 3, 1], vertical_alignment="center")
                         pref = str(r.get('prefijo', '')).replace('+', '')
                         
                         with c1: 
-                            if r['escudo']: st.image(r['escudo'], width=35)
-                            else: st.write("❌")
+                            # Validación segura de imagen
+                            if r['escudo'] and len(str(r['escudo'])) > 5:
+                                st.image(r['escudo'], width=35)
+                            else: 
+                                st.write("❌")
                         
                         with c2: 
                             st.markdown(f"**{r['nombre']}**")
@@ -1349,8 +1351,7 @@ if rol == "admin":
             # --- CSS NUCLEAR ---
             st.markdown("""
             <style>
-                /* 1. FORZAR COLUMNAS HORIZONTALES EN MÓVIL 
-                   Esta es la clave. Le decimos a Streamlit que NO apile las columnas */
+                /* 1. FORZAR COLUMNAS HORIZONTALES EN MÓVIL */
                 @media (max-width: 640px) {
                     div[data-testid="stHorizontalBlock"] {
                         flex-direction: row !important;
@@ -1364,7 +1365,6 @@ if rol == "admin":
                 }
 
                 /* 2. INPUTS DE GOLES PEQUEÑOS Y LIMPIOS */
-                /* Ocultar flechas de número */
                 input[type=number]::-webkit-inner-spin-button, 
                 input[type=number]::-webkit-outer-spin-button { 
                     -webkit-appearance: none; margin: 0; 
@@ -1429,24 +1429,34 @@ if rol == "admin":
             </style>
             """, unsafe_allow_html=True)
 
+            # URL genérica segura
+            placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+
             # Carga de datos
             try:
                 df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
                 df_e = pd.read_sql_query("SELECT nombre, escudo, celular, prefijo FROM equipos", conn)
-                info_equipos = {
-                    row['nombre']: {
-                        'escudo': row['escudo'] if row['escudo'] else "", 
+                
+                # --- AQUÍ ESTABA EL ERROR: BLINDAJE DE DICCIONARIO ---
+                info_equipos = {}
+                for _, row in df_e.iterrows():
+                    # Si tiene escudo y es largo (url válida), úsalo. Si no, usa placeholder.
+                    # NUNCA guardar cadena vacía ""
+                    escudo_seguro = row['escudo'] if (row['escudo'] and len(str(row['escudo'])) > 5) else placeholder
+                    
+                    info_equipos[row['nombre']] = {
+                        'escudo': escudo_seguro,
                         'cel': f"{str(row['prefijo']).replace('+','')}{row['celular']}"
-                    } for _, row in df_e.iterrows()
-                }
-            except: df_p = pd.DataFrame(); info_equipos = {}
+                    }
+            except: 
+                df_p = pd.DataFrame()
+                info_equipos = {}
 
             if df_p.empty: st.warning("No hay partidos.")
             else:
                 if solo_rev: df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
                 jornadas = sorted(df_p['jornada'].unique())
                 tabs_j = st.tabs([f"J{int(j)}" for j in jornadas]) 
-                placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
                 for i, tab in enumerate(tabs_j):
                     with tab:
@@ -1454,7 +1464,7 @@ if rol == "admin":
                         if df_j.empty: st.caption("Libre.")
                         
                         for _, row in df_j.iterrows():
-                            # Datos seguros
+                            # Datos seguros con fallback al placeholder si falla la key
                             d_l = info_equipos.get(row['local'], {'escudo': placeholder, 'cel': ''})
                             d_v = info_equipos.get(row['visitante'], {'escudo': placeholder, 'cel': ''})
                             
@@ -1467,10 +1477,9 @@ if rol == "admin":
                             # ==========================
                             # PISO 1: MARCADOR (HORIZONTAL FORZADO)
                             # ==========================
-                            # Usamos columnas con pesos muy medidos
-                            # [Escudo, NombreL, GolL, -, GolV, NombreV, Escudo]
                             c_p1 = st.columns([0.8, 2, 1, 0.3, 1, 2, 0.8], vertical_alignment="center")
                             
+                            # Como ya blindamos el diccionario, d_l['escudo'] siempre es una URL válida
                             with c_p1[0]: st.image(d_l['escudo'], width=30)
                             with c_p1[1]: st.markdown(f"<div class='team-name' style='text-align:right; justify-content: flex-end;'>{row['local']}</div>", unsafe_allow_html=True)
                             
@@ -1492,7 +1501,6 @@ if rol == "admin":
                             # ==========================
                             st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
                             
-                            # 3 Botones en linea exacta
                             c_btn = st.columns([1, 1, 1], gap="small")
                             
                             # 1. GUARDAR
@@ -1506,19 +1514,19 @@ if rol == "admin":
                                                        {"l":gl, "v":gv, "id":row['id']})
                                             db.commit()
                                         st.toast("Guardado!")
-                                        time.sleep(0.5) # Pausa para ver el toast
+                                        time.sleep(0.5) 
                                         st.rerun()
 
-                            # 2. CONTACTAR (Nombre Club)
+                            # 2. CONTACTAR
                             with c_btn[1]:
                                 with st.popover("📞 Contactar", use_container_width=True):
                                     st.caption("Enviar mensaje a:")
-                                    if d_l['cel']: st.markdown(f"**👉 {row['local']}** ([Abrir Chat](https://wa.me/{d_l['cel']}))")
+                                    if d_l['cel']: st.markdown(f"**👉 {row['local']}** ([Chat](https://wa.me/{d_l['cel']}))")
                                     else: st.caption(f"{row['local']} (Sin cel)")
                                     
                                     st.markdown("---")
                                     
-                                    if d_v['cel']: st.markdown(f"**👉 {row['visitante']}** ([Abrir Chat](https://wa.me/{d_v['cel']}))")
+                                    if d_v['cel']: st.markdown(f"**👉 {row['visitante']}** ([Chat](https://wa.me/{d_v['cel']}))")
                                     else: st.caption(f"{row['visitante']} (Sin cel)")
 
                             # 3. EVIDENCIA
@@ -1550,7 +1558,8 @@ if rol == "admin":
                         np = c_pin.text_input("PIN", str(dat['pin']))
                         
                         st.write("Escudo:")
-                        img_s = dat['escudo'] if dat['escudo'] else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                        # Blindaje visualización
+                        img_s = dat['escudo'] if (dat['escudo'] and len(dat['escudo']) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
                         st.image(img_s, width=50)
                         new_img = st.file_uploader("Cambiar Escudo", type=['png','jpg'])
                         
