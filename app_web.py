@@ -1619,7 +1619,7 @@ if rol == "admin":
                             st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-        # B. DIRECTORIO (LISTA PLANA CON VÍNCULOS)
+        # B. DIRECTORIO (LISTA FINAL: NEÓN + PREFIJO)
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
@@ -1631,27 +1631,41 @@ if rol == "admin":
                 df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
-                st.write("---")
+                st.write("") # Espacio
                 
                 # LISTA SIMPLE
                 for _, eq in df_maestro.iterrows():
                     # Preparar datos
                     src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                    celular_full = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
+                    
+                    # Limpieza para la URL (sin espacios ni símbolos)
+                    celular_url = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
+                    # Texto visual (con espacios y +)
+                    celular_texto = f"{eq['prefijo']} {eq['celular']}"
                     
                     # Layout Mínimo: [Imagen] [Texto con Vínculo]
-                    c_img, c_txt = st.columns([0.1, 0.9], vertical_alignment="center")
+                    c_img, c_txt = st.columns([0.15, 0.85], vertical_alignment="center")
                     
                     with c_img:
-                        st.image(src_escudo, width=30)
+                        st.image(src_escudo, width=35)
                     
                     with c_txt:
-                        # Vínculo Markdown: [Texto a mostrar](URL)
-                        # Ejemplo: 📞 [3171234567](https://wa.me/57317...)
-                        linea = f"**{eq['nombre']}** | PIN: `{eq['pin']}` | 📞 [{eq['celular']}](https://wa.me/{celular_full})"
-                        st.markdown(linea)
-                
-                st.write("---")
+                        # Vínculo Markdown: **Nombre** | PIN | 📞 [Numero Completo](URL)
+                        linea = f"**{eq['nombre']}** | <span style='color:#888'>PIN: `{eq['pin']}`</span> | 📞 [{celular_texto}](https://wa.me/{celular_url})"
+                        st.markdown(linea, unsafe_allow_html=True)
+                    
+                    # --- LÍNEA SEPARADORA NEÓN ---
+                    # Usa el color primario del torneo para brillar
+                    st.markdown(f"""
+                        <hr style='
+                            border: 0; 
+                            height: 1px; 
+                            background-color: {color_primario}; 
+                            box-shadow: 0 0 4px {color_primario}; 
+                            margin: 5px 0; 
+                            opacity: 0.6;
+                        '>""", unsafe_allow_html=True)
+
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
                 # ---------------------------------------------------------
@@ -1717,7 +1731,6 @@ if rol == "admin":
                         st.rerun()
             else:
                 st.info("No hay equipos registrados.")
-
 
 
 
