@@ -1289,19 +1289,18 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: COLOR DINÁMICO + TAMAÑOS EDITABLES) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: SIN 'X' EN INPUTS) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
 
         # 0. OBTENER COLOR PRIMARIO DINÁMICO
-        # Buscamos el color configurado en la BD para pintar los bordes
         try:
             c_res = pd.read_sql_query("SELECT valor FROM config WHERE clave='color_primario'", conn)
             color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
         except: color_primario = "#FFD700"
         
-        # 1. APROBACIONES (Estándar)
+        # 1. APROBACIONES
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
@@ -1335,14 +1334,12 @@ if rol == "admin":
         opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. RESULTADOS (VISUAL FINAL DINÁMICA)
+        # A. RESULTADOS (VISUAL FINAL + CSS ANTI-X)
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
             solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
             
-            # Usamos f-string (f""") para inyectar la variable {color_primario}
-            # NOTA: En f-strings de CSS, las llaves normales deben ir dobles {{ }}
             st.markdown(f"""
             <style>
                 /* 1. MÓVIL: FORZAR FILA HORIZONTAL */
@@ -1359,16 +1356,30 @@ if rol == "admin":
                     }}
                 }}
 
-                /* 2. INPUTS GOLES (Cajitas) */
-                input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button {{ -webkit-appearance: none; margin: 0; }}
+                /* 2. LIMPIEZA DE INPUTS (ADIÓS FLECHAS Y ADIÓS 'X') */
+                /* Ocultar flechas sube/baja */
+                input[type=number]::-webkit-inner-spin-button, 
+                input[type=number]::-webkit-outer-spin-button {{ 
+                    -webkit-appearance: none; margin: 0; 
+                }}
+                
+                /* Ocultar la 'X' de borrar (NUEVO FIX) */
+                input[type=number]::-webkit-clear-button,
+                input[type=number]::-webkit-search-cancel-button {{
+                    -webkit-appearance: none;
+                    display: none;
+                }}
+                
+                /* Estilo Firefox */
                 input[type=number] {{ -moz-appearance: textfield; }}
                 
+                /* Estilo de la cajita */
                 div[data-testid="stNumberInput"] input {{
                     text-align: center !important; font-weight: 800 !important; 
                     
                     font-size: 18px !important; /* <--- TAMAÑO NUMERO GOLES */
                     
-                    color: {color_primario} !important; /* Color del número igual al tema */
+                    color: {color_primario} !important; 
                     background-color: rgba(255,255,255,0.05) !important;
                     border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 4px !important;
                     padding: 0px !important; height: 35px !important;
@@ -1402,35 +1413,27 @@ if rol == "admin":
                 /* 4. TARJETA (BORDE DINÁMICO) */
                 .match-card {{
                     background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%);
-                    
-                    /* AQUI ESTA EL CAMBIO DEL BORDE DINAMICO */
-                    border-bottom: 1px solid {color_primario}; #2
+                    border-bottom: 2px solid {color_primario}; 
                     border-top: 1px solid rgba(255,255,255,0.1);
                     border-left: 1px solid rgba(255,255,255,0.1);
                     border-right: 1px solid rgba(255,255,255,0.1);
                     
-                    border-radius: 1px; 
+                    border-radius: 12px; 
                     padding: 8px 4px;
-                    margin-bottom: 40px; /* <--- ESPACIO ENTRE PARTIDOS */
+                    margin-bottom: 30px; /* <--- ESPACIO ENTRE PARTIDOS */
                     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
                 }}
                 .conflict {{ border: 2px solid #FF4B4B; background: rgba(50,0,0,0.6); }}
                 
-                /* 5. NOMBRES DE EQUIPOS (TEXTO GRANDE) */
+                /* 5. NOMBRES DE EQUIPOS */
                 .team-l {{ 
-                    text-align: right; 
-                    font-weight: 800; 
-                    margin-right: 5px; 
+                    text-align: right; font-weight: 800; margin-right: 5px; 
                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-                    
                     font-size: 15px; /* <--- TAMAÑO NOMBRE EQUIPO */
                 }}
                 .team-v {{ 
-                    text-align: left; 
-                    font-weight: 800; 
-                    margin-left: 5px; 
+                    text-align: left; font-weight: 800; margin-left: 5px; 
                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-                    
                     font-size: 15px; /* <--- TAMAÑO NOMBRE EQUIPO */
                 }}
             </style>
@@ -1487,7 +1490,6 @@ if rol == "admin":
                             with c_p1[5]: st.markdown(f"<div class='team-v'>{row['visitante']}</div>", unsafe_allow_html=True)
                             with c_p1[6]: st.image(d_v['escudo'], width=30)
 
-                            # --- ESPACIO MÍNIMO ---
                             st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
                             
                             # --- PISO 2: ACCIONES ---
@@ -1568,6 +1570,7 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
 
 
