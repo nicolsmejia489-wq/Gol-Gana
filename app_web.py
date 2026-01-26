@@ -1427,12 +1427,12 @@ if rol == "dt":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: 3 PESTAÑAS) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: PESTAÑAS + LISTA NEÓN) ---
 if rol == "admin":
     with tabs[2]:
-        st.header("⚙️ Panel de Control")
+        st.header("⚙️ Gestión del Torneo")
 
-        # 0. OBTENER COLOR PRIMARIO (Para usar en CSS local)
+        # 0. OBTENER COLOR PRIMARIO
         try:
             c_res = pd.read_sql_query("SELECT valor FROM config WHERE clave='color_primario'", conn)
             color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
@@ -1442,7 +1442,7 @@ if rol == "admin":
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
-                st.info(f"🔔 Tienes {len(pend)} solicitudes de inscripción pendientes.")
+                st.info(f"Tienes {len(pend)} solicitudes pendientes.")
                 for _, r in pend.iterrows():
                     with st.container():
                         c1, c2, c3 = st.columns([0.8, 3, 1], vertical_alignment="center")
@@ -1468,20 +1468,21 @@ if rol == "admin":
                     st.divider()
         except: pass
 
-        st.write("") 
+        st.write("") # Espacio separador
 
-        # --- CREACIÓN DE LAS 3 PESTAÑAS ---
-        tab_resultados, tab_directorio, tab_config = st.tabs(["⚽ Resultados", "🛠️ Directorio", "⚙️ Configuración"])
+        # --- AQUI ESTÁ EL CAMBIO: CREAMOS PESTAÑAS ---
+        tab_resultados, tab_directorio = st.tabs(["⚽ Resultados", "🛠️ Directorio"])
 
         # ==========================================
         # PESTAÑA 1: RESULTADOS
         # ==========================================
         with tab_resultados:
-            st.subheader("📝 Marcadores y Partidos")
+            st.subheader("📝 Marcadores")
             
+            # Selector de Filtros
             filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True)
             
-            # CSS Específico (Inputs limpios y tarjetas)
+            # CSS Específico para los inputs (Solo afecta aquí)
             st.markdown(f"""
             <style>
                 @media (max-width: 640px) {{
@@ -1615,10 +1616,114 @@ if rol == "admin":
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
-import streamlit as st
 
+        # ==========================================
+        # PESTAÑA 2: DIRECTORIO
+        # ==========================================
+        with tab_directorio:
+            st.subheader("📋 Directorio de Equipos")
+            
+            try:
+                # Consulta excluyendo al Admin/Sistema
+                df_maestro = pd.read_sql_query(text("SELECT * FROM equipos WHERE nombre NOT IN ('Admin', 'Sistema') ORDER BY nombre"), conn)
+            except:
+                df_maestro = pd.DataFrame()
 
+            if not df_maestro.empty:
+                st.write("") # Espacio
+                
+                # LISTA SIMPLE (NEON + PREFIJO)
+                for _, eq in df_maestro.iterrows():
+                    # Preparar datos
+                    src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                    
+                    # Limpieza para la URL (sin espacios ni símbolos)
+                    celular_url = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
+                    # Texto visual (con espacios y +)
+                    celular_texto = f"{eq['prefijo']} {eq['celular']}"
+                    
+                    # Layout Mínimo: [Imagen] [Texto con Vínculo]
+                    c_img, c_txt = st.columns([0.15, 0.85], vertical_alignment="center")
+                    
+                    with c_img:
+                        st.image(src_escudo, width=35)
+                    
+                    with c_txt:
+                        # Vínculo Markdown: **Nombre** | PIN | 📞 [Numero Completo](URL)
+                        linea = f"**{eq['nombre']}** | <span style='color:#888'>PIN: `{eq['pin']}`</span> | 📞 [{celular_texto}](https://wa.me/{celular_url})"
+                        st.markdown(linea, unsafe_allow_html=True)
+                    
+                    # --- LÍNEA SEPARADORA NEÓN ---
+                    st.markdown(f"""
+                        <hr style='
+                            border: 0; 
+                            height: 1px; 
+                            background-color: {color_primario}; 
+                            box-shadow: 0 0 4px {color_primario}; 
+                            margin: 5px 0; 
+                            opacity: 0.6;
+                        '>""", unsafe_allow_html=True)
 
+                st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
+                # --- GESTIÓN Y EDICIÓN ---
+                st.subheader("✏️ Gestión y Edición")
+                
+                lista_nombres = df_maestro['nombre'].tolist()
+                equipo_sel = st.selectbox("Selecciona equipo a gestionar:", lista_nombres)
+                
+                if equipo_sel:
+                    datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
+                    with st.form("edit_master_form"):
+                        c_nm, c_pin = st.columns([2, 1])
+                        new_name = c_nm.text_input("Nombre del Equipo", datos_sel['nombre'])
+                        new_pin = c_pin.text_input("PIN de acceso", str(datos_sel['pin']))
+                        
+                        st.write("**🛡️ Actualizar Escudo**")
+                        c_e1, c_e2 = st.columns([1, 3])
+                        with c_e1:
+                            if datos_sel['escudo']:
+                                st.image(datos_sel['escudo'], width=60)
+                        with c_e2:
+                            nuevo_escudo_img = st.file_uploader("Subir nuevo escudo", type=['png', 'jpg', 'jpeg'])
+                        
+                        quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
+                        
+                        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                            url_final = datos_sel['escudo']
+                            if quitar_escudo: 
+                                url_final = None
+                            elif nuevo_escudo_img:
+                                try:
+                                    res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
+                                    url_final = res_std['secure_url']
+                                except: pass
 
+                            try:
+                                with conn.connect() as db:
+                                    db.execute(
+                                        text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
+                                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
+                                    )
+                                    if new_name != equipo_sel:
+                                        db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                        db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                    
+                                    db.commit()
+                                st.success(f"✅ ¡{new_name} actualizado!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error actualizando: {e}")
+
+                    if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
+                        with conn.connect() as db:
+                            db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
+                            db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
+                            db.commit()
+                        st.error(f"Equipo eliminado.")
+                        time.sleep(1)
+                        st.rerun()
+            else:
+                st.info("No hay equipos registrados.")
