@@ -1433,12 +1433,12 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (Completo con Gestor de Resultados) ---
+# --- TAB: GESTIÓN ADMIN (INDENTACIÓN Y CSS CORREGIDOS) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        # --- 1. SECCIÓN DE APROBACIONES (Sin cambios) ---
+        # --- 1. SECCIÓN DE APROBACIONES ---
         st.subheader("📩 Equipos por Aprobar")
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
@@ -1491,116 +1491,145 @@ if rol == "admin":
         # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
- # --- A. OPCIÓN: RESULTADOS (ADMIN - GHOST EDITION BLINDADO) ---
-    if opcion_admin == "⚽ Resultados":
-    st.subheader("📝 Gestión de Resultados")
-    
-    # 1. Filtro de Emergencia
-    solo_revision = st.toggle("🚨 Ver solo partidos en Revisión / Conflicto", value=False)
-    
-    # CSS para la plantilla
-    st.markdown("""
-    <style>
-        .ghost-card-admin {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 10px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        .revision-glow {
-            border: 2px solid #FF4B4B !important;
-            background: rgba(255, 75, 75, 0.08) !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    try:
-        df_partidos = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
-        df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
-        escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
-    except:
-        df_partidos = pd.DataFrame()
-        escudos_dict = {}
-
-    placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-
-    if df_partidos.empty:
-        st.warning("No hay partidos.")
-    else:
-        # Aplicar filtro de revisión si está activo
-        if solo_revision:
-            df_partidos = df_partidos[(df_partidos['estado'] == 'Revision') | (df_partidos['conflicto'] == 1)]
-
-        jornadas = sorted(df_partidos['jornada'].unique())
-        tabs_j = st.tabs([f"Jornada {int(j)}" for j in jornadas])
-        
-        for i, tab in enumerate(tabs_j):
-            with tab:
-                df_j = df_partidos[df_partidos['jornada'] == jornadas[i]]
+        # --- A. OPCIÓN: RESULTADOS (GHOST EDITION BLINDADO PARA MÓVIL) ---
+        if opcion_admin == "⚽ Resultados":
+            st.subheader("📝 Gestión de Resultados")
+            
+            # 1. Filtro de Emergencia
+            solo_revision = st.toggle("🚨 Ver solo partidos en Revisión / Conflicto", value=False)
+            
+            # CSS CRÍTICO: Esto arregla el problema del celular
+            st.markdown("""
+            <style>
+                /* Fuerza a las columnas a mantenerse horizontales en celular */
+                [data-testid="stHorizontalBlock"] {
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    align-items: center !important;
+                    gap: 0.5rem !important;
+                }
                 
-                if df_j.empty:
-                    st.info("No hay partidos que requieran revisión en esta jornada.")
+                /* Estilo de la tarjeta Ghost */
+                .ghost-card-admin {
+                    background: rgba(255, 255, 255, 0.03);
+                    border-radius: 12px;
+                    padding: 8px; /* Padding reducido para móvil */
+                    margin-bottom: 10px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
                 
-                for _, row in df_j.iterrows():
-                    rev = row['estado'] == 'Revision' or row['conflicto'] == 1
-                    clase = "ghost-card-admin revision-glow" if rev else "ghost-card-admin"
-                    
-                    # Validación segura de escudos para evitar el AttributeError
-                    esc_l = escudos_dict.get(row['local'])
-                    if not esc_l or pd.isna(esc_l): esc_l = placeholder_escudo
-                    
-                    esc_v = escudos_dict.get(row['visitante'])
-                    if not esc_v or pd.isna(esc_v): esc_v = placeholder_escudo
+                .revision-glow {
+                    border: 2px solid #FF4B4B !important;
+                    background: rgba(255, 75, 75, 0.08) !important;
+                }
 
-                    st.markdown(f'<div class="{clase}">', unsafe_allow_html=True)
-                    
-                    col_esc_l, col_nom_l, col_gl, col_vs, col_gv, col_nom_v, col_esc_v, col_acc = st.columns(
-                        [0.6, 2.2, 0.8, 0.3, 0.8, 2.2, 0.6, 1.4], vertical_alignment="center"
-                    )
-                    
-                    with col_esc_l: st.image(esc_l, width=30)
-                    with col_nom_l: st.markdown(f"<div style='text-align:right; font-size:13px; font-weight:bold;'>{row['local']}</div>", unsafe_allow_html=True)
-                    
-                    with col_gl:
-                        v_l = int(row['goles_l']) if pd.notna(row['goles_l']) else None
-                        g_l = st.number_input("L", value=v_l, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gl_{row['id']}")
-                    
-                    with col_vs: st.markdown("<div style='text-align:center; opacity:0.5;'>-</div>", unsafe_allow_html=True)
-                    
-                    with col_gv:
-                        v_v = int(row['goles_v']) if pd.notna(row['goles_v']) else None
-                        g_v = st.number_input("V", value=v_v, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gv_{row['id']}")
-                    
-                    with col_nom_v: st.markdown(f"<div style='text-align:left; font-size:13px; font-weight:bold;'>{row['visitante']}</div>", unsafe_allow_html=True)
-                    with col_esc_v: st.image(esc_v, width=30)
+                /* Control estricto de inputs numéricos en móvil */
+                div[data-testid="stNumberInput"] {
+                    min-width: 0px !important;
+                    width: 100% !important;
+                }
+                div[data-testid="stNumberInput"] input {
+                    text-align: center !important;
+                    padding: 0px !important;
+                    font-size: 16px !important;
+                    height: 35px !important;
+                }
+                /* Ocultar flechas de incremento/decremento en móvil para ganar espacio */
+                input[type=number]::-webkit-inner-spin-button, 
+                input[type=number]::-webkit-outer-spin-button { 
+                    -webkit-appearance: none; 
+                    margin: 0; 
+                }
+            </style>
+            """, unsafe_allow_html=True)
 
-                    with col_acc:
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("💾", key=f"sv_{row['id']}", help="Finalizar"):
-                                with conn.connect() as db:
-                                    db.execute(text("""
-                                        UPDATE partidos SET goles_l=:l, goles_v=:v, 
-                                        estado='Finalizado', conflicto=0, metodo_registro='Manual' 
-                                        WHERE id=:id
-                                    """), {"l": g_l, "v": g_v, "id": row['id']})
-                                    db.commit()
-                                st.rerun()
-                        with c2:
-                            url = row['url_foto_l'] if pd.notna(row['url_foto_l']) else row['url_foto_v']
-                            if url:
-                                with st.popover("👁️", help="Ver Evidencia"):
-                                    st.image(url, caption=f"Evidencia: {row['metodo_registro']}")
-                            else:
-                                st.button("🚫", key=f"no_{row['id']}", disabled=True)
-                    
-                    st.markdown('</div>', unsafe_allow_html=True)
+            try:
+                df_partidos = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
+                df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
+                escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
+            except:
+                df_partidos = pd.DataFrame()
+                escudos_dict = {}
 
+            placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+
+            if df_partidos.empty:
+                st.warning("No hay partidos.")
+            else:
+                # Aplicar filtro
+                if solo_revision:
+                    df_partidos = df_partidos[(df_partidos['estado'] == 'Revision') | (df_partidos['conflicto'] == 1)]
+
+                jornadas = sorted(df_partidos['jornada'].unique())
+                tabs_j = st.tabs([f"Jornada {int(j)}" for j in jornadas])
+                
+                for i, tab in enumerate(tabs_j):
+                    with tab:
+                        df_j = df_partidos[df_partidos['jornada'] == jornadas[i]]
                         
+                        if df_j.empty:
+                            st.info("Todo en orden por aquí.")
+                        
+                        for _, row in df_j.iterrows():
+                            rev = row['estado'] == 'Revision' or row['conflicto'] == 1
+                            clase = "ghost-card-admin revision-glow" if rev else "ghost-card-admin"
+                            
+                            # Validación de escudos
+                            esc_l = escudos_dict.get(row['local'])
+                            if not esc_l or pd.isna(esc_l): esc_l = placeholder_escudo
+                            
+                            esc_v = escudos_dict.get(row['visitante'])
+                            if not esc_v or pd.isna(esc_v): esc_v = placeholder_escudo
 
-        # --- A. OPCIÓN: DIRECTORIO ---
-        if opcion_admin == "🛠️ Directorio de Equipos":
+                            st.markdown(f'<div class="{clase}">', unsafe_allow_html=True)
+                            
+                            # COLUMNAS AJUSTADAS PARA MÓVIL
+                            # Usamos anchos relativos para que entren en pantalla pequeña
+                            # [Esc, Nom, G, -, G, Nom, Esc, Btn]
+                            col_esc_l, col_nom_l, col_gl, col_vs, col_gv, col_nom_v, col_esc_v, col_acc = st.columns(
+                                [0.8, 2, 1.2, 0.4, 1.2, 2, 0.8, 1.5], vertical_alignment="center"
+                            )
+                            
+                            with col_esc_l: st.image(esc_l, width=25)
+                            with col_nom_l: st.markdown(f"<div style='text-align:right; font-size:11px; line-height:1.2; font-weight:bold;'>{row['local']}</div>", unsafe_allow_html=True)
+                            
+                            with col_gl:
+                                v_l = int(row['goles_l']) if pd.notna(row['goles_l']) else None
+                                g_l = st.number_input("L", value=v_l, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gl_{row['id']}")
+                            
+                            with col_vs: st.markdown("<div style='text-align:center; opacity:0.5; font-size:10px;'>-</div>", unsafe_allow_html=True)
+                            
+                            with col_gv:
+                                v_v = int(row['goles_v']) if pd.notna(row['goles_v']) else None
+                                g_v = st.number_input("V", value=v_v, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gv_{row['id']}")
+                            
+                            with col_nom_v: st.markdown(f"<div style='text-align:left; font-size:11px; line-height:1.2; font-weight:bold;'>{row['visitante']}</div>", unsafe_allow_html=True)
+                            with col_esc_v: st.image(esc_v, width=25)
+
+                            with col_acc:
+                                c1, c2 = st.columns(2)
+                                with c1:
+                                    if st.button("💾", key=f"sv_{row['id']}", help="Finalizar"):
+                                        with conn.connect() as db:
+                                            db.execute(text("""
+                                                UPDATE partidos SET goles_l=:l, goles_v=:v, 
+                                                estado='Finalizado', conflicto=0, metodo_registro='Manual' 
+                                                WHERE id=:id
+                                            """), {"l": g_l, "v": g_v, "id": row['id']})
+                                            db.commit()
+                                        st.rerun()
+                                with c2:
+                                    url = row['url_foto_l'] if pd.notna(row['url_foto_l']) else row['url_foto_v']
+                                    if url:
+                                        with st.popover("👁️", help="Ver Evidencia"):
+                                            st.image(url, caption=f"{row['metodo_registro']}")
+                                    else:
+                                        st.button("🚫", key=f"no_{row['id']}", disabled=True)
+                            
+                            st.markdown('</div>', unsafe_allow_html=True)
+
+        # --- B. OPCIÓN: DIRECTORIO ---
+        elif opcion_admin == "🛠️ Directorio de Equipos":
             st.subheader("📋 Directorio de Equipos")
             
             try:
@@ -1703,7 +1732,6 @@ if rol == "admin":
                                 
                                 with conn.connect() as db:
                                     def update_cfg(k, v):
-                                        # IMPORTANTE: Asegúrate si tu tabla es 'config' o 'configuracion'
                                         db.execute(text("INSERT INTO config (clave, valor) VALUES (:k, :v) ON CONFLICT (clave) DO UPDATE SET valor = :v"), {"k": k, "v": v})
                                     
                                     update_cfg('fondo_url', url_fondo_nueva)
@@ -1742,11 +1770,11 @@ if rol == "admin":
                 with conn.connect() as db:
                     db.execute(text("DELETE FROM equipos"))
                     db.execute(text("DELETE FROM partidos"))
-                    # Asegúrate de usar 'config' si esa es tu tabla definitiva
                     db.execute(text("UPDATE config SET valor = 'inscripcion' WHERE clave = 'fase_actual'"))
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
