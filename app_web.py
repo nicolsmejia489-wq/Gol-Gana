@@ -1220,12 +1220,12 @@ if fase_actual == "inscripcion":
 
             
 
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (CORREGIDO) ---
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (PÚBLICO - SIN EVIDENCIAS) ---
 elif fase_actual == "clasificacion":
     with tabs[1]:
         # st.subheader("📅 Calendario Oficial")
         
-        # URL de Fondo (Asegúrate de tener la URL correcta aquí si usas imagen)
+        # URL de Fondo
         URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..." 
         placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
@@ -1254,7 +1254,7 @@ elif fase_actual == "clasificacion":
                         esc_l = escudos_dict.get(p['local']) or placeholder_escudo
                         esc_v = escudos_dict.get(p['visitante']) or placeholder_escudo
                         
-                        # 2. Preparar Marcador (CORRECCIÓN ANTI-ERROR)
+                        # 2. Preparar Marcador
                         try:
                             if pd.notna(p['goles_l']) and pd.notna(p['goles_v']):
                                 txt_marcador = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
@@ -1264,7 +1264,6 @@ elif fase_actual == "clasificacion":
                             txt_marcador = "VS"
                         
                         # 3. Construir la Tarjeta HTML
-                        # Asegúrate de tener la función 'renderizar_tarjeta_partido' definida arriba en tu código
                         html_tarjeta = renderizar_tarjeta_partido(
                             local=p['local'],
                             visita=p['visitante'],
@@ -1276,17 +1275,9 @@ elif fase_actual == "clasificacion":
                         )
                         
                         st.markdown(html_tarjeta, unsafe_allow_html=True)
-                        
-                        # 4. Evidencias (Opcional)
-                        if p.get('url_foto_l') or p.get('url_foto_v'):
-                            with st.expander(f"📷 Ver evidencia {p['local']} vs {p['visitante']}"):
-                                c1, c2 = st.columns(2)
-                                if p['url_foto_l']: c1.image(p['url_foto_l'])
-                                if p['url_foto_v']: c2.image(p['url_foto_v'])
-                            st.write("") # Espacio
+                        # (Sección de evidencias eliminada para el público)
         else:
             st.info("El calendario se mostrará cuando inicie el torneo.")
-
 
             
 
@@ -1711,6 +1702,7 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
 
 
