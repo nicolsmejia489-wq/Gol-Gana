@@ -1431,7 +1431,7 @@ if rol == "dt":
 
             
 
-  # --- TAB: GESTIÓN ADMIN (BLINDADO CONTRA ESCUDOS VACÍOS) ---
+# --- TAB: GESTIÓN ADMIN (BLINDADO CONTRA ESCUDOS VACÍOS) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
@@ -1724,5 +1724,3 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
-
-
