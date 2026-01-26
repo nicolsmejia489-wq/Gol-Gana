@@ -1492,7 +1492,7 @@ if rol == "admin":
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
  # --- A. OPCIÓN: RESULTADOS (ADMIN - GHOST EDITION BLINDADO) ---
-if opcion_admin == "⚽ Resultados":
+    if opcion_admin == "⚽ Resultados":
     st.subheader("📝 Gestión de Resultados")
     
     # 1. Filtro de Emergencia
@@ -1747,6 +1747,7 @@ if opcion_admin == "⚽ Resultados":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
+
 
 
 
