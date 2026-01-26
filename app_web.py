@@ -1289,12 +1289,12 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (BOTONES CLAROS Y GRANDES) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: AJUSTE DE TAMAÑOS Y ESPACIOS) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
         
-        # 1. APROBACIONES (Código estándar simplificado)
+        # 1. APROBACIONES (Estándar)
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
@@ -1309,7 +1309,6 @@ if rol == "admin":
                             st.markdown(f"[WhatsApp](https://wa.me/{pref}{r['celular']})")
                         with c3:
                             if st.button("✅", key=f"ok_{r['nombre']}"):
-                                # ... (Lógica de aprobación igual) ...
                                 url = r['escudo']
                                 if url:
                                     try:
@@ -1329,7 +1328,7 @@ if rol == "admin":
         opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. RESULTADOS (TARJETA CON BOTONES DE TEXTO)
+        # A. RESULTADOS (VISUAL FINAL)
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
@@ -1342,7 +1341,7 @@ if rol == "admin":
                     div[data-testid="stHorizontalBlock"] {
                         flex-direction: row !important;
                         flex-wrap: nowrap !important;
-                        gap: 3px !important;
+                        gap: 2px !important;
                     }
                     div[data-testid="stColumn"] {
                         min-width: 0px !important;
@@ -1351,7 +1350,7 @@ if rol == "admin":
                     }
                 }
 
-                /* 2. INPUTS GOLES */
+                /* 2. INPUTS GOLES (Cajitas) */
                 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
                 input[type=number] { -moz-appearance: textfield; }
                 
@@ -1363,42 +1362,67 @@ if rol == "admin":
                 }
                 div[data-testid="stNumberInput"] { width: 40px !important; min-width: 40px !important; margin: auto !important; }
 
-                /* 3. BOTONES CON TEXTO (AUTO-AJUSTABLES) */
+                /* 3. BOTONES (TEXTO PEQUEÑO) */
                 [data-testid="stLinkButton"] a, .stButton button {
                     background-color: rgba(255,255,255,0.08) !important;
                     border: 1px solid rgba(255,255,255,0.1) !important;
-                    color: white !important;
+                    color: #ddd !important;
                     border-radius: 6px !important;
-                    min-height: 40px !important; /* Altura mínima para que quepa texto */
-                    height: auto !important;     /* Permitir crecer si el nombre es largo */
+                    min-height: 32px !important; /* Más compactos de alto */
+                    height: auto !important;     
                     width: 100% !important;
-                    display: flex !important;
-                    align-items: center !important;
-                    justify-content: center !important;
+                    display: flex !important; align-items: center !important; justify-content: center !important;
                     text-decoration: none !important;
-                    font-size: 13px !important; /* Texto un poco más pequeño para nombres largos */
-                    line-height: 1.2 !important;
-                    padding: 4px 2px !important;
-                    white-space: normal !important; /* Permitir saltos de línea */
-                    text-align: center !important;
+                    
+                    /* --- AQUÍ CAMBIAS EL TAMAÑO DE LETRA DE LOS BOTONES --- */
+                    font-size: 11px !important; 
+                    /* ----------------------------------------------------- */
+                    
+                    line-height: 1.1 !important;
+                    padding: 4px 1px !important;
+                    white-space: normal !important; text-align: center !important;
                 }
                 
                 [data-testid="stLinkButton"] a:hover, .stButton button:hover {
-                    border-color: #FFD700 !important;
-                    color: #FFD700 !important;
-                    background-color: rgba(255,215,0,0.1) !important;
+                    border-color: #FFD700 !important; color: #FFD700 !important;
                 }
 
-                /* 4. TARJETA */
+                /* 4. TARJETA (SEPARACIÓN CLARA) */
                 .match-card {
-                    background: linear-gradient(180deg, rgba(30,30,30,0.8) 0%, rgba(20,20,20,0.9) 100%);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 12px; padding: 10px 5px; margin-bottom: 20px;
+                    background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 12px; 
+                    padding: 8px 4px; /* Relleno interno apretado */
+                    
+                    /* --- ESTO SEPARA LOS PARTIDOS ENTRE SÍ --- */
+                    margin-bottom: 30px; 
+                    /* ---------------------------------------- */
+                    
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
                 }
-                .conflict { border: 1px solid #FF4B4B; background: rgba(50,0,0,0.5); }
+                .conflict { border: 1px solid #FF4B4B; background: rgba(50,0,0,0.6); }
                 
-                .team-l { text-align: right; font-size: 12px; font-weight: bold; margin-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                .team-v { text-align: left; font-size: 12px; font-weight: bold; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                /* 5. NOMBRES DE EQUIPOS (TEXTO GRANDE) */
+                .team-l { 
+                    text-align: right; 
+                    font-weight: 800; 
+                    margin-right: 5px; 
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+                    
+                    /* --- AQUÍ CAMBIAS EL TAMAÑO DE LOS EQUIPOS --- */
+                    font-size: 15px; 
+                    /* --------------------------------------------- */
+                }
+                .team-v { 
+                    text-align: left; 
+                    font-weight: 800; 
+                    margin-left: 5px; 
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+                    
+                    /* --- AQUÍ CAMBIAS EL TAMAÑO DE LOS EQUIPOS --- */
+                    font-size: 15px; 
+                    /* --------------------------------------------- */
+                }
             </style>
             """, unsafe_allow_html=True)
 
@@ -1436,8 +1460,9 @@ if rol == "admin":
                             st.markdown(f'<div class="{css_card}">', unsafe_allow_html=True)
                             
                             # --- PISO 1: MARCADOR ---
+                            # [Esc, Nom, Input, -, Input, Nom, Esc]
                             c_p1 = st.columns([0.6, 2.5, 1, 0.2, 1, 2.5, 0.6], vertical_alignment="center")
-                            with c_p1[0]: st.image(d_l['escudo'], width=28)
+                            with c_p1[0]: st.image(d_l['escudo'], width=30)
                             with c_p1[1]: st.markdown(f"<div class='team-l'>{row['local']}</div>", unsafe_allow_html=True)
                             
                             with c_p1[2]:
@@ -1451,15 +1476,15 @@ if rol == "admin":
                                 gv = st.number_input("V", value=vv, min_value=0, max_value=99, label_visibility="collapsed", key=f"gV_{row['id']}")
                                 
                             with c_p1[5]: st.markdown(f"<div class='team-v'>{row['visitante']}</div>", unsafe_allow_html=True)
-                            with c_p1[6]: st.image(d_v['escudo'], width=28)
+                            with c_p1[6]: st.image(d_v['escudo'], width=30)
 
+                            # --- ESPACIO MINIMO ENTRE PISOS ---
+                            # Reducimos esto para que estén más pegados
+                            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+                            
                             # --- PISO 2: ACCIONES (GRID 2x2) ---
-                            st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-                            
-                            # FILA 1 DE BOTONES: GESTIÓN
+                            # FILA A: GUARDAR Y FOTO
                             c_row1 = st.columns(2, gap="small")
-                            
-                            # 1. Guardar
                             with c_row1[0]:
                                 if st.button("💾 Guardar", key=f"s_{row['id']}", use_container_width=True):
                                     if gl is None or gv is None:
@@ -1472,7 +1497,6 @@ if rol == "admin":
                                         st.toast("Guardado")
                                         st.rerun()
 
-                            # 2. Ver Foto (Evidencia)
                             with c_row1[1]:
                                 url_ev = row['url_foto_l'] or row['url_foto_v']
                                 if url_ev:
@@ -1480,19 +1504,16 @@ if rol == "admin":
                                 else:
                                     st.button("🚫 Sin Foto", key=f"no_{row['id']}", disabled=True, use_container_width=True)
 
-                            # FILA 2 DE BOTONES: CONTACTO EQUIPOS
-                            st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+                            # FILA B: CONTACTO (Pegadita a la anterior)
+                            st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
                             c_row2 = st.columns(2, gap="small")
 
-                            # 3. Contactar Local
                             with c_row2[0]:
                                 if d_l['cel']:
-                                    # Nombre del equipo en el botón
                                     st.link_button(f"📞 {row['local']}", f"https://wa.me/{d_l['cel']}", use_container_width=True)
                                 else:
                                     st.button(f"🚫 {row['local']}", key=f"nl_{row['id']}", disabled=True, use_container_width=True)
 
-                            # 4. Contactar Visita
                             with c_row2[1]:
                                 if d_v['cel']:
                                     st.link_button(f"📞 {row['visitante']}", f"https://wa.me/{d_v['cel']}", use_container_width=True)
@@ -1541,5 +1562,4 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
-
 
