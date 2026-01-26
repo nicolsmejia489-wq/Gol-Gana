@@ -1433,7 +1433,7 @@ if rol == "dt":
 
   
   
-# --- TAB: GESTIÓN ADMIN (INDENTACIÓN Y CSS CORREGIDOS) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: SELECTBOX Y LIMPIEZA) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
@@ -1491,29 +1491,27 @@ if rol == "admin":
         # --- 2. SELECCIÓN DE TAREA ---
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio de Equipos", "🎨 Diseño Web"], horizontal=True, key="adm_tab")
         
-        # --- A. OPCIÓN: RESULTADOS (GHOST EDITION BLINDADO PARA MÓVIL) ---
+        # --- A. OPCIÓN: RESULTADOS (VERSION DEFINITIVA: SELECTBOX) ---
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Gestión de Resultados")
             
-            # 1. Filtro de Emergencia
             solo_revision = st.toggle("🚨 Ver solo partidos en Revisión / Conflicto", value=False)
             
-            # CSS CRÍTICO: Esto arregla el problema del celular
+            # CSS ESPECIAL PARA SELECTBOX COMPACTO
             st.markdown("""
             <style>
-                /* Fuerza a las columnas a mantenerse horizontales en celular */
+                /* Forzar fila horizontal en móvil */
                 [data-testid="stHorizontalBlock"] {
                     flex-direction: row !important;
                     flex-wrap: nowrap !important;
                     align-items: center !important;
-                    gap: 0.5rem !important;
+                    gap: 0.3rem !important;
                 }
                 
-                /* Estilo de la tarjeta Ghost */
                 .ghost-card-admin {
                     background: rgba(255, 255, 255, 0.03);
                     border-radius: 12px;
-                    padding: 8px; /* Padding reducido para móvil */
+                    padding: 8px;
                     margin-bottom: 10px;
                     border: 1px solid rgba(255,255,255,0.1);
                 }
@@ -1523,22 +1521,24 @@ if rol == "admin":
                     background: rgba(255, 75, 75, 0.08) !important;
                 }
 
-                /* Control estricto de inputs numéricos en móvil */
-                div[data-testid="stNumberInput"] {
-                    min-width: 0px !important;
-                    width: 100% !important;
-                }
-                div[data-testid="stNumberInput"] input {
-                    text-align: center !important;
-                    padding: 0px !important;
-                    font-size: 16px !important;
+                /* ESTILO PARA LOS SELECTBOX (Desplegables) */
+                /* Hacemos que parezcan cajitas de números */
+                div[data-testid="stSelectbox"] > div > div {
+                    min-height: 35px !important;
                     height: 35px !important;
+                    padding: 0px 5px !important;
+                    background-color: rgba(0,0,0,0.3) !important;
+                    border: 1px solid rgba(255,255,255,0.2);
                 }
-                /* Ocultar flechas de incremento/decremento en móvil para ganar espacio */
-                input[type=number]::-webkit-inner-spin-button, 
-                input[type=number]::-webkit-outer-spin-button { 
-                    -webkit-appearance: none; 
-                    margin: 0; 
+                /* Centrar el número dentro del selectbox */
+                div[data-testid="stSelectbox"] div[data-baseweb="select"] div {
+                    text-align: center !important;
+                    font-weight: bold;
+                    color: #FFD700; /* Dorado */
+                }
+                /* Ocultar la flechita del dropdown para ahorrar espacio si se puede, o hacerla discreta */
+                div[data-baseweb="icon"] {
+                    display: none; 
                 }
             </style>
             """, unsafe_allow_html=True)
@@ -1556,52 +1556,56 @@ if rol == "admin":
             if df_partidos.empty:
                 st.warning("No hay partidos.")
             else:
-                # Aplicar filtro
                 if solo_revision:
                     df_partidos = df_partidos[(df_partidos['estado'] == 'Revision') | (df_partidos['conflicto'] == 1)]
 
                 jornadas = sorted(df_partidos['jornada'].unique())
                 tabs_j = st.tabs([f"Jornada {int(j)}" for j in jornadas])
                 
+                # Rango de goles posible (0 a 15 es suficiente para FIFA normalmente)
+                lista_goles = list(range(16)) 
+                
                 for i, tab in enumerate(tabs_j):
                     with tab:
                         df_j = df_partidos[df_partidos['jornada'] == jornadas[i]]
                         
                         if df_j.empty:
-                            st.info("Todo en orden por aquí.")
+                            st.info("Todo en orden.")
                         
                         for _, row in df_j.iterrows():
                             rev = row['estado'] == 'Revision' or row['conflicto'] == 1
                             clase = "ghost-card-admin revision-glow" if rev else "ghost-card-admin"
                             
-                            # Validación de escudos
                             esc_l = escudos_dict.get(row['local'])
                             if not esc_l or pd.isna(esc_l): esc_l = placeholder_escudo
-                            
                             esc_v = escudos_dict.get(row['visitante'])
                             if not esc_v or pd.isna(esc_v): esc_v = placeholder_escudo
 
                             st.markdown(f'<div class="{clase}">', unsafe_allow_html=True)
                             
-                            # COLUMNAS AJUSTADAS PARA MÓVIL
-                            # Usamos anchos relativos para que entren en pantalla pequeña
-                            # [Esc, Nom, G, -, G, Nom, Esc, Btn]
+                            # Layout ajustado para Selectbox
+                            # [Esc, Nom, Sel, -, Sel, Nom, Esc, Btn]
                             col_esc_l, col_nom_l, col_gl, col_vs, col_gv, col_nom_v, col_esc_v, col_acc = st.columns(
-                                [0.8, 2, 1.2, 0.4, 1.2, 2, 0.8, 1.5], vertical_alignment="center"
+                                [0.8, 2, 1, 0.3, 1, 2, 0.8, 1.4], vertical_alignment="center"
                             )
                             
                             with col_esc_l: st.image(esc_l, width=25)
                             with col_nom_l: st.markdown(f"<div style='text-align:right; font-size:11px; line-height:1.2; font-weight:bold;'>{row['local']}</div>", unsafe_allow_html=True)
                             
+                            # --- CAMBIO A SELECTBOX ---
                             with col_gl:
-                                v_l = int(row['goles_l']) if pd.notna(row['goles_l']) else None
-                                g_l = st.number_input("L", value=v_l, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gl_{row['id']}")
+                                # Recuperar valor actual o 0 por defecto
+                                v_l = int(row['goles_l']) if pd.notna(row['goles_l']) else 0
+                                # Buscamos el índice para que aparezca seleccionado
+                                idx_l = v_l if v_l in lista_goles else 0
+                                g_l = st.selectbox("L", lista_goles, index=idx_l, key=f"sel_l_{row['id']}", label_visibility="collapsed")
                             
                             with col_vs: st.markdown("<div style='text-align:center; opacity:0.5; font-size:10px;'>-</div>", unsafe_allow_html=True)
                             
                             with col_gv:
-                                v_v = int(row['goles_v']) if pd.notna(row['goles_v']) else None
-                                g_v = st.number_input("V", value=v_v, min_value=0, max_value=25, label_visibility="collapsed", key=f"ad_gv_{row['id']}")
+                                v_v = int(row['goles_v']) if pd.notna(row['goles_v']) else 0
+                                idx_v = v_v if v_v in lista_goles else 0
+                                g_v = st.selectbox("V", lista_goles, index=idx_v, key=f"sel_v_{row['id']}", label_visibility="collapsed")
                             
                             with col_nom_v: st.markdown(f"<div style='text-align:left; font-size:11px; line-height:1.2; font-weight:bold;'>{row['visitante']}</div>", unsafe_allow_html=True)
                             with col_esc_v: st.image(esc_v, width=25)
@@ -1619,12 +1623,12 @@ if rol == "admin":
                                             db.commit()
                                         st.rerun()
                                 with c2:
+                                    # Lógica limpia: Si hay URL muestra ojo, si no, NADA (vacío)
                                     url = row['url_foto_l'] if pd.notna(row['url_foto_l']) else row['url_foto_v']
                                     if url:
                                         with st.popover("👁️", help="Ver Evidencia"):
                                             st.image(url, caption=f"{row['metodo_registro']}")
-                                    else:
-                                        st.button("🚫", key=f"no_{row['id']}", disabled=True)
+                                    # Eliminado el 'else: button prohibido'
                             
                             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1774,9 +1778,6 @@ if rol == "admin":
                     db.commit()
                 st.session_state.clear()
                 st.rerun()
-
-
-
 
 
 
