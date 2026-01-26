@@ -1289,7 +1289,7 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: SIN 'X' EN INPUTS) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: CSS NUCLEAR ANTI-X) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
@@ -1334,7 +1334,7 @@ if rol == "admin":
         opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. RESULTADOS (VISUAL FINAL + CSS ANTI-X)
+        # A. RESULTADOS (VISUAL FINAL + CSS NUCLEAR)
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
@@ -1356,34 +1356,53 @@ if rol == "admin":
                     }}
                 }}
 
-                /* 2. LIMPIEZA DE INPUTS (ADIÓS FLECHAS Y ADIÓS 'X') */
-                /* Ocultar flechas sube/baja */
+                /* 2. CSS NUCLEAR PARA ELIMINAR LA 'X' Y FLECHAS */
+                /* Apuntar a todas las pseudo-clases conocidas de Webkit/Blink */
                 input[type=number]::-webkit-inner-spin-button, 
-                input[type=number]::-webkit-outer-spin-button {{ 
-                    -webkit-appearance: none; margin: 0; 
-                }}
-                
-                /* Ocultar la 'X' de borrar (NUEVO FIX) */
+                input[type=number]::-webkit-outer-spin-button,
                 input[type=number]::-webkit-clear-button,
-                input[type=number]::-webkit-search-cancel-button {{
-                    -webkit-appearance: none;
-                    display: none;
+                input[type=number]::-webkit-search-cancel-button,
+                input[type=number]::-webkit-search-decoration,
+                input[type=number]::-webkit-search-results-button,
+                input[type=number]::-webkit-search-results-decoration {{ 
+                    -webkit-appearance: none !important;
+                    appearance: none !important;
+                    display: none !important; 
+                    margin: 0 !important;
+                    width: 0 !important;
+                    height: 0 !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
                 }}
                 
-                /* Estilo Firefox */
-                input[type=number] {{ -moz-appearance: textfield; }}
+                /* Específico para Firefox */
+                input[type=number] {{ -moz-appearance: textfield !important; }}
                 
-                /* Estilo de la cajita */
+                /* Específico para Edge/IE antiguos */
+                input[type=number]::-ms-clear,
+                input[type=number]::-ms-reveal {{
+                    display: none !important; 
+                    width: 0 !important; 
+                    height: 0 !important;
+                }}
+
+                /* ESTILO DE LA CAJA DEL INPUT */
                 div[data-testid="stNumberInput"] input {{
                     text-align: center !important; font-weight: 800 !important; 
                     
-                    font-size: 18px !important; /* <--- TAMAÑO NUMERO GOLES */
+                    font-size: 18px !important; /* TAMAÑO NUMERO */
                     
                     color: {color_primario} !important; 
                     background-color: rgba(255,255,255,0.05) !important;
                     border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 4px !important;
                     padding: 0px !important; height: 35px !important;
+                    
+                    /* Asegurar que no aparezca nada raro */
+                    appearance: none !important;
+                    -webkit-appearance: none !important;
                 }}
+                
+                /* Ancho forzado */
                 div[data-testid="stNumberInput"] {{ width: 40px !important; min-width: 40px !important; margin: auto !important; }}
 
                 /* 3. BOTONES (TEXTO PEQUEÑO) */
@@ -1397,9 +1416,7 @@ if rol == "admin":
                     width: 100% !important;
                     display: flex !important; align-items: center !important; justify-content: center !important;
                     text-decoration: none !important;
-                    
-                    font-size: 11px !important; /* <--- TAMAÑO LETRA BOTONES */
-                    
+                    font-size: 11px !important; /* TAMAÑO LETRA BOTONES */
                     line-height: 1.1 !important;
                     padding: 4px 1px !important;
                     white-space: normal !important; text-align: center !important;
@@ -1417,10 +1434,9 @@ if rol == "admin":
                     border-top: 1px solid rgba(255,255,255,0.1);
                     border-left: 1px solid rgba(255,255,255,0.1);
                     border-right: 1px solid rgba(255,255,255,0.1);
-                    
                     border-radius: 12px; 
                     padding: 8px 4px;
-                    margin-bottom: 30px; /* <--- ESPACIO ENTRE PARTIDOS */
+                    margin-bottom: 30px; 
                     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
                 }}
                 .conflict {{ border: 2px solid #FF4B4B; background: rgba(50,0,0,0.6); }}
@@ -1429,12 +1445,12 @@ if rol == "admin":
                 .team-l {{ 
                     text-align: right; font-weight: 800; margin-right: 5px; 
                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-                    font-size: 15px; /* <--- TAMAÑO NOMBRE EQUIPO */
+                    font-size: 15px; /* TAMAÑO NOMBRE */
                 }}
                 .team-v {{ 
                     text-align: left; font-weight: 800; margin-left: 5px; 
                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-                    font-size: 15px; /* <--- TAMAÑO NOMBRE EQUIPO */
+                    font-size: 15px; /* TAMAÑO NOMBRE */
                 }}
             </style>
             """, unsafe_allow_html=True)
@@ -1570,8 +1586,6 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
-
-
 
 
 
