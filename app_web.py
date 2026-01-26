@@ -1789,8 +1789,9 @@ if rol == "admin":
                         st.error(f"Equipo eliminado.")
                         time.sleep(1)
                         st.rerun()
-            else:
+                    else:
                 st.info("No hay equipos registrados.")
+
 
 
 
