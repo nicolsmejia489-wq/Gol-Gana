@@ -1429,7 +1429,7 @@ if rol == "dt":
             
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: TEXT INPUTS LIMPIOS) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: FILTROS + TEXT INPUTS + BLINDAJE) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
@@ -1474,96 +1474,45 @@ if rol == "admin":
         opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. RESULTADOS (USANDO TEXT_INPUT PARA ELIMINAR LA 'X')
+        # A. RESULTADOS
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
-            solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
             
+            # --- NUEVO SELECTOR DE FILTROS ---
+            filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True)
+            
+            # CSS (Mismo estilo limpio anterior)
             st.markdown(f"""
             <style>
-                /* 1. MÓVIL: FORZAR FILA HORIZONTAL */
                 @media (max-width: 640px) {{
-                    div[data-testid="stHorizontalBlock"] {{
-                        flex-direction: row !important;
-                        flex-wrap: nowrap !important;
-                        gap: 2px !important;
-                    }}
-                    div[data-testid="stColumn"] {{
-                        min-width: 0px !important;
-                        flex: 1 1 auto !important;
-                        padding: 0px !important;
-                    }}
+                    div[data-testid="stHorizontalBlock"] {{ flex-direction: row !important; flex-wrap: nowrap !important; gap: 2px !important; }}
+                    div[data-testid="stColumn"] {{ min-width: 0px !important; flex: 1 1 auto !important; padding: 0px !important; }}
                 }}
-
-                /* 2. ESTILO PARA CAJAS DE TEXTO (stTextInput) */
-                /* Forzamos que parezcan números y ocultamos cualquier basura del navegador */
                 div[data-testid="stTextInput"] input {{
-                    text-align: center !important; 
-                    font-weight: 800 !important; 
-                    font-size: 18px !important; /* TAMAÑO NUMERO */
-                    color: {color_primario} !important; 
-                    background-color: rgba(255,255,255,0.05) !important;
-                    border: 1px solid rgba(255,255,255,0.2) !important; 
-                    border-radius: 4px !important;
-                    padding: 0px !important; 
-                    height: 35px !important;
+                    text-align: center !important; font-weight: 800 !important; font-size: 18px !important;
+                    color: {color_primario} !important; background-color: rgba(255,255,255,0.05) !important;
+                    border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 4px !important;
+                    padding: 0px !important; height: 35px !important;
                 }}
-                
-                /* Ancho forzado */
-                div[data-testid="stTextInput"] {{ 
-                    width: 40px !important; 
-                    min-width: 40px !important; 
-                    margin: auto !important; 
-                }}
-
-                /* 3. BOTONES (TEXTO PEQUEÑO) */
+                div[data-testid="stTextInput"] {{ width: 40px !important; min-width: 40px !important; margin: auto !important; }}
                 [data-testid="stLinkButton"] a, .stButton button {{
-                    background-color: rgba(255,255,255,0.08) !important;
-                    border: 1px solid rgba(255,255,255,0.1) !important;
-                    color: #ddd !important;
-                    border-radius: 6px !important;
-                    min-height: 32px !important; 
-                    height: auto !important;     
-                    width: 100% !important;
+                    background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.1) !important;
+                    color: #ddd !important; border-radius: 6px !important; min-height: 32px !important; height: auto !important; width: 100% !important;
                     display: flex !important; align-items: center !important; justify-content: center !important;
-                    text-decoration: none !important;
-                    font-size: 11px !important; /* TAMAÑO LETRA BOTONES */
-                    line-height: 1.1 !important;
-                    padding: 4px 1px !important;
-                    white-space: normal !important; text-align: center !important;
+                    text-decoration: none !important; font-size: 11px !important; line-height: 1.1 !important;
+                    padding: 4px 1px !important; white-space: normal !important; text-align: center !important;
                 }}
-                
-                [data-testid="stLinkButton"] a:hover, .stButton button:hover {{
-                    border-color: {color_primario} !important; 
-                    color: {color_primario} !important;
-                }}
-
-                /* 4. TARJETA (BORDE DINÁMICO) */
+                [data-testid="stLinkButton"] a:hover, .stButton button:hover {{ border-color: {color_primario} !important; color: {color_primario} !important; }}
                 .match-card {{
                     background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%);
-                    border-bottom: 2px solid {color_primario}; 
-                    border-top: 1px solid rgba(255,255,255,0.1);
-                    border-left: 1px solid rgba(255,255,255,0.1);
-                    border-right: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 12px; 
-                    padding: 8px 4px;
-                    margin-bottom: 30px; 
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                    border-bottom: 2px solid {color_primario}; border-top: 1px solid rgba(255,255,255,0.1);
+                    border-left: 1px solid rgba(255,255,255,0.1); border-right: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 12px; padding: 8px 4px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
                 }}
                 .conflict {{ border: 2px solid #FF4B4B; background: rgba(50,0,0,0.6); }}
-                
-                /* 5. NOMBRES DE EQUIPOS */
-                .team-l {{ 
-                    text-align: right; font-weight: 800; margin-right: 5px; 
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-                    font-size: 15px; /* TAMAÑO NOMBRE */
-                }}
-                .team-v {{ 
-                    text-align: left; font-weight: 800; margin-left: 5px; 
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-                    font-size: 15px; /* TAMAÑO NOMBRE */
-                }}
+                .team-l {{ text-align: right; font-weight: 800; margin-right: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }}
+                .team-v {{ text-align: left; font-weight: 800; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }}
             </style>
             """, unsafe_allow_html=True)
 
@@ -1581,16 +1530,25 @@ if rol == "admin":
                     }
             except: df_p = pd.DataFrame(); info_equipos = {}
 
-            if df_p.empty: st.warning("No hay partidos.")
+            # --- APLICAR FILTROS ---
+            if not df_p.empty:
+                if filtro_partidos == "Conflictos":
+                    df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
+                elif filtro_partidos == "Pendientes":
+                    # Filtramos donde los goles sean NaN (no jugados)
+                    df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
+            
+            # --- BLINDAJE: SI EL DATAFRAME QUEDÓ VACÍO TRAS EL FILTRO, NO MOSTRAR TABS ---
+            if df_p.empty:
+                st.info(f"No hay partidos en la categoría: {filtro_partidos}")
             else:
-                if solo_rev: df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
                 jornadas = sorted(df_p['jornada'].unique())
                 tabs_j = st.tabs([f"J{int(j)}" for j in jornadas]) 
 
                 for i, tab in enumerate(tabs_j):
                     with tab:
                         df_j = df_p[df_p['jornada'] == jornadas[i]]
-                        if df_j.empty: st.caption("Libre.")
+                        if df_j.empty: st.caption("Sin partidos.")
                         
                         for _, row in df_j.iterrows():
                             d_l = info_equipos.get(row['local'], {'escudo': placeholder, 'cel': ''})
@@ -1600,13 +1558,12 @@ if rol == "admin":
                             
                             st.markdown(f'<div class="{css_card}">', unsafe_allow_html=True)
                             
-                            # --- PISO 1: MARCADOR (TEXT INPUTS) ---
+                            # PISO 1: MARCADOR
                             c_p1 = st.columns([0.6, 2.5, 1, 0.2, 1, 2.5, 0.6], vertical_alignment="center")
                             with c_p1[0]: st.image(d_l['escudo'], width=30)
                             with c_p1[1]: st.markdown(f"<div class='team-l'>{row['local']}</div>", unsafe_allow_html=True)
                             
                             with c_p1[2]:
-                                # AQUI CAMBIAMOS A st.text_input para evitar la X
                                 vl = str(int(row['goles_l'])) if pd.notna(row['goles_l']) else ""
                                 gl = st.text_input("L", value=vl, max_chars=2, label_visibility="collapsed", key=f"gL_{row['id']}")
                                 
@@ -1621,11 +1578,10 @@ if rol == "admin":
 
                             st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
                             
-                            # --- PISO 2: ACCIONES ---
+                            # PISO 2: ACCIONES
                             c_row1 = st.columns(2, gap="small")
                             with c_row1[0]:
                                 if st.button("💾 Guardar", key=f"s_{row['id']}", use_container_width=True):
-                                    # VALIDACION MANUAL DE NUMEROS
                                     if gl == "" or gv == "":
                                         st.toast("⚠️ Faltan goles")
                                     elif not (gl.isdigit() and gv.isdigit()):
@@ -1702,10 +1658,6 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
-
-
-
-
 
 
 
