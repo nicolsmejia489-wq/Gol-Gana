@@ -1660,20 +1660,26 @@ if rol == "admin":
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
                     with st.form("edit_master_form"):
-                        # --- AJUSTE: NOMBRE OCUPA CASI TODO EL ANCHO (5 a 1) ---
-                        c_nm, c_pin = st.columns([5, 1])
-                        new_name = c_nm.text_input("Nombre del Equipo", datos_sel['nombre'])
-                        new_pin = c_pin.text_input("PIN", str(datos_sel['pin']))
+                        # AJUSTE: Ratio [8, 1] fuerza al nombre a tomar casi todo el ancho
+                        c_nm, c_pin = st.columns([8, 1], vertical_alignment="bottom")
                         
-                        st.write("**🛡️ Actualizar Escudo**")
-                        c_e1, c_e2 = st.columns([1, 3])
+                        with c_nm:
+                            new_name = st.text_input("Nombre del Equipo", datos_sel['nombre'])
+                        with c_pin:
+                            new_pin = st.text_input("PIN", str(datos_sel['pin']))
+                        
+                        st.write("") # Espacio
+                        st.markdown("**🛡️ Actualizar Escudo**")
+                        
+                        c_e1, c_e2 = st.columns([1, 4], vertical_alignment="center")
                         with c_e1:
                             if datos_sel['escudo']:
-                                st.image(datos_sel['escudo'], width=60)
+                                st.image(datos_sel['escudo'], width=70, caption="Actual")
                         with c_e2:
-                            nuevo_escudo_img = st.file_uploader("Subir nuevo escudo", type=['png', 'jpg', 'jpeg'])
+                            nuevo_escudo_img = st.file_uploader("Subir nuevo escudo", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+                            quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
                         
-                        quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
+                        st.write("") # Espacio
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
@@ -1687,10 +1693,12 @@ if rol == "admin":
 
                             try:
                                 with conn.connect() as db:
+                                    # Actualizar Tabla Equipos
                                     db.execute(
                                         text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
                                         {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
                                     )
+                                    # Actualizar Tabla Partidos
                                     if new_name != equipo_sel:
                                         db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
                                         db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
@@ -1702,7 +1710,8 @@ if rol == "admin":
                             except Exception as e:
                                 st.error(f"Error actualizando: {e}")
 
-                    if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
+                    # Botón de eliminar fuera del form para seguridad
+                    if st.button(f"✖️ Eliminar equipo: {equipo_sel}", use_container_width=True):
                         with conn.connect() as db:
                             db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
                             db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
@@ -1790,3 +1799,4 @@ if rol == "admin":
                     st.success("Torneo reiniciado.")
                     time.sleep(1)
                     st.rerun()
+
