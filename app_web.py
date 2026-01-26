@@ -1619,7 +1619,7 @@ if rol == "admin":
                             st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-        # B. DIRECTORIO (LISTA SIMPLE Y ESTABLE)
+        # B. DIRECTORIO (NATIVO, SIMPLE Y ROBUSTO)
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
@@ -1633,62 +1633,29 @@ if rol == "admin":
             if not df_maestro.empty:
                 st.caption("Equipos registrados:")
                 
-                # BUCLE DIRECTO (Sin contenedores complejos para evitar errores de renderizado)
+                # BUCLE CON COMPONENTES NATIVOS (Imposible que falle visualmente)
                 for _, eq in df_maestro.iterrows():
-                    # Preparación de variables
-                    estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                    src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                    
-                    # Limpieza del número para WhatsApp
-                    celular_limpio = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
-                    link_wa = f"https://wa.me/{celular_limpio}"
-                    
-                    # HTML PURO Y SIMPLE
-                    # Usamos f-string con triple comilla para evitar conflictos
-                    html_card = f"""
-                    <div style="
-                        display: flex; 
-                        justify-content: space-between; 
-                        align-items: center; 
-                        background-color: rgba(255,255,255,0.05); 
-                        padding: 10px; 
-                        border-radius: 8px; 
-                        margin-bottom: 8px; 
-                        border-left: 4px solid {color_primario};
-                    ">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 18px;">{estado_icon}</span>
-                            <img src="{src_escudo}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
-                            <div style="line-height: 1.2;">
-                                <div style="font-weight: bold; color: white; font-size: 14px;">{eq['nombre']}</div>
-                                <div style="font-size: 11px; color: #aaa;">PIN: {eq['pin']}</div>
-                            </div>
-                        </div>
-
-                        <a href="{link_wa}" target="_blank" style="text-decoration: none;">
-                            <div style="
-                                background-color: rgba(37, 211, 102, 0.15); 
-                                border: 1px solid #25D366; 
-                                color: #25D366; 
-                                padding: 6px 12px; 
-                                border-radius: 20px; 
-                                font-size: 12px; 
-                                font-weight: bold;
-                                display: flex; 
-                                align-items: center; 
-                                gap: 5px;
-                                transition: 0.3s;
-                            ">
-                                <span>📞</span> Chat
-                            </div>
-                        </a>
-                    </div>
-                    """
-                    
-                    st.markdown(html_card, unsafe_allow_html=True)
-
-                st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
-                st.markdown("---")
+                    with st.container():
+                        # Creamos 3 columnas alineadas verticalmente al centro
+                        c_img, c_info, c_btn = st.columns([0.5, 3, 1], vertical_alignment="center")
+                        
+                        # Columna 1: Escudo
+                        src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                        with c_img:
+                            st.image(src_escudo, width=35)
+                        
+                        # Columna 2: Información
+                        with c_info:
+                            estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
+                            st.markdown(f"**{eq['nombre']}** {estado_icon}")
+                            st.caption(f"PIN: {eq['pin']}")
+                        
+                        # Columna 3: Botón Nativo
+                        with c_btn:
+                            celular_limpio = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
+                            st.link_button("📞 Chat", f"https://wa.me/{celular_limpio}", use_container_width=True)
+                        
+                        st.divider() # Línea separadora simple
 
                 # 2. ZONA DE EDICIÓN
                 st.subheader("✏️ Editar o Eliminar")
@@ -1718,7 +1685,6 @@ if rol == "admin":
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
                             
-                            # Si subió imagen nueva
                             if nuevo_escudo_img:
                                 try:
                                     res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
