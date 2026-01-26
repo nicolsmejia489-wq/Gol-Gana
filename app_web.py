@@ -1618,45 +1618,68 @@ if rol == "admin":
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
-       # ------------------------------------------
-        # B. DIRECTORIO (LISTA DIRECTA + EDICIÓN)
+      # ------------------------------------------
+        # B. DIRECTORIO (CON BOTÓN WA Y FILTRO DE SISTEMA)
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
             
             try:
-                df_maestro = pd.read_sql_query(text("SELECT * FROM equipos ORDER BY nombre"), conn)
+                # 1. CONSULTA FILTRADA (Excluye 'Admin' o 'Sistema')
+                # Ajusta 'Admin' por el nombre real de tu usuario sistema si es diferente
+                df_maestro = pd.read_sql_query(text("SELECT * FROM equipos WHERE nombre NOT IN ('Admin', 'Sistema') ORDER BY nombre"), conn)
             except:
                 df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
-                # 1. LISTADO (EN CAJA CON SCROLL PARA NO OCUPAR TODO)
+                # 1. LISTADO (EN CAJA CON SCROLL)
                 st.caption("Lista de equipos registrados (Desliza para ver más):")
                 
-                with st.container(height=250): # Altura fija con scroll interno
+                with st.container(height=250): # Altura fija con scroll
                     for _, eq in df_maestro.iterrows():
                         estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                        # Blindaje por si no hay escudo
-                        src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
                         
-                        # Diseño de fila simple y limpio
+                        # Datos seguros
+                        src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                        celular_full = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
+                        link_wa = f"https://wa.me/{celular_full}"
+                        
+                        # HTML: Flexbox con Justify-Between para poner el botón a la derecha
                         st.markdown(
                             f"""
                             <div style='
                                 display: flex; 
                                 align-items: center; 
+                                justify-content: space-between; /* Separa info del botón */
                                 background-color: rgba(255,255,255,0.05); 
-                                padding: 8px; 
+                                padding: 8px 10px; 
                                 border-radius: 6px; 
                                 margin-bottom: 4px;
                                 border-left: 3px solid {color_primario};
                             '>
-                                <div style='font-size: 16px; margin-right: 8px;'>{estado_icon}</div>
-                                <img src="{src_escudo}" width="25" style="border-radius: 50%; margin-right: 10px;">
-                                <div style='flex-grow: 1;'>
-                                    <div style='font-weight: bold; font-size: 14px; color: white;'>{eq['nombre']}</div>
-                                    <div style='font-size: 11px; color: #aaa;'>PIN: {eq['pin']} | 📞 {eq['prefijo']} {eq['celular']}</div>
+                                <div style='display: flex; align-items: center;'>
+                                    <div style='font-size: 16px; margin-right: 8px;'>{estado_icon}</div>
+                                    <img src="{src_escudo}" width="25" style="border-radius: 50%; margin-right: 10px;">
+                                    <div>
+                                        <div style='font-weight: bold; font-size: 14px; color: white;'>{eq['nombre']}</div>
+                                        <div style='font-size: 11px; color: #aaa;'>PIN: {eq['pin']}</div>
+                                    </div>
                                 </div>
+
+                                <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                                    <div style='
+                                        background-color: rgba(37, 211, 102, 0.1); 
+                                        border: 1px solid #25D366; 
+                                        color: #25D366; 
+                                        padding: 4px 8px; 
+                                        border-radius: 4px; 
+                                        font-size: 12px; 
+                                        font-weight: bold;
+                                        display: flex; align-items: center; gap: 4px;
+                                    '>
+                                        📞 Chat
+                                    </div>
+                                </a>
                             </div>
                             """, 
                             unsafe_allow_html=True
@@ -1720,7 +1743,7 @@ if rol == "admin":
                             except Exception as e:
                                 st.error(f"Error BD: {e}")
 
-                    # ZONA DE BORRADO (Separada del form para seguridad)
+                    # ZONA DE BORRADO
                     st.markdown("<div style='height:15px'></div>", unsafe_allow_html=True)
                     
                     col_del1, col_del2 = st.columns([3, 1], vertical_alignment="bottom")
