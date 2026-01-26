@@ -1334,71 +1334,97 @@ if rol == "admin":
 
         st.write("")
         
-        # ==========================================
-        # 2. ÁREA DE TRABAJO
-        # ==========================================
-        opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
-        
-        # ------------------------------------------
-        # A. RESULTADOS (SUPER COMPACTO MÓVIL)
+      # ------------------------------------------
+        # A. RESULTADOS (SOLUCIÓN DEFINITIVA MÓVIL)
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
             solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
             
-            # CSS QUIRÚRGICO: ELIMINA ESPACIOS ENTRE ESCUDO Y NOMBRE
+            # --- CSS NUCLEAR ---
             st.markdown("""
             <style>
-                /* 1. ELIMINAR RELLENO DE COLUMNAS (CRUCIAL PARA MÓVIL) */
-                [data-testid="stColumn"] {
-                    padding-left: 0px !important;
-                    padding-right: 0px !important;
+                /* 1. FORZAR COLUMNAS HORIZONTALES EN MÓVIL 
+                   Esta es la clave. Le decimos a Streamlit que NO apile las columnas */
+                @media (max-width: 640px) {
+                    div[data-testid="stHorizontalBlock"] {
+                        flex-direction: row !important;
+                        flex-wrap: nowrap !important;
+                        gap: 5px !important;
+                    }
+                    div[data-testid="stColumn"] {
+                        min-width: 0px !important;
+                        flex: 1 1 auto !important;
+                    }
+                }
+
+                /* 2. INPUTS DE GOLES PEQUEÑOS Y LIMPIOS */
+                /* Ocultar flechas de número */
+                input[type=number]::-webkit-inner-spin-button, 
+                input[type=number]::-webkit-outer-spin-button { 
+                    -webkit-appearance: none; margin: 0; 
                 }
                 
-                /* 2. GRID SIN SEPARACIÓN */
-                [data-testid="stHorizontalBlock"] {
-                    gap: 0px !important;
-                }
-
-                /* 3. INPUTS NUMÉRICOS LIMPIOS */
-                input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-                input[type=number] { -moz-appearance: textfield; }
-
                 div[data-testid="stNumberInput"] input {
-                    text-align: center !important; font-weight: 800 !important; font-size: 18px !important;
-                    color: #FFD700 !important; background-color: rgba(0,0,0,0.4) !important;
-                    border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 4px !important;
-                    padding: 0px !important; height: 35px !important;
-                }
-                /* Ancho forzado del input */
-                div[data-testid="stNumberInput"] { width: 40px !important; min-width: 40px !important; margin: 0 auto !important;}
-
-                /* 4. BOTONES PLANOS */
-                .stButton button, [data-testid="stPopover"] button {
+                    text-align: center !important;
+                    font-weight: 800 !important;
+                    font-size: 18px !important;
+                    color: #FFD700 !important; /* Dorado */
                     background-color: rgba(255,255,255,0.05) !important;
-                    border: 1px solid rgba(255,255,255,0.1) !important; color: white !important;
-                    border-radius: 6px !important; height: 38px !important; width: 100% !important;
+                    border: 1px solid rgba(255,255,255,0.2) !important;
+                    border-radius: 5px !important;
+                    padding: 0px !important;
+                    height: 40px !important;
+                }
+                
+                /* Forzar ancho fijo del input */
+                div[data-testid="stNumberInput"] {
+                    width: 45px !important;
+                    min-width: 45px !important;
+                    margin: auto !important;
                 }
 
-                /* 5. TARJETA */
+                /* 3. TARJETA DEL PARTIDO */
                 .match-card {
-                    background: rgba(255, 255, 255, 0.03); border-radius: 10px;
-                    padding: 8px 4px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);
+                    background: linear-gradient(180deg, rgba(30,30,30,0.8) 0%, rgba(20,20,20,0.9) 100%);
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 12px;
+                    padding: 12px 5px;
+                    margin-bottom: 15px;
                 }
-                .alert-card { border: 1px solid #FF4B4B; background: rgba(255, 75, 75, 0.1); }
-                
-                /* 6. TEXTO DE EQUIPOS (Garantiza una sola línea) */
-                .team-l { 
-                    text-align: right; font-size: 12px; font-weight: bold; 
-                    margin-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+                .conflict { border: 1px solid #FF4B4B; background: rgba(50,0,0,0.5); }
+
+                /* 4. TEXTOS DE EQUIPOS */
+                .team-name {
+                    font-size: 11px;
+                    font-weight: bold;
+                    line-height: 1.2;
+                    color: white;
+                    white-space: normal; /* Permitir que baje si es muy largo */
+                    display: flex;
+                    align-items: center;
+                    height: 100%;
                 }
-                .team-v { 
-                    text-align: left; font-size: 12px; font-weight: bold; 
-                    margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+
+                /* 5. BOTONES DE ACCIÓN (PISO 2) */
+                .stButton button, div[data-testid="stPopover"] button {
+                    border: 1px solid rgba(255,255,255,0.1) !important;
+                    background-color: rgba(255,255,255,0.05) !important;
+                    color: #ccc !important;
+                    font-size: 14px !important;
+                    height: 35px !important;
+                    padding: 0px 5px !important;
+                    border-radius: 6px !important;
+                    width: 100% !important;
+                }
+                .stButton button:hover {
+                    border-color: #FFD700 !important;
+                    color: #FFD700 !important;
                 }
             </style>
             """, unsafe_allow_html=True)
 
+            # Carga de datos
             try:
                 df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
                 df_e = pd.read_sql_query("SELECT nombre, escudo, celular, prefijo FROM equipos", conn)
@@ -1423,41 +1449,46 @@ if rol == "admin":
                         if df_j.empty: st.caption("Libre.")
                         
                         for _, row in df_j.iterrows():
-                            d_l = info_equipos.get(row['local'])
-                            img_l = d_l['escudo'] if d_l and d_l.get('escudo') else placeholder
-                            
-                            d_v = info_equipos.get(row['visitante'])
-                            img_v = d_v['escudo'] if d_v and d_v.get('escudo') else placeholder
+                            # Datos seguros
+                            d_l = info_equipos.get(row['local'], {'escudo': placeholder, 'cel': ''})
+                            d_v = info_equipos.get(row['visitante'], {'escudo': placeholder, 'cel': ''})
                             
                             rev = row['estado']=='Revision' or row['conflicto']==1
-                            css = "match-card alert-card" if rev else "match-card"
+                            css_card = "match-card conflict" if rev else "match-card"
                             
-                            st.markdown(f'<div class="{css}">', unsafe_allow_html=True)
+                            # --- CONTENEDOR TARJETA ---
+                            st.markdown(f'<div class="{css_card}">', unsafe_allow_html=True)
                             
-                            # --- PISO 1: SCOREBOARD (DISTRIBUCIÓN REAL MÓVIL) ---
-                            # Reducimos drásticamente la columna de imagen (0.5) y ampliamos la de nombre (2.5)
-                            # [Img, Nom, Input, -, Input, Nom, Img]
-                            cols = st.columns([0.5, 2.5, 1, 0.2, 1, 2.5, 0.5], vertical_alignment="center")
+                            # ==========================
+                            # PISO 1: MARCADOR (HORIZONTAL FORZADO)
+                            # ==========================
+                            # Usamos columnas con pesos muy medidos
+                            # [Escudo, NombreL, GolL, -, GolV, NombreV, Escudo]
+                            c_p1 = st.columns([0.8, 2, 1, 0.3, 1, 2, 0.8], vertical_alignment="center")
                             
-                            with cols[0]: st.image(img_l, width=25)
-                            with cols[1]: st.markdown(f"<div class='team-l'>{row['local']}</div>", unsafe_allow_html=True)
+                            with c_p1[0]: st.image(d_l['escudo'], width=30)
+                            with c_p1[1]: st.markdown(f"<div class='team-name' style='text-align:right; justify-content: flex-end;'>{row['local']}</div>", unsafe_allow_html=True)
                             
-                            with cols[2]:
+                            with c_p1[2]:
                                 vl = int(row['goles_l']) if pd.notna(row['goles_l']) else None
                                 gl = st.number_input("L", value=vl, min_value=0, max_value=99, label_visibility="collapsed", key=f"gL_{row['id']}")
                                 
-                            with cols[3]: st.markdown("<div style='text-align:center; opacity:0.5'>-</div>", unsafe_allow_html=True)
+                            with c_p1[3]: st.markdown("<div style='text-align:center; opacity:0.5'>-</div>", unsafe_allow_html=True)
                             
-                            with cols[4]:
+                            with c_p1[4]:
                                 vv = int(row['goles_v']) if pd.notna(row['goles_v']) else None
                                 gv = st.number_input("V", value=vv, min_value=0, max_value=99, label_visibility="collapsed", key=f"gV_{row['id']}")
                                 
-                            with cols[5]: st.markdown(f"<div class='team-v'>{row['visitante']}</div>", unsafe_allow_html=True)
-                            with cols[6]: st.image(img_v, width=25)
+                            with c_p1[5]: st.markdown(f"<div class='team-name' style='text-align:left; justify-content: flex-start;'>{row['visitante']}</div>", unsafe_allow_html=True)
+                            with c_p1[6]: st.image(d_v['escudo'], width=30)
 
-                            # --- PISO 2: BARRA DE ACCIONES ---
-                            st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
-                            c_btn = st.columns(3, gap="small")
+                            # ==========================
+                            # PISO 2: ACCIONES (HORIZONTAL FORZADO)
+                            # ==========================
+                            st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
+                            
+                            # 3 Botones en linea exacta
+                            c_btn = st.columns([1, 1, 1], gap="small")
                             
                             # 1. GUARDAR
                             with c_btn[0]:
@@ -1469,24 +1500,21 @@ if rol == "admin":
                                             db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"),
                                                        {"l":gl, "v":gv, "id":row['id']})
                                             db.commit()
+                                        st.toast("Guardado!")
+                                        time.sleep(0.5) # Pausa para ver el toast
                                         st.rerun()
 
-                            # 2. CONTACTO (SOLO NOMBRE, SIN EMOJIS EXTRAÑOS)
+                            # 2. CONTACTAR (Nombre Club)
                             with c_btn[1]:
                                 with st.popover("📞 Contactar", use_container_width=True):
-                                    st.caption("Selecciona el equipo:")
+                                    st.caption("Enviar mensaje a:")
+                                    if d_l['cel']: st.markdown(f"**👉 {row['local']}** ([Abrir Chat](https://wa.me/{d_l['cel']}))")
+                                    else: st.caption(f"{row['local']} (Sin cel)")
                                     
-                                    # Local
-                                    cel_l = d_l['cel'] if d_l else ""
-                                    if cel_l: st.markdown(f"**[{row['local']}](https://wa.me/{cel_l})**")
-                                    else: st.caption(f"{row['local']} (Sin nro)")
+                                    st.markdown("---")
                                     
-                                    st.divider()
-                                    
-                                    # Visitante
-                                    cel_v = d_v['cel'] if d_v else ""
-                                    if cel_v: st.markdown(f"**[{row['visitante']}](https://wa.me/{cel_v})**")
-                                    else: st.caption(f"{row['visitante']} (Sin nro)")
+                                    if d_v['cel']: st.markdown(f"**👉 {row['visitante']}** ([Abrir Chat](https://wa.me/{d_v['cel']}))")
+                                    else: st.caption(f"{row['visitante']} (Sin cel)")
 
                             # 3. EVIDENCIA
                             with c_btn[2]:
@@ -1495,7 +1523,7 @@ if rol == "admin":
                                     with st.popover("📷 Foto", use_container_width=True):
                                         st.image(url_ev)
                                 else:
-                                    st.button("🚫", key=f"n_{row['id']}", disabled=True, use_container_width=True)
+                                    st.button("🚫 Foto", key=f"no_{row['id']}", disabled=True, use_container_width=True)
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1539,3 +1567,4 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
