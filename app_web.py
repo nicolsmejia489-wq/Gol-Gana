@@ -1429,7 +1429,7 @@ if rol == "dt":
             
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: FILTROS + TEXT INPUTS + BLINDAJE) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: PESTAÑAS + LISTA NEÓN) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
@@ -1440,11 +1440,11 @@ if rol == "admin":
             color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
         except: color_primario = "#FFD700"
         
-        # 1. APROBACIONES
+        # 1. APROBACIONES (Siempre visibles arriba)
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
-                st.info(f"Tienes {len(pend)} solicitudes.")
+                st.info(f"Tienes {len(pend)} solicitudes pendientes.")
                 for _, r in pend.iterrows():
                     with st.container():
                         c1, c2, c3 = st.columns([0.8, 3, 1], vertical_alignment="center")
@@ -1470,19 +1470,21 @@ if rol == "admin":
                     st.divider()
         except: pass
 
-        st.write("")
-        opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
-        
-        # ------------------------------------------
-        # A. RESULTADOS
-        # ------------------------------------------
-        if opcion_admin == "⚽ Resultados":
+        st.write("") # Espacio separador
+
+        # --- AQUI ESTÁ EL CAMBIO: CREAMOS PESTAÑAS ---
+        tab_resultados, tab_directorio = st.tabs(["⚽ Resultados", "🛠️ Directorio"])
+
+        # ==========================================
+        # PESTAÑA 1: RESULTADOS
+        # ==========================================
+        with tab_resultados:
             st.subheader("📝 Marcadores")
             
-            # --- NUEVO SELECTOR DE FILTROS ---
+            # Selector de Filtros
             filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True)
             
-            # CSS (Mismo estilo limpio anterior)
+            # CSS Específico para los inputs (Solo afecta aquí)
             st.markdown(f"""
             <style>
                 @media (max-width: 640px) {{
@@ -1530,15 +1532,13 @@ if rol == "admin":
                     }
             except: df_p = pd.DataFrame(); info_equipos = {}
 
-            # --- APLICAR FILTROS ---
+            # Aplicar Filtros
             if not df_p.empty:
                 if filtro_partidos == "Conflictos":
                     df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
                 elif filtro_partidos == "Pendientes":
-                    # Filtramos donde los goles sean NaN (no jugados)
                     df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
             
-            # --- BLINDAJE: SI EL DATAFRAME QUEDÓ VACÍO TRAS EL FILTRO, NO MOSTRAR TABS ---
             if df_p.empty:
                 st.info(f"No hay partidos en la categoría: {filtro_partidos}")
             else:
@@ -1618,10 +1618,11 @@ if rol == "admin":
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
-# ------------------------------------------
-        # B. DIRECTORIO (LISTA FINAL: NEÓN + PREFIJO)
-        # ------------------------------------------
-        elif opcion_admin == "🛠️ Directorio":
+
+        # ==========================================
+        # PESTAÑA 2: DIRECTORIO
+        # ==========================================
+        with tab_directorio:
             st.subheader("📋 Directorio de Equipos")
             
             try:
@@ -1633,7 +1634,7 @@ if rol == "admin":
             if not df_maestro.empty:
                 st.write("") # Espacio
                 
-                # LISTA SIMPLE
+                # LISTA SIMPLE (NEON + PREFIJO)
                 for _, eq in df_maestro.iterrows():
                     # Preparar datos
                     src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
@@ -1655,7 +1656,6 @@ if rol == "admin":
                         st.markdown(linea, unsafe_allow_html=True)
                     
                     # --- LÍNEA SEPARADORA NEÓN ---
-                    # Usa el color primario del torneo para brillar
                     st.markdown(f"""
                         <hr style='
                             border: 0; 
@@ -1668,9 +1668,7 @@ if rol == "admin":
 
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
-                # ---------------------------------------------------------
-                # ZONA DE EDICIÓN
-                # ---------------------------------------------------------
+                # --- GESTIÓN Y EDICIÓN ---
                 st.subheader("✏️ Gestión y Edición")
                 
                 lista_nombres = df_maestro['nombre'].tolist()
