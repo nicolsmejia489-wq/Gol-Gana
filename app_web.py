@@ -1404,14 +1404,14 @@ if rol == "admin":
                     background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%);
                     
                     /* AQUI ESTA EL CAMBIO DEL BORDE DINAMICO */
-                    border-bottom: 2px solid {color_primario}; 
+                    border-bottom: 1px solid {color_primario}; #2
                     border-top: 1px solid rgba(255,255,255,0.1);
                     border-left: 1px solid rgba(255,255,255,0.1);
                     border-right: 1px solid rgba(255,255,255,0.1);
                     
-                    border-radius: 12px; 
+                    border-radius: 1px; 
                     padding: 8px 4px;
-                    margin-bottom: 30px; /* <--- ESPACIO ENTRE PARTIDOS */
+                    margin-bottom: 40px; /* <--- ESPACIO ENTRE PARTIDOS */
                     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
                 }}
                 .conflict {{ border: 2px solid #FF4B4B; background: rgba(50,0,0,0.6); }}
@@ -1568,6 +1568,7 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
 
 
