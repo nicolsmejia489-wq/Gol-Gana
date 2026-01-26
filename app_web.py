@@ -1621,43 +1621,66 @@ if rol == "admin":
         # ------------------------------------------
         # B. DIRECTORIO
         # ------------------------------------------
-        elif opcion_admin == "🛠️ Directorio":
-            st.subheader("📋 Gestión de Equipos")
-            try: df_m = pd.read_sql_query(text("SELECT * FROM equipos ORDER BY nombre"), conn)
-            except: df_m = pd.DataFrame()
+       if opcion_admin == "🛠️ Directorio de Equipos":
+            st.subheader("📋 Directorio de Equipos")
+            
+            try:
+                df_maestro = pd.read_sql_query(text("SELECT * FROM equipos ORDER BY nombre"), conn)
+            except:
+                df_maestro = pd.DataFrame()
 
-            if not df_m.empty:
-                sel_eq = st.selectbox("Editar Equipo:", df_m['nombre'].tolist())
-                if sel_eq:
-                    dat = df_m[df_m['nombre'] == sel_eq].iloc[0]
-                    with st.form("ed_team"):
-                        c_nm, c_pin = st.columns(2)
-                        nn = c_nm.text_input("Nombre", dat['nombre'])
-                        np = c_pin.text_input("PIN", str(dat['pin']))
+            if not df_maestro.empty:
+                for _, eq in df_maestro.iterrows():
+                    estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
+                    escudo_mini = f'<img src="{eq["escudo"]}" width="20" style="vertical-align:middle; margin-right:5px">' if eq['escudo'] else ""
+                    st.markdown(f"{estado_icon} {escudo_mini} **{eq['nombre']}** | 🔑 {eq['pin']} | 📞 {eq['prefijo']} {eq['celular']}", unsafe_allow_html=True)
+                
+                st.markdown("---")
+                st.subheader("✏️ Gestión y Edición")
+                equipo_sel = st.selectbox("Selecciona equipo:", df_maestro['nombre'].tolist())
+                
+                if equipo_sel:
+                    datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
+
+                    with st.form("edit_master_form"):
+                        col1, col2 = st.columns(2)
+                        new_name = col1.text_input("Nombre del Equipo", datos_sel['nombre'])
+                        new_pin = col2.text_input("PIN de acceso", str(datos_sel['pin']))
                         
-                        st.write("Escudo:")
-                        img_s = dat['escudo'] if (dat['escudo'] and len(dat['escudo']) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                        st.image(img_s, width=50)
-                        new_img = st.file_uploader("Cambiar Escudo", type=['png','jpg'])
+                        st.write("**🛡️ Actualizar Escudo**")
+                        if datos_sel['escudo']:
+                            st.image(datos_sel['escudo'], width=100, caption="Escudo Actual")
+                            
+                        nuevo_escudo_img = st.file_uploader("Subir nuevo escudo", type=['png', 'jpg', 'jpeg'])
+                        quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-                            uf = dat['escudo']
-                            if new_img:
-                                r = cloudinary.uploader.upload(new_img, folder="escudos_limpios")
-                                uf = r['secure_url']
+                            url_final = datos_sel['escudo']
+                            if quitar_escudo: url_final = None
+                            elif nuevo_escudo_img:
+                                res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
+                                url_final = res_std['secure_url']
+
                             try:
                                 with conn.connect() as db:
-                                    db.execute(text("UPDATE equipos SET nombre=:n, pin=:p, escudo=:e WHERE nombre=:old"),{"n":nn,"p":np,"e":uf,"old":sel_eq})
+                                    db.execute(
+                                        text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
+                                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
+                                    )
                                     db.commit()
-                                st.success("Actualizado"); st.rerun()
-                            except: st.error("Error")
+                                st.success(f"✅ ¡{new_name} actualizado!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error actualizando: {e}")
 
-                    if st.button(f"🗑️ Borrar {sel_eq}", use_container_width=True):
+                    if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
                         with conn.connect() as db:
-                            db.execute(text("DELETE FROM equipos WHERE nombre=:n"),{"n":sel_eq})
+                            db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
                             db.commit()
+                        st.error(f"Equipo eliminado.")
                         st.rerun()
-            else: st.info("Directorio vacío.")
+            else:
+                st.info("No hay equipos registrados.")
 
 
 
