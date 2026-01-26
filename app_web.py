@@ -1289,12 +1289,12 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: CSS NUCLEAR ANTI-X) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: TEXT INPUTS LIMPIOS) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
 
-        # 0. OBTENER COLOR PRIMARIO DINÁMICO
+        # 0. OBTENER COLOR PRIMARIO
         try:
             c_res = pd.read_sql_query("SELECT valor FROM config WHERE clave='color_primario'", conn)
             color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
@@ -1334,7 +1334,7 @@ if rol == "admin":
         opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. RESULTADOS (VISUAL FINAL + CSS NUCLEAR)
+        # A. RESULTADOS (USANDO TEXT_INPUT PARA ELIMINAR LA 'X')
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
@@ -1356,54 +1356,26 @@ if rol == "admin":
                     }}
                 }}
 
-                /* 2. CSS NUCLEAR PARA ELIMINAR LA 'X' Y FLECHAS */
-                /* Apuntar a todas las pseudo-clases conocidas de Webkit/Blink */
-                input[type=number]::-webkit-inner-spin-button, 
-                input[type=number]::-webkit-outer-spin-button,
-                input[type=number]::-webkit-clear-button,
-                input[type=number]::-webkit-search-cancel-button,
-                input[type=number]::-webkit-search-decoration,
-                input[type=number]::-webkit-search-results-button,
-                input[type=number]::-webkit-search-results-decoration {{ 
-                    -webkit-appearance: none !important;
-                    appearance: none !important;
-                    display: none !important; 
-                    margin: 0 !important;
-                    width: 0 !important;
-                    height: 0 !important;
-                    opacity: 0 !important;
-                    pointer-events: none !important;
-                }}
-                
-                /* Específico para Firefox */
-                input[type=number] {{ -moz-appearance: textfield !important; }}
-                
-                /* Específico para Edge/IE antiguos */
-                input[type=number]::-ms-clear,
-                input[type=number]::-ms-reveal {{
-                    display: none !important; 
-                    width: 0 !important; 
-                    height: 0 !important;
-                }}
-
-                /* ESTILO DE LA CAJA DEL INPUT */
-                div[data-testid="stNumberInput"] input {{
-                    text-align: center !important; font-weight: 800 !important; 
-                    
+                /* 2. ESTILO PARA CAJAS DE TEXTO (stTextInput) */
+                /* Forzamos que parezcan números y ocultamos cualquier basura del navegador */
+                div[data-testid="stTextInput"] input {{
+                    text-align: center !important; 
+                    font-weight: 800 !important; 
                     font-size: 18px !important; /* TAMAÑO NUMERO */
-                    
                     color: {color_primario} !important; 
                     background-color: rgba(255,255,255,0.05) !important;
-                    border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 4px !important;
-                    padding: 0px !important; height: 35px !important;
-                    
-                    /* Asegurar que no aparezca nada raro */
-                    appearance: none !important;
-                    -webkit-appearance: none !important;
+                    border: 1px solid rgba(255,255,255,0.2) !important; 
+                    border-radius: 4px !important;
+                    padding: 0px !important; 
+                    height: 35px !important;
                 }}
                 
                 /* Ancho forzado */
-                div[data-testid="stNumberInput"] {{ width: 40px !important; min-width: 40px !important; margin: auto !important; }}
+                div[data-testid="stTextInput"] {{ 
+                    width: 40px !important; 
+                    min-width: 40px !important; 
+                    margin: auto !important; 
+                }}
 
                 /* 3. BOTONES (TEXTO PEQUEÑO) */
                 [data-testid="stLinkButton"] a, .stButton button {{
@@ -1488,20 +1460,21 @@ if rol == "admin":
                             
                             st.markdown(f'<div class="{css_card}">', unsafe_allow_html=True)
                             
-                            # --- PISO 1: MARCADOR ---
+                            # --- PISO 1: MARCADOR (TEXT INPUTS) ---
                             c_p1 = st.columns([0.6, 2.5, 1, 0.2, 1, 2.5, 0.6], vertical_alignment="center")
                             with c_p1[0]: st.image(d_l['escudo'], width=30)
                             with c_p1[1]: st.markdown(f"<div class='team-l'>{row['local']}</div>", unsafe_allow_html=True)
                             
                             with c_p1[2]:
-                                vl = int(row['goles_l']) if pd.notna(row['goles_l']) else None
-                                gl = st.number_input("L", value=vl, min_value=0, max_value=99, label_visibility="collapsed", key=f"gL_{row['id']}")
+                                # AQUI CAMBIAMOS A st.text_input para evitar la X
+                                vl = str(int(row['goles_l'])) if pd.notna(row['goles_l']) else ""
+                                gl = st.text_input("L", value=vl, max_chars=2, label_visibility="collapsed", key=f"gL_{row['id']}")
                                 
                             with c_p1[3]: st.markdown("<div style='text-align:center; opacity:0.5'>-</div>", unsafe_allow_html=True)
                             
                             with c_p1[4]:
-                                vv = int(row['goles_v']) if pd.notna(row['goles_v']) else None
-                                gv = st.number_input("V", value=vv, min_value=0, max_value=99, label_visibility="collapsed", key=f"gV_{row['id']}")
+                                vv = str(int(row['goles_v'])) if pd.notna(row['goles_v']) else ""
+                                gv = st.text_input("V", value=vv, max_chars=2, label_visibility="collapsed", key=f"gV_{row['id']}")
                                 
                             with c_p1[5]: st.markdown(f"<div class='team-v'>{row['visitante']}</div>", unsafe_allow_html=True)
                             with c_p1[6]: st.image(d_v['escudo'], width=30)
@@ -1512,12 +1485,15 @@ if rol == "admin":
                             c_row1 = st.columns(2, gap="small")
                             with c_row1[0]:
                                 if st.button("💾 Guardar", key=f"s_{row['id']}", use_container_width=True):
-                                    if gl is None or gv is None:
+                                    # VALIDACION MANUAL DE NUMEROS
+                                    if gl == "" or gv == "":
                                         st.toast("⚠️ Faltan goles")
+                                    elif not (gl.isdigit() and gv.isdigit()):
+                                        st.toast("⚠️ Solo números")
                                     else:
                                         with conn.connect() as db:
                                             db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"),
-                                                       {"l":gl, "v":gv, "id":row['id']})
+                                                       {"l":int(gl), "v":int(gv), "id":row['id']})
                                             db.commit()
                                         st.toast("Guardado")
                                         st.rerun()
@@ -1586,7 +1562,6 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
-
 
 
 
