@@ -1431,21 +1431,19 @@ if rol == "dt":
 
             
 
-  
-  
-# --- TAB: GESTIÓN ADMIN (MASTER CODE) ---
+  # --- TAB: GESTIÓN ADMIN (BLINDADO CONTRA ESCUDOS VACÍOS) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
         # ==========================================
-        # 1. SECCIÓN DE APROBACIONES (PRIORIDAD ALTA)
+        # 1. SECCIÓN DE APROBACIONES
         # ==========================================
         st.subheader("📩 Equipos por Aprobar")
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             res_count = pd.read_sql_query(text("SELECT count(*) FROM equipos WHERE estado='aprobado' AND nombre != 'Sistema'"), conn)
-            aprobados_count = res_count.iloc[0,0]
+            aprobados_count = res_count.iloc[0,0] if not res_count.empty else 0
             st.write(f"**Progreso: {aprobados_count}/32 Equipos**")
         except Exception as e:
             st.error(f"Error BD: {e}")
@@ -1458,8 +1456,11 @@ if rol == "admin":
                     prefijo = str(r.get('prefijo', '')).replace('+', '')
                     
                     with c1: 
-                        if r['escudo']: st.image(r['escudo'], width=50)
-                        else: st.write("❌")
+                        # Verificación simple de imagen
+                        if r['escudo'] and len(str(r['escudo'])) > 5: 
+                            st.image(r['escudo'], width=50)
+                        else: 
+                            st.write("❌")
                     
                     with c2: 
                         st.markdown(f"**{r['nombre']}**")
@@ -1475,7 +1476,6 @@ if rol == "admin":
                                         url_final = res_ia['secure_url']
                                     except: pass
                             
-                            # Extraer color
                             try:
                                 color_adn = motor_colores.obtener_color_dominante(url_final)
                             except: 
@@ -1490,79 +1490,46 @@ if rol == "admin":
         else:
             st.info("No hay equipos pendientes.")
 
-        st.write("") # Espaciador
+        st.write("") 
 
         # ==========================================
-        # 2. SELECTOR DE TAREA PRINCIPAL
+        # 2. SELECTOR DE TAREA
         # ==========================================
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio", "🎨 Diseño"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. OPCIÓN: RESULTADOS (DISEÑO SCOREBOARD CSS PURO)
+        # A. OPCIÓN: RESULTADOS (SCOREBOARD BLINDADO)
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Resultados")
             solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
             
-            # --- CSS QUIRÚRGICO PARA EL SCOREBOARD ---
+            # CSS Scoreboard
             st.markdown("""
             <style>
-                /* 1. ELIMINAR ESPACIOS ENTRE COLUMNAS (GAP) */
-                [data-testid="stHorizontalBlock"] {
-                    gap: 2px !important; 
-                    align-items: center !important;
-                }
-                
-                /* 2. CAJA CUADRADA PARA EL NUMERO (SELECTBOX) */
+                [data-testid="stHorizontalBlock"] { gap: 2px !important; align-items: center !important; }
                 div[data-testid="stSelectbox"] > div > div {
                     background-color: rgba(0,0,0,0.4) !important;
                     border: 1px solid rgba(255,255,255,0.2) !important;
                     border-radius: 5px !important;
-                    min-height: 40px !important;
-                    height: 40px !important;
-                    width: 45px !important; /* ANCHO FIJO CUADRADO */
-                    padding: 0px !important;
-                    display: flex !important;
-                    justify-content: center !important;
-                    align-items: center !important;
+                    min-height: 40px !important; height: 40px !important;
+                    width: 45px !important; padding: 0px !important;
+                    display: flex !important; justify-content: center !important; align-items: center !important;
                 }
-                
-                /* 3. CENTRAR NUMERO Y QUITAR FLECHA */
                 div[data-testid="stSelectbox"] div[data-baseweb="select"] div {
-                    color: #FFD700 !important;
-                    font-weight: 900 !important;
-                    font-size: 18px !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    text-align: center !important; 
+                    color: #FFD700 !important; font-weight: 900 !important; font-size: 18px !important;
+                    padding: 0 !important; margin: 0 !important; text-align: center !important; 
                 }
-                
-                /* Ocultar icono de flecha del dropdown */
-                div[data-baseweb="select"] svg {
-                    display: none !important;
-                }
-
-                /* 4. TARJETA CONTENEDORA */
+                div[data-baseweb="select"] svg { display: none !important; }
                 .match-card {
                     background: rgba(255, 255, 255, 0.04);
-                    border-radius: 8px;
-                    padding: 8px 2px;
-                    margin-bottom: 8px;
-                    border: 1px solid rgba(255,255,255,0.05);
+                    border-radius: 8px; padding: 8px 2px;
+                    margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.05);
                 }
-                .alert-card {
-                    border: 1px solid #FF4B4B;
-                    background: rgba(255, 75, 75, 0.1);
-                }
-                
-                /* Texto de equipos pequeño en móvil */
+                .alert-card { border: 1px solid #FF4B4B; background: rgba(255, 75, 75, 0.1); }
                 .team-text {
-                    font-size: 12px;
-                    font-weight: bold;
-                    line-height: 1.1;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
+                    font-size: 12px; font-weight: bold; line-height: 1.1;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                 }
             </style>
             """, unsafe_allow_html=True)
@@ -1580,9 +1547,9 @@ if rol == "admin":
                 if solo_rev: df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
                 
                 jornadas = sorted(df_p['jornada'].unique())
-                tabs_j = st.tabs([f"J{int(j)}" for j in jornadas]) # Tabs cortos para móvil
+                tabs_j = st.tabs([f"J{int(j)}" for j in jornadas]) 
                 
-                lista_goles = list(range(20)) # 0 a 19
+                lista_goles = list(range(20))
                 placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
                 for i, tab in enumerate(tabs_j):
@@ -1591,22 +1558,25 @@ if rol == "admin":
                         if df_j.empty: st.caption("Jornada libre.")
                         
                         for _, row in df_j.iterrows():
-                            # Preparar datos
+                            # Lógica de Escudos BLINDADA (Aquí estaba el error)
+                            # Si el diccionario devuelve None o vacío, usamos placeholder
+                            raw_l = escudos.get(row['local'])
+                            esc_l = raw_l if raw_l else placeholder
+                            
+                            raw_v = escudos.get(row['visitante'])
+                            esc_v = raw_v if raw_v else placeholder
+
+                            # Renderizado
                             rev = row['estado']=='Revision' or row['conflicto']==1
                             css_class = "match-card alert-card" if rev else "match-card"
-                            esc_l = escudos.get(row['local'], placeholder)
-                            esc_v = escudos.get(row['visitante'], placeholder)
                             
                             st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
                             
-                            # --- DISTRIBUCIÓN DE COLUMNAS MATEMÁTICA ---
-                            # [Esc, Nom,  GOL, -, GOL, Nom, Esc, Btn]
                             cols = st.columns([0.7, 2.2, 1, 0.2, 1, 2.2, 0.7, 1.2], vertical_alignment="center")
                             
                             with cols[0]: st.image(esc_l, width=22)
                             with cols[1]: st.markdown(f"<div class='team-text' style='text-align:right'>{row['local']}</div>", unsafe_allow_html=True)
                             
-                            # SELECTBOX CUADRADO L
                             with cols[2]:
                                 v_l = int(row['goles_l']) if pd.notna(row['goles_l']) else 0
                                 idx_l = v_l if v_l in lista_goles else 0
@@ -1614,13 +1584,14 @@ if rol == "admin":
 
                             with cols[3]: st.markdown("<div style='text-align:center; opacity:0.3'>-</div>", unsafe_allow_html=True)
 
-                            # SELECTBOX CUADRADO V
                             with cols[4]:
                                 v_v = int(row['goles_v']) if pd.notna(row['goles_v']) else 0
                                 idx_v = v_v if v_v in lista_goles else 0
                                 g_v = st.selectbox("V", lista_goles, index=idx_v, key=f"V_{row['id']}", label_visibility="collapsed")
 
                             with cols[5]: st.markdown(f"<div class='team-text' style='text-align:left'>{row['visitante']}</div>", unsafe_allow_html=True)
+                            
+                            # AQUÍ DABA EL ERROR ANTES - Ahora esc_v es seguro
                             with cols[6]: st.image(esc_v, width=22)
                             
                             with cols[7]:
@@ -1632,7 +1603,6 @@ if rol == "admin":
                                             db.commit()
                                         st.rerun()
                                 with c_eye:
-                                    # Solo mostramos el ojo si hay foto
                                     url = row['url_foto_l'] if pd.notna(row['url_foto_l']) else row['url_foto_v']
                                     if url:
                                         with st.popover("👁️"): st.image(url, caption="Evidencia")
@@ -1640,77 +1610,65 @@ if rol == "admin":
                             st.markdown("</div>", unsafe_allow_html=True)
 
         # ------------------------------------------
-        # B. OPCIÓN: DIRECTORIO DE EQUIPOS
+        # B. OPCIÓN: DIRECTORIO
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
-            
             try:
                 df_maestro = pd.read_sql_query(text("SELECT * FROM equipos ORDER BY nombre"), conn)
-            except:
-                df_maestro = pd.DataFrame()
+            except: df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
-                # Lista compacta
                 for _, eq in df_maestro.iterrows():
                     estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                    escudo_mini = f'<img src="{eq["escudo"]}" width="20" style="vertical-align:middle; margin-right:5px">' if eq['escudo'] else ""
+                    # Blindaje también aquí por si acaso
+                    esc_mini_url = eq['escudo'] if eq['escudo'] else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                    escudo_mini = f'<img src="{esc_mini_url}" width="20" style="vertical-align:middle; margin-right:5px">'
                     st.markdown(f"{estado_icon} {escudo_mini} **{eq['nombre']}** | 🔑 {eq['pin']}", unsafe_allow_html=True)
                 
                 st.markdown("---")
-                st.subheader("✏️ Gestión y Edición")
+                st.subheader("✏️ Edición")
                 equipo_sel = st.selectbox("Selecciona equipo:", df_maestro['nombre'].tolist())
                 
                 if equipo_sel:
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
-
                     with st.form("edit_master_form"):
-                        col1, col2 = st.columns(2)
-                        new_name = col1.text_input("Nombre", datos_sel['nombre'])
-                        new_pin = col2.text_input("PIN", str(datos_sel['pin']))
+                        c_nm, c_pin = st.columns(2)
+                        new_name = c_nm.text_input("Nombre", datos_sel['nombre'])
+                        new_pin = c_pin.text_input("PIN", str(datos_sel['pin']))
                         
-                        st.write("**🛡️ Actualizar Escudo**")
-                        if datos_sel['escudo']:
-                            st.image(datos_sel['escudo'], width=80)
-                            
-                        nuevo_escudo_img = st.file_uploader("Subir nuevo", type=['png', 'jpg'])
-                        quitar_escudo = st.checkbox("Eliminar escudo actual")
+                        st.write("**🛡️ Escudo**")
+                        if datos_sel['escudo']: st.image(datos_sel['escudo'], width=80)
+                        nuevo_escudo_img = st.file_uploader("Nuevo escudo", type=['png', 'jpg'])
                         
-                        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                        if st.form_submit_button("💾 Guardar", use_container_width=True):
                             url_final = datos_sel['escudo']
-                            if quitar_escudo: url_final = None
-                            elif nuevo_escudo_img:
+                            if nuevo_escudo_img:
                                 res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
                                 url_final = res_std['secure_url']
 
                             try:
                                 with conn.connect() as db:
-                                    db.execute(
-                                        text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
-                                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
-                                    )
+                                    db.execute(text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
+                                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel})
                                     db.commit()
-                                st.success(f"✅ ¡{new_name} actualizado!")
+                                st.success("Actualizado")
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"Error: {e}")
+                            except Exception as e: st.error(f"Error: {e}")
 
-                    if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
+                    if st.button(f"✖️ Eliminar {equipo_sel}", use_container_width=True):
                         with conn.connect() as db:
                             db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
                             db.commit()
-                        st.error(f"Equipo eliminado.")
                         st.rerun()
             else:
-                st.info("No hay equipos registrados.")
+                st.info("Sin equipos.")
 
         # ------------------------------------------
-        # C. OPCIÓN: DISEÑO WEB (PERSONALIZACIÓN)
+        # C. OPCIÓN: DISEÑO
         # ------------------------------------------
         elif opcion_admin == "🎨 Diseño":
             st.subheader("🎨 Personalización")
-            st.info("Cambia la identidad visual de la web.")
-            
             with conn.connect() as db:
                 equipos_dispo = db.execute(text("SELECT nombre, escudo, color_principal FROM equipos WHERE (estado = 'aprobado' AND escudo IS NOT NULL) OR nombre ='Sistema'")).fetchall()
 
@@ -1718,52 +1676,33 @@ if rol == "admin":
                 st.warning("No hay equipos listos.")
             else:
                 dict_equipos = {eq[0]: {"escudo": eq[1], "color": eq[2]} for eq in equipos_dispo}
-                nombre_sel = st.selectbox("Equipo Inspiración:", list(dict_equipos.keys()))
-                
+                nombre_sel = st.selectbox("Inspiración:", list(dict_equipos.keys()))
                 info_sel = dict_equipos[nombre_sel]
-                col_prev, col_action = st.columns([1, 2], vertical_alignment="center")
                 
-                with col_prev:
-                    st.image(info_sel['escudo'], width=80)
-                
-                with col_action:
-                    st.write(f"Color Base: {info_sel['color']}")
-                    if st.button(f"✨ Vestir Web", type="primary", use_container_width=True):
+                c1, c2 = st.columns([1, 2], vertical_alignment="center")
+                with c1: st.image(info_sel['escudo'], width=80)
+                with c2:
+                    if st.button(f"✨ Aplicar Tema {nombre_sel}", type="primary", use_container_width=True):
                         try:
-                            color_a_usar = info_sel['color'] if info_sel['color'] else "#FFD700"
-                            
-                            with st.spinner("Generando fondo..."):
+                            color_a_usar = info_sel['color'] or "#FFD700"
+                            with st.spinner("Generando..."):
                                 img_pil = motor_grafico.construir_portada(color_a_usar, info_sel['escudo'])
-                                buffer = BytesIO()
-                                img_pil.save(buffer, format="PNG")
-                                buffer.seek(0)
-                            
-                            with st.spinner("Subiendo..."):
-                                res = cloudinary.uploader.upload(buffer, folder="fondos_dinamicos", public_id=f"fondo_activo_golgana", overwrite=True)
-                                url_fondo_nueva = f"{res['secure_url']}?v={int(time.time())}"
+                                buffer = BytesIO(); img_pil.save(buffer, format="PNG"); buffer.seek(0)
+                                res = cloudinary.uploader.upload(buffer, folder="fondos_dinamicos", public_id="fondo_activo_golgana", overwrite=True)
                                 
                                 with conn.connect() as db:
-                                    def update_cfg(k, v):
-                                        db.execute(text("INSERT INTO config (clave, valor) VALUES (:k, :v) ON CONFLICT (clave) DO UPDATE SET valor = :v"), {"k": k, "v": v})
-                                    
-                                    update_cfg('fondo_url', url_fondo_nueva)
-                                    update_cfg('color_primario', color_a_usar)
-                                    update_cfg('equipo_activo', nombre_sel)
+                                    q = text("INSERT INTO config (clave, valor) VALUES (:k, :v) ON CONFLICT (clave) DO UPDATE SET valor = :v")
+                                    db.execute(q, {"k": 'fondo_url', "v": f"{res['secure_url']}?v={int(time.time())}"})
+                                    db.execute(q, {"k": 'color_primario', "v": color_a_usar})
+                                    db.execute(q, {"k": 'equipo_activo', "v": nombre_sel})
                                     db.commit()
-                            
-                            st.balloons()
-                            time.sleep(1)
                             st.rerun()
-                            
-                        except Exception as e:
-                            st.error(f"Error: {e}")
+                        except Exception as e: st.error(f"Error: {e}")
 
         # ==========================================
-        # 3. CONTROL GLOBAL (INICIO / RESET)
+        # 3. CONTROL GLOBAL
         # ==========================================
         st.divider()
-        st.subheader("🚀 Acciones Globales")
-        
         c_start, c_reset = st.columns(2)
         
         with c_start:
@@ -1773,10 +1712,8 @@ if rol == "admin":
                         try:
                             generar_calendario() 
                             st.rerun()
-                        except NameError:
-                            st.error("Función generar_calendario no encontrada")
-                    else:
-                        st.error("Mínimo 2 equipos.")
+                        except: st.error("Error al generar.")
+                    else: st.error("Faltan equipos.")
         
         with c_reset:
             if st.button("🚨 RESET TOTAL", use_container_width=True):
