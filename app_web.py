@@ -1289,34 +1289,26 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: LAYOUT MÓVIL + FIX IMÁGENES) ---
+# --- TAB: GESTIÓN ADMIN (BOTONES DIRECTOS SIN EXPANDERS) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
         
-        # ==========================================
-        # 1. APROBACIONES
-        # ==========================================
+        # 1. APROBACIONES (Código estándar)
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
-                st.info(f"Tienes {len(pend)} solicitudes nuevas.")
+                st.info(f"Tienes {len(pend)} solicitudes.")
                 for _, r in pend.iterrows():
                     with st.container():
                         c1, c2, c3 = st.columns([0.8, 3, 1], vertical_alignment="center")
                         pref = str(r.get('prefijo', '')).replace('+', '')
-                        
                         with c1: 
-                            # Validación segura de imagen
-                            if r['escudo'] and len(str(r['escudo'])) > 5:
-                                st.image(r['escudo'], width=35)
-                            else: 
-                                st.write("❌")
-                        
+                            if r['escudo']: st.image(r['escudo'], width=35)
+                            else: st.write("❌")
                         with c2: 
                             st.markdown(f"**{r['nombre']}**")
                             st.markdown(f"[Chat WhatsApp](https://wa.me/{pref}{r['celular']})")
-                        
                         with c3:
                             if st.button("✅", key=f"ok_{r['nombre']}"):
                                 url = r['escudo']
@@ -1335,122 +1327,94 @@ if rol == "admin":
         except: pass
 
         st.write("")
-        
-        # ==========================================
-        # 2. ÁREA DE TRABAJO
-        # ==========================================
         opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. RESULTADOS (SOLUCIÓN DEFINITIVA MÓVIL)
+        # A. RESULTADOS (LINK BUTTONS DIRECTOS)
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
             solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
             
-            # --- CSS NUCLEAR ---
             st.markdown("""
             <style>
-                /* 1. FORZAR COLUMNAS HORIZONTALES EN MÓVIL */
+                /* 1. MÓVIL: FORZAR FILA HORIZONTAL */
                 @media (max-width: 640px) {
                     div[data-testid="stHorizontalBlock"] {
                         flex-direction: row !important;
                         flex-wrap: nowrap !important;
-                        gap: 5px !important;
+                        gap: 3px !important;
                     }
                     div[data-testid="stColumn"] {
                         min-width: 0px !important;
                         flex: 1 1 auto !important;
+                        padding: 0px !important;
                     }
                 }
 
-                /* 2. INPUTS DE GOLES PEQUEÑOS Y LIMPIOS */
-                input[type=number]::-webkit-inner-spin-button, 
-                input[type=number]::-webkit-outer-spin-button { 
-                    -webkit-appearance: none; margin: 0; 
-                }
+                /* 2. INPUTS GOLES */
+                input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+                input[type=number] { -moz-appearance: textfield; }
                 
                 div[data-testid="stNumberInput"] input {
-                    text-align: center !important;
-                    font-weight: 800 !important;
-                    font-size: 18px !important;
-                    color: #FFD700 !important; /* Dorado */
-                    background-color: rgba(255,255,255,0.05) !important;
-                    border: 1px solid rgba(255,255,255,0.2) !important;
-                    border-radius: 5px !important;
+                    text-align: center !important; font-weight: 800 !important; font-size: 18px !important;
+                    color: #FFD700 !important; background-color: rgba(255,255,255,0.05) !important;
+                    border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 4px !important;
+                    padding: 0px !important; height: 35px !important;
+                }
+                div[data-testid="stNumberInput"] { width: 40px !important; min-width: 40px !important; margin: auto !important; }
+
+                /* 3. ESTILIZAR BOTONES DE ENLACE (st.link_button) Y BOTONES NORMALES */
+                /* Hacemos que los link_button se vean igual que los botones normales */
+                [data-testid="stLinkButton"] a, .stButton button {
+                    background-color: rgba(255,255,255,0.08) !important;
+                    border: 1px solid rgba(255,255,255,0.1) !important;
+                    color: white !important;
+                    border-radius: 6px !important;
+                    height: 38px !important;
+                    width: 100% !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    text-decoration: none !important;
+                    font-size: 14px !important;
                     padding: 0px !important;
-                    height: 40px !important;
+                    margin: 0px !important;
                 }
                 
-                /* Forzar ancho fijo del input */
-                div[data-testid="stNumberInput"] {
-                    width: 45px !important;
-                    min-width: 45px !important;
-                    margin: auto !important;
+                /* Hover dorado */
+                [data-testid="stLinkButton"] a:hover, .stButton button:hover {
+                    border-color: #FFD700 !important;
+                    color: #FFD700 !important;
+                    background-color: rgba(255,215,0,0.1) !important;
                 }
 
-                /* 3. TARJETA DEL PARTIDO */
+                /* 4. TARJETA */
                 .match-card {
                     background: linear-gradient(180deg, rgba(30,30,30,0.8) 0%, rgba(20,20,20,0.9) 100%);
                     border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 12px;
-                    padding: 12px 5px;
-                    margin-bottom: 15px;
+                    border-radius: 12px; padding: 10px 5px; margin-bottom: 15px;
                 }
                 .conflict { border: 1px solid #FF4B4B; background: rgba(50,0,0,0.5); }
-
-                /* 4. TEXTOS DE EQUIPOS */
-                .team-name {
-                    font-size: 11px;
-                    font-weight: bold;
-                    line-height: 1.2;
-                    color: white;
-                    white-space: normal; /* Permitir que baje si es muy largo */
-                    display: flex;
-                    align-items: center;
-                    height: 100%;
-                }
-
-                /* 5. BOTONES DE ACCIÓN (PISO 2) */
-                .stButton button, div[data-testid="stPopover"] button {
-                    border: 1px solid rgba(255,255,255,0.1) !important;
-                    background-color: rgba(255,255,255,0.05) !important;
-                    color: #ccc !important;
-                    font-size: 14px !important;
-                    height: 35px !important;
-                    padding: 0px 5px !important;
-                    border-radius: 6px !important;
-                    width: 100% !important;
-                }
-                .stButton button:hover {
-                    border-color: #FFD700 !important;
-                    color: #FFD700 !important;
-                }
+                
+                .team-l { text-align: right; font-size: 12px; font-weight: bold; margin-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .team-v { text-align: left; font-size: 12px; font-weight: bold; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             </style>
             """, unsafe_allow_html=True)
 
-            # URL genérica segura
-            placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-
-            # Carga de datos
             try:
                 df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
                 df_e = pd.read_sql_query("SELECT nombre, escudo, celular, prefijo FROM equipos", conn)
+                placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
                 
-                # --- AQUÍ ESTABA EL ERROR: BLINDAJE DE DICCIONARIO ---
                 info_equipos = {}
                 for _, row in df_e.iterrows():
-                    # Si tiene escudo y es largo (url válida), úsalo. Si no, usa placeholder.
-                    # NUNCA guardar cadena vacía ""
                     escudo_seguro = row['escudo'] if (row['escudo'] and len(str(row['escudo'])) > 5) else placeholder
-                    
                     info_equipos[row['nombre']] = {
                         'escudo': escudo_seguro,
                         'cel': f"{str(row['prefijo']).replace('+','')}{row['celular']}"
                     }
-            except: 
-                df_p = pd.DataFrame()
-                info_equipos = {}
+            except: df_p = pd.DataFrame(); info_equipos = {}
 
             if df_p.empty: st.warning("No hay partidos.")
             else:
@@ -1464,24 +1428,17 @@ if rol == "admin":
                         if df_j.empty: st.caption("Libre.")
                         
                         for _, row in df_j.iterrows():
-                            # Datos seguros con fallback al placeholder si falla la key
                             d_l = info_equipos.get(row['local'], {'escudo': placeholder, 'cel': ''})
                             d_v = info_equipos.get(row['visitante'], {'escudo': placeholder, 'cel': ''})
-                            
                             rev = row['estado']=='Revision' or row['conflicto']==1
                             css_card = "match-card conflict" if rev else "match-card"
                             
-                            # --- CONTENEDOR TARJETA ---
                             st.markdown(f'<div class="{css_card}">', unsafe_allow_html=True)
                             
-                            # ==========================
-                            # PISO 1: MARCADOR (HORIZONTAL FORZADO)
-                            # ==========================
-                            c_p1 = st.columns([0.8, 2, 1, 0.3, 1, 2, 0.8], vertical_alignment="center")
-                            
-                            # Como ya blindamos el diccionario, d_l['escudo'] siempre es una URL válida
-                            with c_p1[0]: st.image(d_l['escudo'], width=30)
-                            with c_p1[1]: st.markdown(f"<div class='team-name' style='text-align:right; justify-content: flex-end;'>{row['local']}</div>", unsafe_allow_html=True)
+                            # --- PISO 1: MARCADOR ---
+                            c_p1 = st.columns([0.6, 2.5, 1, 0.2, 1, 2.5, 0.6], vertical_alignment="center")
+                            with c_p1[0]: st.image(d_l['escudo'], width=28)
+                            with c_p1[1]: st.markdown(f"<div class='team-l'>{row['local']}</div>", unsafe_allow_html=True)
                             
                             with c_p1[2]:
                                 vl = int(row['goles_l']) if pd.notna(row['goles_l']) else None
@@ -1493,19 +1450,19 @@ if rol == "admin":
                                 vv = int(row['goles_v']) if pd.notna(row['goles_v']) else None
                                 gv = st.number_input("V", value=vv, min_value=0, max_value=99, label_visibility="collapsed", key=f"gV_{row['id']}")
                                 
-                            with c_p1[5]: st.markdown(f"<div class='team-name' style='text-align:left; justify-content: flex-start;'>{row['visitante']}</div>", unsafe_allow_html=True)
-                            with c_p1[6]: st.image(d_v['escudo'], width=30)
+                            with c_p1[5]: st.markdown(f"<div class='team-v'>{row['visitante']}</div>", unsafe_allow_html=True)
+                            with c_p1[6]: st.image(d_v['escudo'], width=28)
 
-                            # ==========================
-                            # PISO 2: ACCIONES (HORIZONTAL FORZADO)
-                            # ==========================
+                            # --- PISO 2: BOTONES DIRECTOS (SIN POPUPS) ---
                             st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
                             
-                            c_btn = st.columns([1, 1, 1], gap="small")
+                            # 4 Columnas: Guardar | Foto | WhatsApp L | WhatsApp V
+                            # Usamos íconos para ahorrar espacio
+                            c_b = st.columns([1.2, 0.8, 0.8, 0.8], gap="small")
                             
-                            # 1. GUARDAR
-                            with c_btn[0]:
-                                if st.button("💾 Guardar", key=f"s_{row['id']}", use_container_width=True):
+                            # 1. Guardar
+                            with c_b[0]:
+                                if st.button("💾", key=f"s_{row['id']}", help="Guardar"):
                                     if gl is None or gv is None:
                                         st.toast("⚠️ Faltan goles")
                                     else:
@@ -1513,30 +1470,31 @@ if rol == "admin":
                                             db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"),
                                                        {"l":gl, "v":gv, "id":row['id']})
                                             db.commit()
-                                        st.toast("Guardado!")
-                                        time.sleep(0.5) 
+                                        st.toast("Guardado")
                                         st.rerun()
 
-                            # 2. CONTACTAR
-                            with c_btn[1]:
-                                with st.popover("📞 Contactar", use_container_width=True):
-                                    st.caption("Enviar mensaje a:")
-                                    if d_l['cel']: st.markdown(f"**👉 {row['local']}** ([Chat](https://wa.me/{d_l['cel']}))")
-                                    else: st.caption(f"{row['local']} (Sin cel)")
-                                    
-                                    st.markdown("---")
-                                    
-                                    if d_v['cel']: st.markdown(f"**👉 {row['visitante']}** ([Chat](https://wa.me/{d_v['cel']}))")
-                                    else: st.caption(f"{row['visitante']} (Sin cel)")
-
-                            # 3. EVIDENCIA
-                            with c_btn[2]:
+                            # 2. Foto (Abre pestaña nueva)
+                            with c_b[1]:
                                 url_ev = row['url_foto_l'] or row['url_foto_v']
                                 if url_ev:
-                                    with st.popover("📷 Foto", use_container_width=True):
-                                        st.image(url_ev)
+                                    # st.link_button abre en pestaña nueva por defecto
+                                    st.link_button("📷", url_ev, help="Ver Evidencia")
                                 else:
-                                    st.button("🚫 Foto", key=f"no_{row['id']}", disabled=True, use_container_width=True)
+                                    st.button("🚫", key=f"no_{row['id']}", disabled=True)
+
+                            # 3. Contactar Local (Directo a WA)
+                            with c_b[2]:
+                                if d_l['cel']:
+                                    st.link_button("📞 L", f"https://wa.me/{d_l['cel']}", help=f"Llamar a {row['local']}")
+                                else:
+                                    st.button("🚫", key=f"nol_{row['id']}", disabled=True)
+
+                            # 4. Contactar Visita (Directo a WA)
+                            with c_b[3]:
+                                if d_v['cel']:
+                                    st.link_button("📞 V", f"https://wa.me/{d_v['cel']}", help=f"Llamar a {row['visitante']}")
+                                else:
+                                    st.button("🚫", key=f"nov_{row['id']}", disabled=True)
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1558,7 +1516,6 @@ if rol == "admin":
                         np = c_pin.text_input("PIN", str(dat['pin']))
                         
                         st.write("Escudo:")
-                        # Blindaje visualización
                         img_s = dat['escudo'] if (dat['escudo'] and len(dat['escudo']) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
                         st.image(img_s, width=50)
                         new_img = st.file_uploader("Cambiar Escudo", type=['png','jpg'])
@@ -1581,5 +1538,4 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
-
 
