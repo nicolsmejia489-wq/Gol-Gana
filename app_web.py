@@ -1618,15 +1618,14 @@ if rol == "admin":
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
-      # ------------------------------------------
-        # B. DIRECTORIO (CON BOTÓN WA Y FILTRO DE SISTEMA)
+   # ------------------------------------------
+        # B. DIRECTORIO (CORREGIDO - HTML SEGURO)
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
             
             try:
-                # 1. CONSULTA FILTRADA (Excluye 'Admin' o 'Sistema')
-                # Ajusta 'Admin' por el nombre real de tu usuario sistema si es diferente
+                # 1. CONSULTA FILTRADA
                 df_maestro = pd.read_sql_query(text("SELECT * FROM equipos WHERE nombre NOT IN ('Admin', 'Sistema') ORDER BY nombre"), conn)
             except:
                 df_maestro = pd.DataFrame()
@@ -1644,46 +1643,31 @@ if rol == "admin":
                         celular_full = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
                         link_wa = f"https://wa.me/{celular_full}"
                         
-                        # HTML: Flexbox con Justify-Between para poner el botón a la derecha
-                        st.markdown(
-                            f"""
-                            <div style='
-                                display: flex; 
-                                align-items: center; 
-                                justify-content: space-between; /* Separa info del botón */
-                                background-color: rgba(255,255,255,0.05); 
-                                padding: 8px 10px; 
-                                border-radius: 6px; 
-                                margin-bottom: 4px;
-                                border-left: 3px solid {color_primario};
-                            '>
-                                <div style='display: flex; align-items: center;'>
-                                    <div style='font-size: 16px; margin-right: 8px;'>{estado_icon}</div>
-                                    <img src="{src_escudo}" width="25" style="border-radius: 50%; margin-right: 10px;">
-                                    <div>
-                                        <div style='font-weight: bold; font-size: 14px; color: white;'>{eq['nombre']}</div>
-                                        <div style='font-size: 11px; color: #aaa;'>PIN: {eq['pin']}</div>
-                                    </div>
+                        # DEFINICIÓN DE ESTILOS CSS (VARIABLES PARA EVITAR ERRORES DE COMILLAS)
+                        style_card = f"display: flex; align-items: center; justify-content: space-between; background-color: rgba(255,255,255,0.05); padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {color_primario};"
+                        style_btn_wa = "background-color: rgba(37, 211, 102, 0.1); border: 1px solid #25D366; color: #25D366; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 4px;"
+                        
+                        # HTML LIMPIO
+                        html_fila = f"""
+                        <div style="{style_card}">
+                            <div style="display: flex; align-items: center;">
+                                <div style="font-size: 16px; margin-right: 8px;">{estado_icon}</div>
+                                <img src="{src_escudo}" width="25" style="border-radius: 50%; margin-right: 10px;">
+                                <div>
+                                    <div style="font-weight: bold; font-size: 14px; color: white;">{eq['nombre']}</div>
+                                    <div style="font-size: 11px; color: #aaa;">PIN: {eq['pin']}</div>
                                 </div>
-
-                                <a href="{link_wa}" target="_blank" style="text-decoration: none;">
-                                    <div style='
-                                        background-color: rgba(37, 211, 102, 0.1); 
-                                        border: 1px solid #25D366; 
-                                        color: #25D366; 
-                                        padding: 4px 8px; 
-                                        border-radius: 4px; 
-                                        font-size: 12px; 
-                                        font-weight: bold;
-                                        display: flex; align-items: center; gap: 4px;
-                                    '>
-                                        📞 Chat
-                                    </div>
-                                </a>
                             </div>
-                            """, 
-                            unsafe_allow_html=True
-                        )
+
+                            <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                                <div style="{style_btn_wa}">
+                                    📞 Chat
+                                </div>
+                            </a>
+                        </div>
+                        """
+                        
+                        st.markdown(html_fila, unsafe_allow_html=True)
 
                 st.markdown("<div style='margin-bottom: 20px'></div>", unsafe_allow_html=True)
 
@@ -1715,7 +1699,6 @@ if rol == "admin":
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
                             
-                            # Si subió imagen nueva
                             if nuevo_escudo_img:
                                 try:
                                     res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
@@ -1731,7 +1714,7 @@ if rol == "admin":
                                         {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
                                     )
                                     
-                                    # 2. Actualizar tabla PARTIDOS (Si cambió el nombre, para no romper el historial)
+                                    # 2. Actualizar tabla PARTIDOS
                                     if new_name != equipo_sel:
                                         db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
                                         db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
@@ -1754,7 +1737,6 @@ if rol == "admin":
                         if st.button("Eliminar", type="primary", use_container_width=True, disabled=not confirmar_borrado):
                             with conn.connect() as db:
                                 db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
-                                # Opcional: Borrar partidos asociados para limpiar
                                 db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
                                 db.commit()
                             st.toast(f"🗑️ Equipo eliminado.")
