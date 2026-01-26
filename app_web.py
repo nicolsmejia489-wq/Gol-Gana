@@ -1289,12 +1289,12 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (BOTONES DIRECTOS SIN EXPANDERS) ---
+# --- TAB: GESTIÓN ADMIN (BOTONES CLAROS Y GRANDES) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
         
-        # 1. APROBACIONES (Código estándar)
+        # 1. APROBACIONES (Código estándar simplificado)
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
@@ -1303,14 +1303,13 @@ if rol == "admin":
                     with st.container():
                         c1, c2, c3 = st.columns([0.8, 3, 1], vertical_alignment="center")
                         pref = str(r.get('prefijo', '')).replace('+', '')
-                        with c1: 
-                            if r['escudo']: st.image(r['escudo'], width=35)
-                            else: st.write("❌")
+                        with c1: st.image(r['escudo'], width=35) if r['escudo'] else st.write("❌")
                         with c2: 
                             st.markdown(f"**{r['nombre']}**")
-                            st.markdown(f"[Chat WhatsApp](https://wa.me/{pref}{r['celular']})")
+                            st.markdown(f"[WhatsApp](https://wa.me/{pref}{r['celular']})")
                         with c3:
                             if st.button("✅", key=f"ok_{r['nombre']}"):
+                                # ... (Lógica de aprobación igual) ...
                                 url = r['escudo']
                                 if url:
                                     try:
@@ -1330,7 +1329,7 @@ if rol == "admin":
         opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. RESULTADOS (LINK BUTTONS DIRECTOS)
+        # A. RESULTADOS (TARJETA CON BOTONES DE TEXTO)
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
@@ -1364,25 +1363,26 @@ if rol == "admin":
                 }
                 div[data-testid="stNumberInput"] { width: 40px !important; min-width: 40px !important; margin: auto !important; }
 
-                /* 3. ESTILIZAR BOTONES DE ENLACE (st.link_button) Y BOTONES NORMALES */
-                /* Hacemos que los link_button se vean igual que los botones normales */
+                /* 3. BOTONES CON TEXTO (AUTO-AJUSTABLES) */
                 [data-testid="stLinkButton"] a, .stButton button {
                     background-color: rgba(255,255,255,0.08) !important;
                     border: 1px solid rgba(255,255,255,0.1) !important;
                     color: white !important;
                     border-radius: 6px !important;
-                    height: 38px !important;
+                    min-height: 40px !important; /* Altura mínima para que quepa texto */
+                    height: auto !important;     /* Permitir crecer si el nombre es largo */
                     width: 100% !important;
                     display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
                     text-decoration: none !important;
-                    font-size: 14px !important;
-                    padding: 0px !important;
-                    margin: 0px !important;
+                    font-size: 13px !important; /* Texto un poco más pequeño para nombres largos */
+                    line-height: 1.2 !important;
+                    padding: 4px 2px !important;
+                    white-space: normal !important; /* Permitir saltos de línea */
+                    text-align: center !important;
                 }
                 
-                /* Hover dorado */
                 [data-testid="stLinkButton"] a:hover, .stButton button:hover {
                     border-color: #FFD700 !important;
                     color: #FFD700 !important;
@@ -1393,7 +1393,7 @@ if rol == "admin":
                 .match-card {
                     background: linear-gradient(180deg, rgba(30,30,30,0.8) 0%, rgba(20,20,20,0.9) 100%);
                     border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 12px; padding: 10px 5px; margin-bottom: 15px;
+                    border-radius: 12px; padding: 10px 5px; margin-bottom: 20px;
                 }
                 .conflict { border: 1px solid #FF4B4B; background: rgba(50,0,0,0.5); }
                 
@@ -1453,16 +1453,15 @@ if rol == "admin":
                             with c_p1[5]: st.markdown(f"<div class='team-v'>{row['visitante']}</div>", unsafe_allow_html=True)
                             with c_p1[6]: st.image(d_v['escudo'], width=28)
 
-                            # --- PISO 2: BOTONES DIRECTOS (SIN POPUPS) ---
-                            st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
+                            # --- PISO 2: ACCIONES (GRID 2x2) ---
+                            st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                             
-                            # 4 Columnas: Guardar | Foto | WhatsApp L | WhatsApp V
-                            # Usamos íconos para ahorrar espacio
-                            c_b = st.columns([1.2, 0.8, 0.8, 0.8], gap="small")
+                            # FILA 1 DE BOTONES: GESTIÓN
+                            c_row1 = st.columns(2, gap="small")
                             
                             # 1. Guardar
-                            with c_b[0]:
-                                if st.button("💾", key=f"s_{row['id']}", help="Guardar"):
+                            with c_row1[0]:
+                                if st.button("💾 Guardar", key=f"s_{row['id']}", use_container_width=True):
                                     if gl is None or gv is None:
                                         st.toast("⚠️ Faltan goles")
                                     else:
@@ -1473,28 +1472,32 @@ if rol == "admin":
                                         st.toast("Guardado")
                                         st.rerun()
 
-                            # 2. Foto (Abre pestaña nueva)
-                            with c_b[1]:
+                            # 2. Ver Foto (Evidencia)
+                            with c_row1[1]:
                                 url_ev = row['url_foto_l'] or row['url_foto_v']
                                 if url_ev:
-                                    # st.link_button abre en pestaña nueva por defecto
-                                    st.link_button("📷", url_ev, help="Ver Evidencia")
+                                    st.link_button("📷 Ver Foto", url_ev, use_container_width=True)
                                 else:
-                                    st.button("🚫", key=f"no_{row['id']}", disabled=True)
+                                    st.button("🚫 Sin Foto", key=f"no_{row['id']}", disabled=True, use_container_width=True)
 
-                            # 3. Contactar Local (Directo a WA)
-                            with c_b[2]:
+                            # FILA 2 DE BOTONES: CONTACTO EQUIPOS
+                            st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+                            c_row2 = st.columns(2, gap="small")
+
+                            # 3. Contactar Local
+                            with c_row2[0]:
                                 if d_l['cel']:
-                                    st.link_button("📞 L", f"https://wa.me/{d_l['cel']}", help=f"Llamar a {row['local']}")
+                                    # Nombre del equipo en el botón
+                                    st.link_button(f"📞 {row['local']}", f"https://wa.me/{d_l['cel']}", use_container_width=True)
                                 else:
-                                    st.button("🚫", key=f"nol_{row['id']}", disabled=True)
+                                    st.button(f"🚫 {row['local']}", key=f"nl_{row['id']}", disabled=True, use_container_width=True)
 
-                            # 4. Contactar Visita (Directo a WA)
-                            with c_b[3]:
+                            # 4. Contactar Visita
+                            with c_row2[1]:
                                 if d_v['cel']:
-                                    st.link_button("📞 V", f"https://wa.me/{d_v['cel']}", help=f"Llamar a {row['visitante']}")
+                                    st.link_button(f"📞 {row['visitante']}", f"https://wa.me/{d_v['cel']}", use_container_width=True)
                                 else:
-                                    st.button("🚫", key=f"nov_{row['id']}", disabled=True)
+                                    st.button(f"🚫 {row['visitante']}", key=f"nv_{row['id']}", disabled=True, use_container_width=True)
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1538,4 +1541,5 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
