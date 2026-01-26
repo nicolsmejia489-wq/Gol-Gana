@@ -1289,7 +1289,7 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (OPTIMIZADO MÓVIL + CONTACTO LIMPIO) ---
+# --- TAB: GESTIÓN ADMIN (BLOQUE COMPLETO CORREGIDO) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
@@ -1334,10 +1334,15 @@ if rol == "admin":
 
         st.write("")
         
-      # ------------------------------------------
+        # ==========================================
+        # 2. ÁREA DE TRABAJO
+        # ==========================================
+        opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
+        
+        # ------------------------------------------
         # A. RESULTADOS (SOLUCIÓN DEFINITIVA MÓVIL)
         # ------------------------------------------
-            if opcion_admin == "⚽ Resultados":
+        if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
             solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
             
