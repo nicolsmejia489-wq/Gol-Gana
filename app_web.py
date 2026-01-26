@@ -1431,12 +1431,12 @@ if rol == "dt":
 
             
 
-# --- TAB: GESTIÓN ADMIN (CENTRADO PERFECTO + VACÍOS + ESPACIO) ---
+# --- TAB: GESTIÓN ADMIN (CLEAN UI + BOTONES ICONO) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        # 1. APROBACIONES (Igual que antes)
+        # 1. APROBACIONES (Sin cambios)
         st.subheader("📩 Equipos por Aprobar")
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
@@ -1476,67 +1476,73 @@ if rol == "admin":
         # 2. TAREAS
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio", "🎨 Diseño"], horizontal=True, label_visibility="collapsed")
         
-        # --- A. RESULTADOS (AJUSTES VISUALES FINALES) ---
+        # --- A. RESULTADOS (OPTIMIZADO) ---
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Resultados")
             solo_rev = st.toggle("🚨 Conflictos", value=False)
             
             st.markdown("""
             <style>
-                /* 1. PEGAR COLUMNAS (Grid apretado) */
+                /* 1. GRID APRETADO */
                 [data-testid="stHorizontalBlock"] {
                     gap: 0px !important; 
                     align-items: center !important;
                 }
                 
-                /* 2. LIMPIEZA DE COLUMNAS */
                 [data-testid="stColumn"] {
                     padding: 0px !important;
                     min-width: 0px !important;
                 }
 
-                /* --- 3. CSS DEL SELECTBOX (NUMERO CENTRADO) --- */
-                /* La caja contenedora */
+                /* 2. SELECTBOX (NUMERO CENTRADO) */
                 div[data-testid="stSelectbox"] > div > div {
                     background-color: rgba(0,0,0,0.4) !important;
                     border: 1px solid rgba(255,255,255,0.2) !important;
-                    border-radius: 4px !important;
-                    min-height: 40px !important; height: 40px !important;
-                    width: 45px !important;
+                    border-radius: 6px !important;
+                    min-height: 38px !important; height: 38px !important;
+                    width: 42px !important;
                     padding: 0px !important;
                 }
-                
-                /* El contenedor interno del texto */
-                div[data-testid="stSelectbox"] div[data-baseweb="select"] {
-                    display: flex !important;
-                    justify-content: center !important;
-                    align-items: center !important;
-                    height: 100% !important;
-                    padding: 0 !important;
-                }
-
-                /* El texto del número en sí */
                 div[data-testid="stSelectbox"] div[data-baseweb="select"] div {
-                    color: #FFD700 !important; 
-                    font-weight: 900 !important; 
-                    font-size: 18px !important;
-                    text-align: center !important; 
-                    margin-top: 0px !important; /* Corrige desplazamiento superior */
-                    padding: 0 !important;
-                    display: flex; align-items: center; /* Doble centrado por seguridad */
+                    color: #FFD700 !important; font-weight: 800 !important; font-size: 18px !important;
+                    text-align: center !important; padding: 0 !important;
                 }
-                
-                /* Ocultar flecha */
                 div[data-baseweb="select"] svg { display: none !important; }
 
-                /* 4. ESTILOS TEXTO */
-                .team-local { text-align: left; font-size: 11px; font-weight: bold; line-height: 1.1; margin-left: 5px; }
-                .team-visit { text-align: right; font-size: 11px; font-weight: bold; line-height: 1.1; margin-right: 5px; }
+                /* 3. BOTONES DE ACCIÓN (ICONOS LIMPIOS) */
+                /* Apuntamos a los botones dentro de la tarjeta de partido */
+                .stButton button, [data-testid="stPopover"] button {
+                    border: 1px solid rgba(255,255,255,0.1) !important;
+                    background-color: rgba(255,255,255,0.05) !important;
+                    color: white !important;
+                    border-radius: 8px !important;
+                    padding: 0px !important;
+                    min-height: 38px !important;
+                    height: 38px !important;
+                    width: 100% !important;
+                    font-size: 18px !important;
+                    line-height: 1 !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    transition: all 0.2s;
+                }
+                
+                /* Efecto Hover */
+                .stButton button:hover, [data-testid="stPopover"] button:hover {
+                    background-color: rgba(255,215,0, 0.2) !important; /* Dorado suave */
+                    border-color: #FFD700 !important;
+                    transform: scale(1.05);
+                }
+
+                /* Texto de equipos */
+                .team-local { text-align: left; font-size: 11px; font-weight: bold; line-height: 1.1; margin-left: 4px; }
+                .team-visit { text-align: right; font-size: 11px; font-weight: bold; line-height: 1.1; margin-right: 4px; }
                 
                 .match-card {
-                    background: rgba(255, 255, 255, 0.04);
-                    border-radius: 8px; padding: 6px 2px;
-                    margin-bottom: 6px; border: 1px solid rgba(255,255,255,0.05);
+                    background: rgba(255, 255, 255, 0.03);
+                    border-radius: 10px; padding: 8px 4px;
+                    margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.05);
                 }
                 .alert-card { border: 1px solid #FF4B4B; background: rgba(255, 75, 75, 0.1); }
             </style>
@@ -1553,9 +1559,6 @@ if rol == "admin":
                 if solo_rev: df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
                 jornadas = sorted(df_p['jornada'].unique())
                 tabs_j = st.tabs([f"J{int(j)}" for j in jornadas]) 
-                
-                # --- LISTA DE GOLES CON OPCIÓN VACÍA ---
-                # La primera opción es "" (cadena vacía)
                 lista_goles = [""] + [str(i) for i in range(20)]
                 placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
@@ -1565,7 +1568,7 @@ if rol == "admin":
                         if df_j.empty: st.caption("Libre.")
                         
                         for _, row in df_j.iterrows():
-                            # Datos seguros
+                            # Datos
                             el = escudos.get(row['local']) or placeholder
                             ev = escudos.get(row['visitante']) or placeholder
                             rev = row['estado']=='Revision' or row['conflicto']==1
@@ -1573,42 +1576,38 @@ if rol == "admin":
                             
                             st.markdown(f'<div class="{css}">', unsafe_allow_html=True)
                             
-                            # --- DISTRIBUCIÓN ---
+                            # --- DISTRIBUCIÓN RE-CALIBRADA ---
                             # [Esc, Nom, G, -, G, Nom, Esc, ESPACIO, Btns]
-                            cols = st.columns([0.5, 2.0, 0.9, 0.2, 0.9, 2.0, 0.5, 0.1, 1.3], vertical_alignment="center")
+                            # Le di 1.6 a la última columna para que los botones respiren
+                            cols = st.columns([0.6, 2.0, 0.9, 0.2, 0.9, 2.0, 0.6, 0.1, 1.6], vertical_alignment="center")
                             
-                            with cols[0]: st.image(el, width=22)
+                            with cols[0]: st.image(el, width=24)
                             with cols[1]: st.markdown(f"<div class='team-local'>{row['local']}</div>", unsafe_allow_html=True)
                             
-                            # SELECTOR LOCAL (Manejo de vacíos)
                             with cols[2]:
-                                # Si hay dato en BD, lo convertimos a str, si no, cadena vacía
                                 val_bd_l = str(int(row['goles_l'])) if pd.notna(row['goles_l']) else ""
-                                # Buscamos el índice en la lista (si existe, sino 0 que es vacio)
                                 idx_l = lista_goles.index(val_bd_l) if val_bd_l in lista_goles else 0
                                 gl = st.selectbox("L", lista_goles, index=idx_l, key=f"L{row['id']}", label_visibility="collapsed")
                                 
                             with cols[3]: st.markdown("<div style='text-align:center; opacity:0.4'>-</div>", unsafe_allow_html=True)
                             
-                            # SELECTOR VISITA
                             with cols[4]:
                                 val_bd_v = str(int(row['goles_v'])) if pd.notna(row['goles_v']) else ""
                                 idx_v = lista_goles.index(val_bd_v) if val_bd_v in lista_goles else 0
                                 gv = st.selectbox("V", lista_goles, index=idx_v, key=f"V{row['id']}", label_visibility="collapsed")
                                 
                             with cols[5]: st.markdown(f"<div class='team-visit'>{row['visitante']}</div>", unsafe_allow_html=True)
-                            with cols[6]: st.image(ev, width=22)
+                            with cols[6]: st.image(ev, width=24)
                             
-                            # Columna 7 es espacio vacio (0.1)
-                            
-                            # BOTONES CON ESPACIO
+                            # COLUMNA DE BOTONES (ANCHA)
                             with cols[8]:
-                                cs, ce = st.columns([1, 1], gap="small") # Añadido gap interno
+                                # Usamos un gap pequeño entre botones
+                                cs, ce = st.columns(2, gap="small")
                                 with cs:
-                                    if st.button("💾", key=f"s{row['id']}"):
-                                        # Validamos que no esté vacío antes de guardar
+                                    # Botón Guardar (Icono Disco)
+                                    if st.button("💾", key=f"s{row['id']}", help="Guardar"):
                                         if gl == "" or gv == "":
-                                            st.toast("⚠️ Debes seleccionar los goles antes de guardar")
+                                            st.toast("⚠️ Faltan goles")
                                         else:
                                             with conn.connect() as db:
                                                 db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"),
@@ -1616,9 +1615,15 @@ if rol == "admin":
                                                 db.commit()
                                             st.rerun()
                                 with ce:
+                                    # Botón Evidencia (Icono Ojo/Cámara)
+                                    # Si hay URL mostramos el popover, si no, un botón gris desactivado para mantener la estética
                                     url = row['url_foto_l'] or row['url_foto_v']
                                     if url:
-                                        with st.popover("👁️"): st.image(url)
+                                        # IMPORTANTE: Label vacía o emoji simple para evitar "texto extraño"
+                                        with st.popover("📷", help="Ver Evidencia"):
+                                            st.image(url, caption="Evidencia cargada")
+                                    else:
+                                        st.button("🚫", key=f"n{row['id']}", disabled=True)
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
