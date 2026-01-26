@@ -1220,142 +1220,144 @@ if fase_actual == "inscripcion":
 
             
 
-# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (CORREGIDO) ---
-
+# --- 5. CALENDARIO Y GESTIÓN DE PARTIDOS (PÚBLICO - DISEÑO PRO) ---
 elif fase_actual == "clasificacion":
-
     with tabs[1]:
+        # st.subheader("📅 Calendario Oficial")
 
-      # st.subheader("📅 Calendario Oficial")
+        # 0. CONFIGURACIÓN VISUAL (Recuperamos el color para el borde)
+        try:
+            c_res = pd.read_sql_query("SELECT valor FROM config WHERE clave='color_primario'", conn)
+            color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
+        except: color_primario = "#FFD700"
 
-        
+        # 1. CSS ESPECÍFICO PARA VISTA PÚBLICA
+        st.markdown(f"""
+        <style>
+            /* Tarjeta de Partido Público */
+            .public-card {{
+                background: linear-gradient(180deg, rgba(30,30,30,0.95) 0%, rgba(10,10,10,0.98) 100%);
+                border-bottom: 2px solid {color_primario};
+                border-top: 1px solid rgba(255,255,255,0.1);
+                border-left: 1px solid rgba(255,255,255,0.1);
+                border-right: 1px solid rgba(255,255,255,0.1);
+                border-radius: 12px;
+                padding: 15px 10px;
+                margin-bottom: 15px;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            }}
 
-        # URL de Fondo (Asegúrate de tener la URL correcta aquí si usas imagen)
+            /* Textos de Equipos */
+            .p-team-l {{ text-align: right; font-weight: 800; font-size: 14px; margin-right: 8px; color: white; }}
+            .p-team-v {{ text-align: left; font-weight: 800; font-size: 14px; margin-left: 8px; color: white; }}
 
-        URL_PLANTILLA_FONDO = "https://res.cloudinary.com/..." 
+            /* Marcador Central */
+            .score-box {{
+                font-family: 'Arial', sans-serif;
+                font-weight: 900;
+                font-size: 22px;
+                color: {color_primario};
+                text-align: center;
+                letter-spacing: 2px;
+            }}
+            
+            .vs-badge {{
+                background-color: rgba(255,255,255,0.1);
+                color: #aaa;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+
+            /* Botón de Evidencia Estilizado */
+            div[data-testid="stLinkButton"] a {{
+                background-color: rgba(255,255,255,0.05) !important;
+                border: 1px solid {color_primario} !important;
+                color: {color_primario} !important;
+                font-size: 12px !important;
+                height: 30px !important;
+                border-radius: 20px !important;
+            }}
+        </style>
+        """, unsafe_allow_html=True)
 
         placeholder_escudo = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
-
-
         try:
-
             # Leemos los partidos
-
-            df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC", conn)
-
+            df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
             # Leemos escudos
-
             df_escudos = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
-
-            escudos_dict = dict(zip(df_escudos['nombre'], df_escudos['escudo']))
+            # Diccionario con blindaje
+            escudos_dict = {}
+            for _, r in df_escudos.iterrows():
+                url = r['escudo'] if (r['escudo'] and len(str(r['escudo'])) > 5) else placeholder_escudo
+                escudos_dict[r['nombre']] = url
 
         except Exception as e:
-
-            st.error(f"Error al cargar partidos: {e}")
-
+            st.error(f"Error de conexión: {e}")
             df_p = pd.DataFrame()
 
-
-
         if not df_p.empty:
-
-            j_tabs = st.tabs(["Jornada 1", "Jornada 2", "Jornada 3"])
-
+            # Creamos Tabs por Jornada
+            jornadas = sorted(df_p['jornada'].unique())
+            j_tabs = st.tabs([f"Jornada {int(j)}" for j in jornadas])
             
-
             for i, jt in enumerate(j_tabs):
-
                 with jt:
-
-                    df_j = df_p[df_p['jornada'] == (i + 1)]
-
+                    df_j = df_p[df_p['jornada'] == jornadas[i]]
                     
-
                     if df_j.empty:
-
-                        st.info("No hay partidos programados para esta fecha.")
-
-                    
+                        st.info("Sin programación.")
+                    else:
+                        st.markdown("<br>", unsafe_allow_html=True) # Espacio inicial
 
                     for _, p in df_j.iterrows():
-
-                        # 1. Preparar Escudos
-
-                        esc_l = escudos_dict.get(p['local']) or placeholder_escudo
-
-                        esc_v = escudos_dict.get(p['visitante']) or placeholder_escudo
-
+                        # 1. Preparar Datos Visuales
+                        esc_l = escudos_dict.get(p['local'], placeholder_escudo)
+                        esc_v = escudos_dict.get(p['visitante'], placeholder_escudo)
                         
+                        # 2. Lógica de Marcador
+                        # Si hay goles (no son NaN), mostramos el número. Si no, mostramos "VS"
+                        if pd.notna(p['goles_l']) and pd.notna(p['goles_v']):
+                            marcador_html = f"<span class='score-box'>{int(p['goles_l'])} - {int(p['goles_v'])}</span>"
+                        else:
+                            marcador_html = "<span class='vs-badge'>VS</span>"
 
-                        # 2. Preparar Marcador (CORRECCIÓN ANTI-ERROR)
+                        # 3. Renderizado de Tarjeta HTML
+                        st.markdown(f"""
+                        <div class="public-card">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div style="display: flex; align-items: center; flex: 1; justify-content: flex-end;">
+                                    <div class="p-team-l">{p['local']}</div>
+                                    <img src="{esc_l}" width="35">
+                                </div>
+                                
+                                <div style="flex: 0.6; text-align: center;">
+                                    {marcador_html}
+                                </div>
+                                
+                                <div style="display: flex; align-items: center; flex: 1; justify-content: flex-start;">
+                                    <img src="{esc_v}" width="35">
+                                    <div class="p-team-v">{p['visitante']}</div>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                        # Usamos pd.notna() para validar que no sea NaN (Not a Number)
-
-                        try:
-
-                            if pd.notna(p['goles_l']) and pd.notna(p['goles_v']):
-
-                                txt_marcador = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
-
-                            else:
-
-                                txt_marcador = "VS"
-
-                        except ValueError:
-
-                            txt_marcador = "VS"
-
-                        
-
-                        # 3. Construir la Tarjeta HTML
-
-                        # Asegúrate de tener la función 'renderizar_tarjeta_partido' definida arriba en tu código
-
-                        html_tarjeta = renderizar_tarjeta_partido(
-
-                            local=p['local'],
-
-                            visita=p['visitante'],
-
-                            escudo_l=esc_l,
-
-                            escudo_v=esc_v,
-
-                            marcador_texto=txt_marcador,
-
-                            color_tema=color_maestro,
-
-                            url_fondo=URL_PLANTILLA_FONDO
-
-                        )
-
-                        
-
-                        st.markdown(html_tarjeta, unsafe_allow_html=True)
-
-                        
-
-                        # 4. Evidencias (Opcional)
-
-                        if p.get('url_foto_l') or p.get('url_foto_v'):
-
-                            with st.expander(f"📷 Ver evidencia {p['local']} vs {p['visitante']}"):
-
-                                c1, c2 = st.columns(2)
-
-                                if p['url_foto_l']: c1.image(p['url_foto_l'])
-
-                                if p['url_foto_v']: c2.image(p['url_foto_v'])
-
-                            st.write("") # Espacio
+                        # 4. Botón de Evidencia (Sin Expander)
+                        # Solo aparece si hay foto cargada
+                        url_ev = p.get('url_foto_l') or p.get('url_foto_v')
+                        if url_ev:
+                            # Usamos columnas para centrar el botón o ponerlo discreto
+                            ce1, ce2, ce3 = st.columns([1, 2, 1])
+                            with ce2:
+                                st.link_button("📷 Ver Evidencia", url_ev, use_container_width=True)
+                            st.markdown("<div style='margin-bottom: 20px'></div>", unsafe_allow_html=True)
 
         else:
-
-            st.info("El calendario se mostrará cuando inicie el torneo.")'
-
-
-                            ###PARTIDOS
+            st.info("El calendario estará disponible al iniciar el torneo.")
 
 
 
@@ -1778,6 +1780,7 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
 
 
