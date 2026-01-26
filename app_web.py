@@ -1337,7 +1337,7 @@ if rol == "admin":
       # ------------------------------------------
         # A. RESULTADOS (SOLUCIÓN DEFINITIVA MÓVIL)
         # ------------------------------------------
-        if opcion_admin == "⚽ Resultados":
+            if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
             solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
             
@@ -1567,4 +1567,5 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
