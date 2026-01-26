@@ -1619,7 +1619,7 @@ if rol == "admin":
                             st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-        # B. DIRECTORIO (MODO LISTA COMPACTA - SIN ERRORES)
+        # B. DIRECTORIO (LISTA SIMPLE - UNA LÍNEA)
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
@@ -1631,34 +1631,101 @@ if rol == "admin":
                 df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
-                st.caption("Equipos registrados:")
+                # Encabezados visuales
+                h1, h2, h3 = st.columns([0.15, 0.5, 0.35])
+                h1.caption("Escudo")
+                h2.caption("Equipo / PIN")
+                h3.caption("WhatsApp")
                 
-                # --- LISTADO COMPACTO ---
-                # Usamos un contenedor con scroll para que sea cómodo si hay muchos equipos
-                with st.container(height=300):
-                    for _, eq in df_maestro.iterrows():
-                        # Datos
-                        estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                        src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                        celular_limpio = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
-                        
-                        # FILA VISUAL (4 Columnas: Icono | Escudo | Info | Botón)
-                        c_ico, c_img, c_info, c_btn = st.columns([0.5, 0.5, 3, 1], vertical_alignment="center")
-                        
-                        with c_ico: 
-                            st.write(estado_icon)
-                        with c_img: 
-                            st.image(src_escudo, width=30)
-                        with c_info:
-                            # Nombre + PIN + Teléfono en una sola línea de texto
-                            st.markdown(f"**{eq['nombre']}** | 🔑 {eq['pin']} | 📞 {eq['prefijo']} {eq['celular']}")
-                        with c_btn:
-                            # Botón pequeño para WA
-                            st.link_button("Chat", f"https://wa.me/{celular_limpio}", help="Abrir WhatsApp", use_container_width=True)
-                        
-                        st.divider()
+                # LISTA SIMPLE
+                for _, eq in df_maestro.iterrows():
+                    # 1. Preparar datos
+                    src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                    celular_full = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
+                    
+                    # 2. Renderizar Fila (Alineación vertical centrada es clave para que se vea en una linea)
+                    c_img, c_info, c_btn = st.columns([0.15, 0.5, 0.35], vertical_alignment="center")
+                    
+                    with c_img:
+                        st.image(src_escudo, width=35)
+                    
+                    with c_info:
+                        # Nombre en negrita y PIN al lado o abajo pequeño
+                        st.markdown(f"**{eq['nombre']}**", unsafe_allow_html=True)
+                        st.markdown(f"<span style='color:grey; font-size:12px'>🔑 PIN: {eq['pin']}</span>", unsafe_allow_html=True)
+                    
+                    with c_btn:
+                        # Botón con el número telefónico
+                        st.link_button(f"📞 {eq['celular']}", f"https://wa.me/{celular_full}", use_container_width=True)
+                    
+                    # Separador sutil
+                    st.markdown("<hr style='margin: 5px 0; opacity: 0.2;'>", unsafe_allow_html=True)
 
-                st.markdown("---")
+                st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
+
+                # ---------------------------------------------------------
+                # ZONA DE EDICIÓN (Mismo código funcional de siempre)
+                # ---------------------------------------------------------
+                st.subheader("✏️ Gestión y Edición")
+                
+                lista_nombres = df_maestro['nombre'].tolist()
+                equipo_sel = st.selectbox("Selecciona equipo a gestionar:", lista_nombres)
+                
+                if equipo_sel:
+                    datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
+
+                    with st.form("edit_master_form"):
+                        c_nm, c_pin = st.columns([2, 1])
+                        new_name = c_nm.text_input("Nombre del Equipo", datos_sel['nombre'])
+                        new_pin = c_pin.text_input("PIN de acceso", str(datos_sel['pin']))
+                        
+                        st.write("**🛡️ Actualizar Escudo**")
+                        c_e1, c_e2 = st.columns([1, 3])
+                        with c_e1:
+                            if datos_sel['escudo']:
+                                st.image(datos_sel['escudo'], width=60)
+                        with c_e2:
+                            nuevo_escudo_img = st.file_uploader("Subir nuevo escudo", type=['png', 'jpg', 'jpeg'])
+                        
+                        quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
+                        
+                        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                            url_final = datos_sel['escudo']
+                            if quitar_escudo: 
+                                url_final = None
+                            elif nuevo_escudo_img:
+                                try:
+                                    res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
+                                    url_final = res_std['secure_url']
+                                except: pass
+
+                            try:
+                                with conn.connect() as db:
+                                    db.execute(
+                                        text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
+                                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
+                                    )
+                                    if new_name != equipo_sel:
+                                        db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                        db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                    
+                                    db.commit()
+                                st.success(f"✅ ¡{new_name} actualizado!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error actualizando: {e}")
+
+                    if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
+                        with conn.connect() as db:
+                            db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
+                            db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
+                            db.commit()
+                        st.error(f"Equipo eliminado.")
+                        time.sleep(1)
+                        st.rerun()
+            else:
+                st.info("No hay equipos registrados.")
 
                 # --- GESTIÓN Y EDICIÓN ---
                 st.subheader("✏️ Gestión y Edición")
@@ -1724,6 +1791,7 @@ if rol == "admin":
                         st.rerun()
             else:
                 st.info("No hay equipos registrados.")
+
 
 
 
