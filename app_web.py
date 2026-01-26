@@ -1392,7 +1392,7 @@ if rol == "admin":
                     background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%);
                     border: 1px solid rgba(255,255,255,0.15);
                     border-radius: 12px; 
-                    padding: 8px 4px; /* Relleno interno apretado */
+                    padding: 4px 2px; /* Relleno interno apretado */
                     
                     /* --- ESTO SEPARA LOS PARTIDOS ENTRE SÍ --- */
                     margin-bottom: 30px; 
@@ -1562,4 +1562,5 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
