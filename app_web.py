@@ -1422,6 +1422,150 @@ elif fase_actual == "clasificacion":
 
 
 
+
+
+# --- TAB: MIS PARTIDOS (DT - FLUJO MEJORADO CON ORIGEN DE DATOS) ---
+if rol == "dt":
+    with tabs[2]:
+        st.subheader(f"🏟️ Mis Partidos: {equipo_usuario}")
+        
+        try:
+            # 1. CONSULTA
+            query_mis = text("SELECT * FROM partidos WHERE (local=:eq OR visitante=:eq) ORDER BY jornada ASC")
+            mis = pd.read_sql_query(query_mis, conn, params={"eq": equipo_usuario})
+            
+            if mis.empty:
+                st.info("Aún no tienes partidos asignados.")
+            
+            ultima_jornada_vista = -1
+
+            for _, p in mis.iterrows():
+                
+                # --- A. SEPARADOR JORNADA ---
+                if p['jornada'] != ultima_jornada_vista:
+                    st.divider()
+                    c_spacer, c_title, c_spacer2 = st.columns([1, 2, 1])
+                    with c_title:
+                        st.header(f"JORNADA {p['jornada']}")
+                    ultima_jornada_vista = p['jornada']
+
+                es_local = (p['local'] == equipo_usuario)
+                rival = p['visitante'] if es_local else p['local']
+                
+                with st.container(border=True):
+                    # 1. INFO RIVAL
+                    c_riv, c_wa = st.columns([3, 1])
+                    with c_riv:
+                        st.caption("Tu Rival")
+                        st.subheader(f"{rival}")
+                    with c_wa:
+                        link_wa = None
+                        try:
+                            with conn.connect() as db:
+                                r = db.execute(text("SELECT prefijo, celular FROM equipos WHERE nombre=:n"), {"n": rival}).fetchone()
+                                if r and r[0] and r[1]:
+                                    num = f"{str(r[0]).replace('+', '')}{r[1]}"
+                                    link_wa = f"https://wa.me/{num}"
+                        except: pass
+                        if link_wa:
+                            st.link_button("💬 Chat", link_wa, type="primary")
+                        else:
+                            st.caption("🚫")
+
+                    st.markdown("<div style='height:1px; background-color:#333; margin: 15px 0;'></div>", unsafe_allow_html=True)
+
+                    # 2. ZONA DE ACCIÓN
+                    # Extraemos el método de registro (por defecto Algoritmo si es nulo)
+                    metodo = p['metodo_registro'] if 'metodo_registro' in p and pd.notna(p['metodo_registro']) else "Algoritmo"
+
+                    if p['estado'] == 'Finalizado':
+                        st.success(f"✅ Finalizado ({metodo}): {int(p['goles_l'])} - {int(p['goles_v'])}")
+                        
+                        # BOTÓN DE CORRECCIÓN: No resetea goles, solo cambia estado
+                        if st.button("❌ ¿Marcador Incorrecto?", key=f"err_{p['id']}", use_container_width=True):
+                            try:
+                                with conn.connect() as db:
+                                    # Mantenemos los goles, solo cambiamos estado y conflicto
+                                    q = text("UPDATE partidos SET estado='Revision', conflicto=1 WHERE id=:id")
+                                    db.execute(q, {"id": p['id']})
+                                    db.commit()
+                                st.warning("Partido marcado como incorrecto. Se mantiene el marcador para revisión del Admin.")
+                                time.sleep(1.5)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al reportar: {e}")
+
+                    elif p['estado'] == 'Revision':
+                        st.warning(f"⏳ En Revisión: {int(p['goles_l']) if pd.notna(p['goles_l']) else '?'} - {int(p['goles_v']) if pd.notna(p['goles_v']) else '?'}")
+                        st.caption("El Administrador está verificando este resultado.")
+
+                    else:
+                        st.caption("📸 CARGAR RESULTADO")
+                        tipo_carga = st.radio("Método:", ["Ocultar", "Usar Cámara", "Subir Foto"], horizontal=True, label_visibility="collapsed", key=f"radio_{p['id']}")
+                        
+                        foto = None
+                        if tipo_carga == "Usar Cámara":
+                            foto = st.camera_input("Toma la foto", key=f"cam_{p['id']}")
+                        elif tipo_carga == "Subir Foto":
+                            foto = st.file_uploader("Selecciona imagen", type=['jpg','png','jpeg'], key=f"upl_{p['id']}")
+
+                        if foto:
+                            st.image(foto, width=200)
+                            
+                            if st.button("📤 ENVIAR AHORA", key=f"send_{p['id']}", type="primary", use_container_width=True):
+                                with st.spinner("🔍 Analizando imagen..."):
+                                    
+                                    res_ia, msg_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
+
+                                    if res_ia:
+                                        gl_ia, gv_ia = res_ia
+                                        st.info(f"🔢 Resultado Detectado: {gl_ia} - {gv_ia}")
+
+                                        try:
+                                            foto.seek(0)
+                                            res_c = cloudinary.uploader.upload(foto, folder="gol_gana_evidencias")
+                                            url = res_c['secure_url']
+                                            cf = "url_foto_l" if es_local else "url_foto_v"
+
+                                            with conn.connect() as db:
+                                                gl_ex = int(p['goles_l']) if pd.notna(p['goles_l']) else None
+                                                gv_ex = int(p['goles_v']) if pd.notna(p['goles_v']) else None
+
+                                                if gl_ex is not None:
+                                                    # Verificamos coincidencia con reporte previo
+                                                    if gl_ex != gl_ia or gv_ex != gv_ia:
+                                                        # Conflicto: Goles nulos para forzar revisión manual
+                                                        q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=1, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision', metodo_registro='Algoritmo' WHERE id=:id")
+                                                        db.execute(q, {"u": url, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
+                                                        st.warning("⚠️ Los resultados no coinciden. Admin notificado.")
+                                                    else:
+                                                        # Coincidencia: Finalizado
+                                                        q = text(f"UPDATE partidos SET {cf}=:u, conflicto=0, estado='Finalizado', metodo_registro='Algoritmo' WHERE id=:id")
+                                                        db.execute(q, {"u": url, "id": p['id']})
+                                                        st.balloons()
+                                                        st.success("✅ Verificado y Finalizado.")
+                                                else:
+                                                    # Primer reporte: Finalizado directo (Algoritmo)
+                                                    q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Finalizado', conflicto=0, metodo_registro='Algoritmo' WHERE id=:id")
+                                                    db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url, "id": p['id']})
+                                                    st.balloons()
+                                                    st.success("✅ Resultado registrado con éxito.")
+                                                
+                                                db.commit()
+                                            
+                                            time.sleep(2)
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Error BD: {e}")
+                                    else:
+                                        st.error(f"❌ {msg_ia}")
+
+        except Exception as e:
+            st.error(f"Error carga: {e}")
+
+
+            
+
             
 # --- TAB: GESTIÓN ADMIN (FINAL: TEXT INPUTS LIMPIOS) ---
 if rol == "admin":
@@ -1696,6 +1840,7 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
 
 
