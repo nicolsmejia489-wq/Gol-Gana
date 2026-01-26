@@ -1431,106 +1431,97 @@ if rol == "dt":
 
             
 
-# --- TAB: GESTIÓN ADMIN (BLINDADO CONTRA ESCUDOS VACÍOS) ---
+# --- TAB: GESTIÓN ADMIN (VISTA FINAL OPTIMIZADA) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control Admin")
         
-        # ==========================================
-        # 1. SECCIÓN DE APROBACIONES
-        # ==========================================
+        # 1. APROBACIONES
         st.subheader("📩 Equipos por Aprobar")
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             res_count = pd.read_sql_query(text("SELECT count(*) FROM equipos WHERE estado='aprobado' AND nombre != 'Sistema'"), conn)
             aprobados_count = res_count.iloc[0,0] if not res_count.empty else 0
             st.write(f"**Progreso: {aprobados_count}/32 Equipos**")
-        except Exception as e:
-            st.error(f"Error BD: {e}")
-            pend = pd.DataFrame() 
+        except: pend = pd.DataFrame()
 
         if not pend.empty:
             for _, r in pend.iterrows():
                 with st.container():
                     c1, c2, c3 = st.columns([1, 2, 1], vertical_alignment="center")
-                    prefijo = str(r.get('prefijo', '')).replace('+', '')
-                    
-                    with c1: 
-                        # Verificación simple de imagen
-                        if r['escudo'] and len(str(r['escudo'])) > 5: 
-                            st.image(r['escudo'], width=50)
-                        else: 
-                            st.write("❌")
-                    
+                    pref = str(r.get('prefijo', '')).replace('+', '')
+                    with c1: st.image(r['escudo'], width=50) if r['escudo'] else st.write("❌")
                     with c2: 
                         st.markdown(f"**{r['nombre']}**")
-                        st.markdown(f"[📞 Contactar](https://wa.me/{prefijo}{r['celular']})")
-                    
+                        st.markdown(f"[📞 Contactar](https://wa.me/{pref}{r['celular']})")
                     with c3:
-                        if st.button("✅", key=f"ap_{r['nombre']}"):
-                            url_final = r['escudo']
-                            if url_final:
-                                with st.spinner("🤖 Procesando escudo..."):
-                                    try:
-                                        res_ia = cloudinary.uploader.upload(url_final, background_removal="cloudinary_ai", folder="escudos_limpios")
-                                        url_final = res_ia['secure_url']
-                                    except: pass
-                            
-                            try:
-                                color_adn = motor_colores.obtener_color_dominante(url_final)
-                            except: 
-                                color_adn = "#333333"
-
+                        if st.button("✅", key=f"ok_{r['nombre']}"):
+                            url = r['escudo']
+                            if url:
+                                try:
+                                    res = cloudinary.uploader.upload(url, background_removal="cloudinary_ai", folder="escudos_limpios")
+                                    url = res['secure_url']
+                                except: pass
+                            try: c_adn = motor_colores.obtener_color_dominante(url)
+                            except: c_adn = "#333"
                             with conn.connect() as db:
-                                db.execute(text("UPDATE equipos SET estado='aprobado', escudo=:e, color_principal=:c WHERE nombre=:n"),
-                                           {"e": url_final, "c": color_adn, "n": r['nombre']})
+                                db.execute(text("UPDATE equipos SET estado='aprobado', escudo=:e, color_principal=:c WHERE nombre=:n"),{"e":url, "c":c_adn, "n":r['nombre']})
                                 db.commit()
                             st.rerun()
                 st.divider()
-        else:
-            st.info("No hay equipos pendientes.")
+        else: st.info("Sin pendientes.")
 
-        st.write("") 
-
-        # ==========================================
-        # 2. SELECTOR DE TAREA
-        # ==========================================
+        st.write("")
+        
+        # 2. TAREAS
         opcion_admin = st.radio("Tarea:", ["⚽ Resultados", "🛠️ Directorio", "🎨 Diseño"], horizontal=True, label_visibility="collapsed")
         
-        # ------------------------------------------
-        # A. OPCIÓN: RESULTADOS (SCOREBOARD BLINDADO)
-        # ------------------------------------------
+        # --- A. RESULTADOS (AJUSTE DE ESPACIOS DEFINITIVO) ---
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Resultados")
-            solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
+            solo_rev = st.toggle("🚨 Conflictos", value=False)
             
-            # CSS Scoreboard
             st.markdown("""
             <style>
-                [data-testid="stHorizontalBlock"] { gap: 2px !important; align-items: center !important; }
+                /* 1. PEGAR COLUMNAS AL MÁXIMO */
+                [data-testid="stHorizontalBlock"] {
+                    gap: 0px !important; 
+                    align-items: center !important;
+                }
+                
+                /* 2. ELIMINAR RELLENO INTERNO DE LAS COLUMNAS */
+                [data-testid="stColumn"] {
+                    padding-left: 2px !important;
+                    padding-right: 2px !important;
+                    min-width: 0px !important;
+                }
+
+                /* 3. SELECTOR CUADRADO */
                 div[data-testid="stSelectbox"] > div > div {
                     background-color: rgba(0,0,0,0.4) !important;
                     border: 1px solid rgba(255,255,255,0.2) !important;
-                    border-radius: 5px !important;
-                    min-height: 40px !important; height: 40px !important;
-                    width: 45px !important; padding: 0px !important;
-                    display: flex !important; justify-content: center !important; align-items: center !important;
+                    border-radius: 4px !important;
+                    min-height: 35px !important; height: 35px !important;
+                    width: 40px !important;
+                    padding: 0px !important;
+                    display: flex !important; justify-content: center !important;
                 }
                 div[data-testid="stSelectbox"] div[data-baseweb="select"] div {
-                    color: #FFD700 !important; font-weight: 900 !important; font-size: 18px !important;
-                    padding: 0 !important; margin: 0 !important; text-align: center !important; 
+                    color: #FFD700 !important; font-weight: 800 !important; font-size: 16px !important;
+                    text-align: center !important; padding: 0 !important;
                 }
                 div[data-baseweb="select"] svg { display: none !important; }
+
+                /* 4. ESTILO TEXTO EQUIPOS */
+                .team-local { text-align: left; font-size: 11px; font-weight: bold; line-height: 1.1; margin-left: 2px; }
+                .team-visit { text-align: right; font-size: 11px; font-weight: bold; line-height: 1.1; margin-right: 2px; }
+                
                 .match-card {
                     background: rgba(255, 255, 255, 0.04);
-                    border-radius: 8px; padding: 8px 2px;
-                    margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.05);
+                    border-radius: 8px; padding: 6px 0px; /* Padding vertical, 0 horizontal */
+                    margin-bottom: 6px; border: 1px solid rgba(255,255,255,0.05);
                 }
                 .alert-card { border: 1px solid #FF4B4B; background: rgba(255, 75, 75, 0.1); }
-                .team-text {
-                    font-size: 12px; font-weight: bold; line-height: 1.1;
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-                }
             </style>
             """, unsafe_allow_html=True)
 
@@ -1538,189 +1529,159 @@ if rol == "admin":
                 df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
                 df_e = pd.read_sql_query("SELECT nombre, escudo FROM equipos", conn)
                 escudos = dict(zip(df_e['nombre'], df_e['escudo']))
-            except:
-                df_p = pd.DataFrame(); escudos = {}
+            except: df_p = pd.DataFrame(); escudos = {}
 
-            if df_p.empty:
-                st.warning("Sin partidos generados.")
+            if df_p.empty: st.warning("Sin partidos.")
             else:
                 if solo_rev: df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
-                
                 jornadas = sorted(df_p['jornada'].unique())
                 tabs_j = st.tabs([f"J{int(j)}" for j in jornadas]) 
-                
                 lista_goles = list(range(20))
                 placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
 
                 for i, tab in enumerate(tabs_j):
                     with tab:
                         df_j = df_p[df_p['jornada'] == jornadas[i]]
-                        if df_j.empty: st.caption("Jornada libre.")
+                        if df_j.empty: st.caption("Libre.")
                         
                         for _, row in df_j.iterrows():
-                            # Lógica de Escudos BLINDADA (Aquí estaba el error)
-                            # Si el diccionario devuelve None o vacío, usamos placeholder
-                            raw_l = escudos.get(row['local'])
-                            esc_l = raw_l if raw_l else placeholder
-                            
-                            raw_v = escudos.get(row['visitante'])
-                            esc_v = raw_v if raw_v else placeholder
-
-                            # Renderizado
+                            # Datos seguros
+                            el = escudos.get(row['local']) or placeholder
+                            ev = escudos.get(row['visitante']) or placeholder
                             rev = row['estado']=='Revision' or row['conflicto']==1
-                            css_class = "match-card alert-card" if rev else "match-card"
+                            css = "match-card alert-card" if rev else "match-card"
                             
-                            st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
+                            st.markdown(f'<div class="{css}">', unsafe_allow_html=True)
                             
-                            cols = st.columns([0.7, 2.2, 1, 0.2, 1, 2.2, 0.7, 1.2], vertical_alignment="center")
+                            # --- DISTRIBUCIÓN MEGA-COMPACTA ---
+                            # Reduje escudos a 0.5 y expandí nombres.
+                            # [Esc, Nom, G, -, G, Nom, Esc, Btn]
+                            cols = st.columns([0.5, 2.0, 0.9, 0.2, 0.9, 2.0, 0.5, 1.0], vertical_alignment="center")
                             
-                            with cols[0]: st.image(esc_l, width=22)
-                            with cols[1]: st.markdown(f"<div class='team-text' style='text-align:right'>{row['local']}</div>", unsafe_allow_html=True)
+                            with cols[0]: st.image(el, width=22)
+                            # ALINEACIÓN LOCAL: IZQUIERDA (Pegado al escudo)
+                            with cols[1]: st.markdown(f"<div class='team-local'>{row['local']}</div>", unsafe_allow_html=True)
                             
                             with cols[2]:
-                                v_l = int(row['goles_l']) if pd.notna(row['goles_l']) else 0
-                                idx_l = v_l if v_l in lista_goles else 0
-                                g_l = st.selectbox("L", lista_goles, index=idx_l, key=f"L_{row['id']}", label_visibility="collapsed")
-
-                            with cols[3]: st.markdown("<div style='text-align:center; opacity:0.3'>-</div>", unsafe_allow_html=True)
-
-                            with cols[4]:
-                                v_v = int(row['goles_v']) if pd.notna(row['goles_v']) else 0
-                                idx_v = v_v if v_v in lista_goles else 0
-                                g_v = st.selectbox("V", lista_goles, index=idx_v, key=f"V_{row['id']}", label_visibility="collapsed")
-
-                            with cols[5]: st.markdown(f"<div class='team-text' style='text-align:left'>{row['visitante']}</div>", unsafe_allow_html=True)
+                                vl = int(row['goles_l']) if pd.notna(row['goles_l']) else 0
+                                idx_l = vl if vl in lista_goles else 0
+                                gl = st.selectbox("L", lista_goles, index=idx_l, key=f"L{row['id']}", label_visibility="collapsed")
+                                
+                            with cols[3]: st.markdown("<div style='text-align:center; opacity:0.4'>-</div>", unsafe_allow_html=True)
                             
-                            # AQUÍ DABA EL ERROR ANTES - Ahora esc_v es seguro
-                            with cols[6]: st.image(esc_v, width=22)
+                            with cols[4]:
+                                vv = int(row['goles_v']) if pd.notna(row['goles_v']) else 0
+                                idx_v = vv if vv in lista_goles else 0
+                                gv = st.selectbox("V", lista_goles, index=idx_v, key=f"V{row['id']}", label_visibility="collapsed")
+                                
+                            # ALINEACIÓN VISITA: DERECHA (Pegado al escudo derecho)
+                            with cols[5]: st.markdown(f"<div class='team-visit'>{row['visitante']}</div>", unsafe_allow_html=True)
+                            with cols[6]: st.image(ev, width=22)
                             
                             with cols[7]:
-                                c_save, c_eye = st.columns(2)
-                                with c_save:
-                                    if st.button("💾", key=f"s_{row['id']}"):
+                                cs, ce = st.columns(2)
+                                with cs:
+                                    if st.button("💾", key=f"s{row['id']}"):
                                         with conn.connect() as db:
-                                            db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"), {"l":g_l, "v":g_v, "id":row['id']})
+                                            db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"),{"l":gl,"v":gv,"id":row['id']})
                                             db.commit()
                                         st.rerun()
-                                with c_eye:
-                                    url = row['url_foto_l'] if pd.notna(row['url_foto_l']) else row['url_foto_v']
+                                with ce:
+                                    url = row['url_foto_l'] or row['url_foto_v']
                                     if url:
-                                        with st.popover("👁️"): st.image(url, caption="Evidencia")
+                                        with st.popover("👁️"): st.image(url)
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ------------------------------------------
-        # B. OPCIÓN: DIRECTORIO
-        # ------------------------------------------
+        # --- B. DIRECTORIO ---
         elif opcion_admin == "🛠️ Directorio":
-            st.subheader("📋 Directorio de Equipos")
-            try:
-                df_maestro = pd.read_sql_query(text("SELECT * FROM equipos ORDER BY nombre"), conn)
-            except: df_maestro = pd.DataFrame()
+            st.subheader("📋 Directorio")
+            try: df_m = pd.read_sql_query(text("SELECT * FROM equipos ORDER BY nombre"), conn)
+            except: df_m = pd.DataFrame()
 
-            if not df_maestro.empty:
-                for _, eq in df_maestro.iterrows():
-                    estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                    # Blindaje también aquí por si acaso
-                    esc_mini_url = eq['escudo'] if eq['escudo'] else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                    escudo_mini = f'<img src="{esc_mini_url}" width="20" style="vertical-align:middle; margin-right:5px">'
-                    st.markdown(f"{estado_icon} {escudo_mini} **{eq['nombre']}** | 🔑 {eq['pin']}", unsafe_allow_html=True)
+            if not df_m.empty:
+                for _, eq in df_m.iterrows():
+                    ico = "✅" if eq['estado'] == 'aprobado' else "⏳"
+                    # Blindaje escudo directorio
+                    esc_url = eq['escudo'] if eq['escudo'] else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                    mini = f'<img src="{esc_url}" width="18" style="vertical-align:middle; margin-right:4px">'
+                    st.markdown(f"{ico} {mini} **{eq['nombre']}** | 🔑 {eq['pin']}", unsafe_allow_html=True)
                 
-                st.markdown("---")
-                st.subheader("✏️ Edición")
-                equipo_sel = st.selectbox("Selecciona equipo:", df_maestro['nombre'].tolist())
-                
-                if equipo_sel:
-                    datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
-                    with st.form("edit_master_form"):
-                        c_nm, c_pin = st.columns(2)
-                        new_name = c_nm.text_input("Nombre", datos_sel['nombre'])
-                        new_pin = c_pin.text_input("PIN", str(datos_sel['pin']))
-                        
-                        st.write("**🛡️ Escudo**")
-                        if datos_sel['escudo']: st.image(datos_sel['escudo'], width=80)
-                        nuevo_escudo_img = st.file_uploader("Nuevo escudo", type=['png', 'jpg'])
+                st.divider()
+                st.subheader("✏️ Editar")
+                sel = st.selectbox("Equipo:", df_m['nombre'].tolist())
+                if sel:
+                    dat = df_m[df_m['nombre'] == sel].iloc[0]
+                    with st.form("ed_frm"):
+                        c1, c2 = st.columns(2)
+                        nn = c1.text_input("Nombre", dat['nombre'])
+                        np = c2.text_input("PIN", str(dat['pin']))
+                        if dat['escudo']: st.image(dat['escudo'], width=60)
+                        new_img = st.file_uploader("Nuevo Escudo", type=['png','jpg'])
                         
                         if st.form_submit_button("💾 Guardar", use_container_width=True):
-                            url_final = datos_sel['escudo']
-                            if nuevo_escudo_img:
-                                res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
-                                url_final = res_std['secure_url']
-
+                            uf = dat['escudo']
+                            if new_img:
+                                r = cloudinary.uploader.upload(new_img, folder="escudos_limpios")
+                                uf = r['secure_url']
                             try:
                                 with conn.connect() as db:
-                                    db.execute(text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
-                                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel})
+                                    db.execute(text("UPDATE equipos SET nombre=:n, pin=:p, escudo=:e WHERE nombre=:old"),{"n":nn,"p":np,"e":uf,"old":sel})
                                     db.commit()
-                                st.success("Actualizado")
-                                st.rerun()
-                            except Exception as e: st.error(f"Error: {e}")
+                                st.success("Guardado"); st.rerun()
+                            except: st.error("Error al guardar")
 
-                    if st.button(f"✖️ Eliminar {equipo_sel}", use_container_width=True):
+                    if st.button(f"🗑️ Borrar {sel}", use_container_width=True):
                         with conn.connect() as db:
-                            db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
+                            db.execute(text("DELETE FROM equipos WHERE nombre=:n"),{"n":sel})
                             db.commit()
                         st.rerun()
-            else:
-                st.info("Sin equipos.")
+            else: st.info("Vacio.")
 
-        # ------------------------------------------
-        # C. OPCIÓN: DISEÑO
-        # ------------------------------------------
+        # --- C. DISEÑO ---
         elif opcion_admin == "🎨 Diseño":
             st.subheader("🎨 Personalización")
             with conn.connect() as db:
-                equipos_dispo = db.execute(text("SELECT nombre, escudo, color_principal FROM equipos WHERE (estado = 'aprobado' AND escudo IS NOT NULL) OR nombre ='Sistema'")).fetchall()
-
-            if not equipos_dispo:
-                st.warning("No hay equipos listos.")
-            else:
-                dict_equipos = {eq[0]: {"escudo": eq[1], "color": eq[2]} for eq in equipos_dispo}
-                nombre_sel = st.selectbox("Inspiración:", list(dict_equipos.keys()))
-                info_sel = dict_equipos[nombre_sel]
-                
-                c1, c2 = st.columns([1, 2], vertical_alignment="center")
-                with c1: st.image(info_sel['escudo'], width=80)
+                disp = db.execute(text("SELECT nombre, escudo, color_principal FROM equipos WHERE (estado='aprobado' AND escudo IS NOT NULL) OR nombre='Sistema'")).fetchall()
+            
+            if disp:
+                de = {x[0]: {'escudo':x[1], 'color':x[2]} for x in disp}
+                sel = st.selectbox("Inspiración:", list(de.keys()))
+                info = de[sel]
+                c1, c2 = st.columns([1,3], vertical_alignment="center")
+                with c1: st.image(info['escudo'], width=60)
                 with c2:
-                    if st.button(f"✨ Aplicar Tema {nombre_sel}", type="primary", use_container_width=True):
+                    if st.button(f"Aplicar Tema {sel}", type="primary"):
                         try:
-                            color_a_usar = info_sel['color'] or "#FFD700"
-                            with st.spinner("Generando..."):
-                                img_pil = motor_grafico.construir_portada(color_a_usar, info_sel['escudo'])
-                                buffer = BytesIO(); img_pil.save(buffer, format="PNG"); buffer.seek(0)
-                                res = cloudinary.uploader.upload(buffer, folder="fondos_dinamicos", public_id="fondo_activo_golgana", overwrite=True)
-                                
+                            col = info['color'] or "#FFD700"
+                            with st.spinner("Creando..."):
+                                im = motor_grafico.construir_portada(col, info['escudo'])
+                                buf = BytesIO(); im.save(buf, format="PNG"); buf.seek(0)
+                                r = cloudinary.uploader.upload(buf, folder="fondos_dinamicos", public_id="fondo_activo_golgana", overwrite=True)
+                                url_f = f"{r['secure_url']}?v={int(time.time())}"
                                 with conn.connect() as db:
                                     q = text("INSERT INTO config (clave, valor) VALUES (:k, :v) ON CONFLICT (clave) DO UPDATE SET valor = :v")
-                                    db.execute(q, {"k": 'fondo_url', "v": f"{res['secure_url']}?v={int(time.time())}"})
-                                    db.execute(q, {"k": 'color_primario', "v": color_a_usar})
-                                    db.execute(q, {"k": 'equipo_activo', "v": nombre_sel})
+                                    db.execute(q, {"k":'fondo_url', "v":url_f})
+                                    db.execute(q, {"k":'color_primario', "v":col})
+                                    db.execute(q, {"k":'equipo_activo', "v":sel})
                                     db.commit()
                             st.rerun()
-                        except Exception as e: st.error(f"Error: {e}")
+                        except: st.error("Error.")
+            else: st.warning("Sin equipos.")
 
-        # ==========================================
-        # 3. CONTROL GLOBAL
-        # ==========================================
         st.divider()
-        c_start, c_reset = st.columns(2)
-        
-        with c_start:
+        c_ini, c_res = st.columns(2)
+        with c_ini:
             if fase_actual == "inscripcion":
-                if st.button("🏁 INICIAR TORNEO", use_container_width=True, type="primary"):
-                    if aprobados_count >= 2:
-                        try:
-                            generar_calendario() 
-                            st.rerun()
-                        except: st.error("Error al generar.")
-                    else: st.error("Faltan equipos.")
-        
-        with c_reset:
-            if st.button("🚨 RESET TOTAL", use_container_width=True):
+                if st.button("🏁 INICIAR", type="primary", use_container_width=True):
+                    try: 
+                        generar_calendario(); st.rerun()
+                    except: st.error("Faltan equipos/función")
+        with c_res:
+            if st.button("🚨 RESET", use_container_width=True):
                 with conn.connect() as db:
-                    db.execute(text("DELETE FROM equipos"))
-                    db.execute(text("DELETE FROM partidos"))
-                    db.execute(text("UPDATE config SET valor = 'inscripcion' WHERE clave = 'fase_actual'"))
+                    db.execute(text("DELETE FROM equipos")); db.execute(text("DELETE FROM partidos"))
+                    db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
                     db.commit()
-                st.session_state.clear()
-                st.rerun()
+                st.session_state.clear(); st.rerun()
+
