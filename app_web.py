@@ -1619,7 +1619,7 @@ if rol == "admin":
                             st.markdown("</div>", unsafe_allow_html=True)
 
        # ------------------------------------------
-        # B. DIRECTORIO (CORREGIDO)
+        # B. DIRECTORIO (LISTA DIRECTA + EDICIÓN)
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
@@ -1630,98 +1630,115 @@ if rol == "admin":
                 df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
-                # 1. LISTADO (Metido en expander para no estorbar)
-                with st.expander("👁️ Ver lista completa de equipos y PINs"):
+                # 1. LISTADO (EN CAJA CON SCROLL PARA NO OCUPAR TODO)
+                st.caption("Lista de equipos registrados (Desliza para ver más):")
+                
+                with st.container(height=250): # Altura fija con scroll interno
                     for _, eq in df_maestro.iterrows():
                         estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
                         # Blindaje por si no hay escudo
                         src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                        escudo_html = f'<img src="{src_escudo}" width="20" style="vertical-align:middle; margin-right:5px; border-radius:50%;">'
                         
+                        # Diseño de fila simple y limpio
                         st.markdown(
                             f"""
-                            <div style='background-color:rgba(255,255,255,0.05); padding:5px; border-radius:5px; margin-bottom:5px; font-size:13px;'>
-                                {estado_icon} {escudo_html} <b>{eq['nombre']}</b> 
-                                <span style='opacity:0.6'>| 🔑 PIN: {eq['pin']} | 📞 {eq['prefijo']} {eq['celular']}</span>
+                            <div style='
+                                display: flex; 
+                                align-items: center; 
+                                background-color: rgba(255,255,255,0.05); 
+                                padding: 8px; 
+                                border-radius: 6px; 
+                                margin-bottom: 4px;
+                                border-left: 3px solid {color_primario};
+                            '>
+                                <div style='font-size: 16px; margin-right: 8px;'>{estado_icon}</div>
+                                <img src="{src_escudo}" width="25" style="border-radius: 50%; margin-right: 10px;">
+                                <div style='flex-grow: 1;'>
+                                    <div style='font-weight: bold; font-size: 14px; color: white;'>{eq['nombre']}</div>
+                                    <div style='font-size: 11px; color: #aaa;'>PIN: {eq['pin']} | 📞 {eq['prefijo']} {eq['celular']}</div>
+                                </div>
                             </div>
                             """, 
                             unsafe_allow_html=True
                         )
 
-                st.markdown("---")
+                st.markdown("<div style='margin-bottom: 20px'></div>", unsafe_allow_html=True)
 
                 # 2. ZONA DE EDICIÓN
                 st.subheader("✏️ Editar o Eliminar")
                 
-                col_sel, _ = st.columns([2,1])
-                with col_sel:
-                    equipo_sel = st.selectbox("Selecciona equipo a editar:", df_maestro['nombre'].tolist())
+                # Selector de equipo
+                lista_nombres = df_maestro['nombre'].tolist()
+                equipo_sel = st.selectbox("Selecciona equipo a gestionar:", lista_nombres)
                 
                 if equipo_sel:
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
+                    # FORMULARIO DE EDICIÓN
                     with st.form("edit_master_form"):
-                        st.markdown(f"**Editando a: {equipo_sel}**")
-                        c_nm, c_pin = st.columns(2)
-                        new_name = c_nm.text_input("Nombre del Equipo", datos_sel['nombre'])
-                        new_pin = c_pin.text_input("PIN de acceso", str(datos_sel['pin']))
+                        c_nm, c_pin = st.columns([2, 1])
+                        new_name = c_nm.text_input("Nombre", datos_sel['nombre'])
+                        new_pin = c_pin.text_input("PIN", str(datos_sel['pin']))
                         
                         c_img1, c_img2 = st.columns([1, 3])
                         with c_img1:
-                            st.write("Escudo actual:")
+                            st.caption("Actual:")
                             e_show = datos_sel['escudo'] if (datos_sel['escudo'] and len(str(datos_sel['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                            st.image(e_show, width=60)
+                            st.image(e_show, width=50)
                         
                         with c_img2:
-                            nuevo_escudo_img = st.file_uploader("Subir nuevo escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
+                            nuevo_escudo_img = st.file_uploader("Nuevo Escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
                             
+                            # Si subió imagen nueva
                             if nuevo_escudo_img:
                                 try:
                                     res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
                                     url_final = res_std['secure_url']
                                 except:
-                                    st.error("Error subiendo imagen a Cloudinary")
+                                    st.error("Error subiendo imagen.")
 
                             try:
                                 with conn.connect() as db:
-                                    # Actualizamos nombre, pin y escudo
+                                    # 1. Actualizar tabla EQUIPOS
                                     db.execute(
                                         text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
                                         {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
                                     )
-                                    # Si cambió el nombre, también deberíamos actualizarlo en la tabla partidos (Opcional, pero recomendado si no usas IDs)
+                                    
+                                    # 2. Actualizar tabla PARTIDOS (Si cambió el nombre, para no romper el historial)
                                     if new_name != equipo_sel:
                                         db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
                                         db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
                                     
                                     db.commit()
-                                st.success(f"✅ {new_name} actualizado correctamente.")
+                                st.success(f"✅ {new_name} actualizado.")
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Error en base de datos: {e}")
+                                st.error(f"Error BD: {e}")
 
-                    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+                    # ZONA DE BORRADO (Separada del form para seguridad)
+                    st.markdown("<div style='height:15px'></div>", unsafe_allow_html=True)
                     
-                    # Botón de borrar fuera del form para evitar submit accidental
-                    with st.popover(f"🗑️ Eliminar a {equipo_sel}", use_container_width=True):
-                        st.warning("¿Estás seguro? Esto borrará al equipo y sus estadísticas.")
-                        if st.button("Sí, eliminar definitivamente", type="primary"):
+                    col_del1, col_del2 = st.columns([3, 1], vertical_alignment="bottom")
+                    with col_del1:
+                        confirmar_borrado = st.checkbox(f"🔴 Confirmar borrado de {equipo_sel}")
+                    
+                    with col_del2:
+                        if st.button("Eliminar", type="primary", use_container_width=True, disabled=not confirmar_borrado):
                             with conn.connect() as db:
                                 db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
-                                # Opcional: Borrar partidos de este equipo
+                                # Opcional: Borrar partidos asociados para limpiar
                                 db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
                                 db.commit()
-                            st.toast(f"Equipo eliminado.")
+                            st.toast(f"🗑️ Equipo eliminado.")
                             time.sleep(1)
                             st.rerun()
             else:
                 st.info("El directorio está vacío.")
-
-
 
 
 
