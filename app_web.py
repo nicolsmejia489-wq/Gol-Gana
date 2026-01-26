@@ -1289,10 +1289,17 @@ elif fase_actual == "clasificacion":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: AJUSTE DE TAMAÑOS Y ESPACIOS) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: COLOR DINÁMICO + TAMAÑOS EDITABLES) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Gestión del Torneo")
+
+        # 0. OBTENER COLOR PRIMARIO DINÁMICO
+        # Buscamos el color configurado en la BD para pintar los bordes
+        try:
+            c_res = pd.read_sql_query("SELECT valor FROM config WHERE clave='color_primario'", conn)
+            color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
+        except: color_primario = "#FFD700"
         
         # 1. APROBACIONES (Estándar)
         try:
@@ -1328,101 +1335,104 @@ if rol == "admin":
         opcion_admin = st.radio("Acción:", ["⚽ Resultados", "🛠️ Directorio"], horizontal=True, label_visibility="collapsed")
         
         # ------------------------------------------
-        # A. RESULTADOS (VISUAL FINAL)
+        # A. RESULTADOS (VISUAL FINAL DINÁMICA)
         # ------------------------------------------
         if opcion_admin == "⚽ Resultados":
             st.subheader("📝 Marcadores")
             solo_rev = st.toggle("🚨 Ver Conflictos", value=False)
             
-            st.markdown("""
+            # Usamos f-string (f""") para inyectar la variable {color_primario}
+            # NOTA: En f-strings de CSS, las llaves normales deben ir dobles {{ }}
+            st.markdown(f"""
             <style>
                 /* 1. MÓVIL: FORZAR FILA HORIZONTAL */
-                @media (max-width: 640px) {
-                    div[data-testid="stHorizontalBlock"] {
+                @media (max-width: 640px) {{
+                    div[data-testid="stHorizontalBlock"] {{
                         flex-direction: row !important;
                         flex-wrap: nowrap !important;
                         gap: 2px !important;
-                    }
-                    div[data-testid="stColumn"] {
+                    }}
+                    div[data-testid="stColumn"] {{
                         min-width: 0px !important;
                         flex: 1 1 auto !important;
                         padding: 0px !important;
-                    }
-                }
+                    }}
+                }}
 
                 /* 2. INPUTS GOLES (Cajitas) */
-                input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-                input[type=number] { -moz-appearance: textfield; }
+                input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button {{ -webkit-appearance: none; margin: 0; }}
+                input[type=number] {{ -moz-appearance: textfield; }}
                 
-                div[data-testid="stNumberInput"] input {
-                    text-align: center !important; font-weight: 800 !important; font-size: 18px !important;
-                    color: #FFD700 !important; background-color: rgba(255,255,255,0.05) !important;
+                div[data-testid="stNumberInput"] input {{
+                    text-align: center !important; font-weight: 800 !important; 
+                    
+                    font-size: 18px !important; /* <--- TAMAÑO NUMERO GOLES */
+                    
+                    color: {color_primario} !important; /* Color del número igual al tema */
+                    background-color: rgba(255,255,255,0.05) !important;
                     border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 4px !important;
                     padding: 0px !important; height: 35px !important;
-                }
-                div[data-testid="stNumberInput"] { width: 40px !important; min-width: 40px !important; margin: auto !important; }
+                }}
+                div[data-testid="stNumberInput"] {{ width: 40px !important; min-width: 40px !important; margin: auto !important; }}
 
                 /* 3. BOTONES (TEXTO PEQUEÑO) */
-                [data-testid="stLinkButton"] a, .stButton button {
+                [data-testid="stLinkButton"] a, .stButton button {{
                     background-color: rgba(255,255,255,0.08) !important;
                     border: 1px solid rgba(255,255,255,0.1) !important;
                     color: #ddd !important;
                     border-radius: 6px !important;
-                    min-height: 32px !important; /* Más compactos de alto */
+                    min-height: 32px !important; 
                     height: auto !important;     
                     width: 100% !important;
                     display: flex !important; align-items: center !important; justify-content: center !important;
                     text-decoration: none !important;
                     
-                    /* --- AQUÍ CAMBIAS EL TAMAÑO DE LETRA DE LOS BOTONES --- */
-                    font-size: 11px !important; 
-                    /* ----------------------------------------------------- */
+                    font-size: 11px !important; /* <--- TAMAÑO LETRA BOTONES */
                     
                     line-height: 1.1 !important;
                     padding: 4px 1px !important;
                     white-space: normal !important; text-align: center !important;
-                }
+                }}
                 
-                [data-testid="stLinkButton"] a:hover, .stButton button:hover {
-                    border-color: #FFD700 !important; color: #FFD700 !important;
-                }
+                [data-testid="stLinkButton"] a:hover, .stButton button:hover {{
+                    border-color: {color_primario} !important; 
+                    color: {color_primario} !important;
+                }}
 
-                /* 4. TARJETA (SEPARACIÓN CLARA) */
-                .match-card {
+                /* 4. TARJETA (BORDE DINÁMICO) */
+                .match-card {{
                     background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%);
-                    border: 1px solid rgba(255,255,255,0.15);
+                    
+                    /* AQUI ESTA EL CAMBIO DEL BORDE DINAMICO */
+                    border-bottom: 2px solid {color_primario}; 
+                    border-top: 1px solid rgba(255,255,255,0.1);
+                    border-left: 1px solid rgba(255,255,255,0.1);
+                    border-right: 1px solid rgba(255,255,255,0.1);
+                    
                     border-radius: 12px; 
-                    padding: 2px 1px; /* Relleno interno apretado */
-                    
-                    /* --- ESTO SEPARA LOS PARTIDOS ENTRE SÍ --- */
-                    margin-bottom: 30px; 
-                    /* ---------------------------------------- */
-                    
+                    padding: 8px 4px;
+                    margin-bottom: 30px; /* <--- ESPACIO ENTRE PARTIDOS */
                     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-                }
-                .conflict { border: 1px solid #FF4B4B; background: rgba(50,0,0,0.6); }
+                }}
+                .conflict {{ border: 2px solid #FF4B4B; background: rgba(50,0,0,0.6); }}
                 
                 /* 5. NOMBRES DE EQUIPOS (TEXTO GRANDE) */
-                .team-l { 
+                .team-l {{ 
                     text-align: right; 
                     font-weight: 800; 
                     margin-right: 5px; 
                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
                     
-                    /* --- AQUÍ CAMBIAS EL TAMAÑO DE LOS EQUIPOS --- */
-                    font-size: 15px; 
-                    /* --------------------------------------------- */
-                }
-                .team-v { 
+                    font-size: 15px; /* <--- TAMAÑO NOMBRE EQUIPO */
+                }}
+                .team-v {{ 
                     text-align: left; 
                     font-weight: 800; 
                     margin-left: 5px; 
                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
                     
-                    /* --- AQUÍ CAMBIAS EL TAMAÑO DE LOS EQUIPOS --- */
-                    font-size: 15px; 
-                    /* --------------------------------------------- */
-                }
+                    font-size: 15px; /* <--- TAMAÑO NOMBRE EQUIPO */
+                }}
             </style>
             """, unsafe_allow_html=True)
 
@@ -1460,7 +1470,6 @@ if rol == "admin":
                             st.markdown(f'<div class="{css_card}">', unsafe_allow_html=True)
                             
                             # --- PISO 1: MARCADOR ---
-                            # [Esc, Nom, Input, -, Input, Nom, Esc]
                             c_p1 = st.columns([0.6, 2.5, 1, 0.2, 1, 2.5, 0.6], vertical_alignment="center")
                             with c_p1[0]: st.image(d_l['escudo'], width=30)
                             with c_p1[1]: st.markdown(f"<div class='team-l'>{row['local']}</div>", unsafe_allow_html=True)
@@ -1478,12 +1487,10 @@ if rol == "admin":
                             with c_p1[5]: st.markdown(f"<div class='team-v'>{row['visitante']}</div>", unsafe_allow_html=True)
                             with c_p1[6]: st.image(d_v['escudo'], width=30)
 
-                            # --- ESPACIO MINIMO ENTRE PISOS ---
-                            # Reducimos esto para que estén más pegados
-                            st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
+                            # --- ESPACIO MÍNIMO ---
+                            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
                             
-                            # --- PISO 2: ACCIONES (GRID 2x2) ---
-                            # FILA A: GUARDAR Y FOTO
+                            # --- PISO 2: ACCIONES ---
                             c_row1 = st.columns(2, gap="small")
                             with c_row1[0]:
                                 if st.button("💾 Guardar", key=f"s_{row['id']}", use_container_width=True):
@@ -1504,7 +1511,6 @@ if rol == "admin":
                                 else:
                                     st.button("🚫 Sin Foto", key=f"no_{row['id']}", disabled=True, use_container_width=True)
 
-                            # FILA B: CONTACTO (Pegadita a la anterior)
                             st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
                             c_row2 = st.columns(2, gap="small")
 
@@ -1562,6 +1568,7 @@ if rol == "admin":
                             db.commit()
                         st.rerun()
             else: st.info("Directorio vacío.")
+
 
 
 
