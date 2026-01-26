@@ -1427,14 +1427,12 @@ if rol == "dt":
 
 
             
-
-            
-# --- TAB: GESTIÓN ADMIN (FINAL: PESTAÑAS + LISTA NEÓN) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: 3 PESTAÑAS) ---
 if rol == "admin":
     with tabs[2]:
-        st.header("⚙️ Gestión del Torneo")
+        st.header("⚙️ Panel de Control")
 
-        # 0. OBTENER COLOR PRIMARIO
+        # 0. OBTENER COLOR PRIMARIO (Para usar en CSS local)
         try:
             c_res = pd.read_sql_query("SELECT valor FROM config WHERE clave='color_primario'", conn)
             color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
@@ -1444,7 +1442,7 @@ if rol == "admin":
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
-                st.info(f"Tienes {len(pend)} solicitudes pendientes.")
+                st.info(f"🔔 Tienes {len(pend)} solicitudes de inscripción pendientes.")
                 for _, r in pend.iterrows():
                     with st.container():
                         c1, c2, c3 = st.columns([0.8, 3, 1], vertical_alignment="center")
@@ -1470,21 +1468,20 @@ if rol == "admin":
                     st.divider()
         except: pass
 
-        st.write("") # Espacio separador
+        st.write("") 
 
-        # --- AQUI ESTÁ EL CAMBIO: CREAMOS PESTAÑAS ---
-        tab_resultados, tab_directorio = st.tabs(["⚽ Resultados", "🛠️ Directorio"])
+        # --- CREACIÓN DE LAS 3 PESTAÑAS ---
+        tab_resultados, tab_directorio, tab_config = st.tabs(["⚽ Resultados", "🛠️ Directorio", "⚙️ Configuración"])
 
         # ==========================================
         # PESTAÑA 1: RESULTADOS
         # ==========================================
         with tab_resultados:
-            st.subheader("📝 Marcadores")
+            st.subheader("📝 Marcadores y Partidos")
             
-            # Selector de Filtros
             filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True)
             
-            # CSS Específico para los inputs (Solo afecta aquí)
+            # CSS Específico (Inputs limpios y tarjetas)
             st.markdown(f"""
             <style>
                 @media (max-width: 640px) {{
@@ -1618,7 +1615,6 @@ if rol == "admin":
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
-
         # ==========================================
         # PESTAÑA 2: DIRECTORIO
         # ==========================================
@@ -1651,7 +1647,7 @@ if rol == "admin":
                         st.image(src_escudo, width=35)
                     
                     with c_txt:
-                        # Vínculo Markdown: **Nombre** | PIN | 📞 [Numero Completo](URL)
+                        # Vínculo Markdown
                         linea = f"**{eq['nombre']}** | <span style='color:#888'>PIN: `{eq['pin']}`</span> | 📞 [{celular_texto}](https://wa.me/{celular_url})"
                         st.markdown(linea, unsafe_allow_html=True)
                     
@@ -1730,8 +1726,89 @@ if rol == "admin":
             else:
                 st.info("No hay equipos registrados.")
 
+        # ==========================================
+        # PESTAÑA 3: CONFIGURACIÓN (NUEVA)
+        # ==========================================
+        with tab_config:
+            st.subheader("⚙️ Configuración General")
 
+            # 1. DISEÑO
+            st.markdown("##### 🎨 Diseño del Torneo")
+            col_picker, col_btn_c = st.columns([1, 2], vertical_alignment="bottom")
+            with col_picker:
+                nuevo_color = st.color_picker("Color Primario (Neón)", value=color_primario)
+            with col_btn_c:
+                if st.button("Aplicar Color"):
+                    with conn.connect() as db:
+                        # Upsert para guardar configuración
+                        # Primero intentamos actualizar
+                        res = db.execute(text("UPDATE config SET valor=:v WHERE clave='color_primario'"), {"v":nuevo_color})
+                        if res.rowcount == 0:
+                            # Si no existe, insertamos
+                            db.execute(text("INSERT INTO config (clave, valor) VALUES ('color_primario', :v)"), {"v":nuevo_color})
+                        db.commit()
+                    st.toast("Color actualizado")
+                    time.sleep(1)
+                    st.rerun()
 
+            st.divider()
+
+            # 2. CONTROL DE FASES (DINÁMICO)
+            st.markdown("##### 🚀 Estado del Torneo")
+            
+            # Consultamos la fase actual
+            try:
+                res_fase = pd.read_sql_query("SELECT valor FROM config WHERE clave='estado_torneo'", conn)
+                fase_actual_db = res_fase.iloc[0,0] if not res_fase.empty else "inscripcion"
+            except: fase_actual_db = "inscripcion"
+            
+            st.info(f"Fase actual: **{fase_actual_db.upper()}**")
+            
+            # Botón Dinámico
+            if fase_actual_db == "inscripcion":
+                st.write("¿Ya tienes todos los equipos listos?")
+                if st.button("🚀 Iniciar Torneo (Ir a Clasificación)", type="primary", use_container_width=True):
+                    with conn.connect() as db:
+                        db.execute(text("UPDATE config SET valor='clasificacion' WHERE clave='estado_torneo'"))
+                        db.commit()
+                    st.balloons()
+                    time.sleep(1)
+                    st.rerun()
+                    
+            elif fase_actual_db == "clasificacion":
+                st.write("¿Terminó la fase de grupos?")
+                if st.button("⚔️ Pasar a Eliminatorias", type="primary", use_container_width=True):
+                    with conn.connect() as db:
+                        db.execute(text("UPDATE config SET valor='eliminatorias' WHERE clave='estado_torneo'"))
+                        db.commit()
+                    st.snow()
+                    time.sleep(1)
+                    st.rerun()
+
+            elif fase_actual_db == "eliminatorias":
+                st.success("El torneo está en sus fases finales.")
+                if st.button("🏆 Finalizar Torneo (Archivar)", type="primary", use_container_width=True):
+                    st.toast("Función de archivado pendiente.")
+
+            st.divider()
+
+            # 3. ZONA DE PELIGRO
+            st.markdown("##### 🚨 Zona de Peligro")
+            with st.expander("☠️ Cancelar / Reiniciar Torneo"):
+                st.warning("¡Cuidado! Esto borrará todos los partidos y resultados, regresando el torneo a fase de 'Inscripción'. Los equipos NO se borrarán.")
+                confirmar_reset = st.checkbox("Entiendo, quiero reiniciar el torneo.")
+                
+                if st.button("Reiniciar Torneo", type="secondary", disabled=not confirmar_reset, use_container_width=True):
+                    with conn.connect() as db:
+                        # 1. Borrar todos los partidos
+                        db.execute(text("DELETE FROM partidos"))
+                        # 2. Resetear fase
+                        db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='estado_torneo'"))
+                        # 3. Resetear estadísticas de equipos (Opcional, si tuvieras tabla stats)
+                        db.commit()
+                    st.success("Torneo reiniciado.")
+                    time.sleep(1)
+                    st.rerun()
 
 
 
