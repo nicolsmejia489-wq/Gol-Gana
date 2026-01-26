@@ -1619,7 +1619,7 @@ if rol == "admin":
                             st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-        # B. DIRECTORIO (CORREGIDO - INDENTACIÓN FINAL)
+        # B. DIRECTORIO (LISTA PLANA CON VÍNCULOS)
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
@@ -1631,33 +1631,27 @@ if rol == "admin":
                 df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
-                # Encabezados visuales
-                h1, h2, h3 = st.columns([0.15, 0.5, 0.35])
-                h1.caption("Escudo")
-                h2.caption("Equipo / PIN")
-                h3.caption("Contacto")
+                st.write("---")
                 
                 # LISTA SIMPLE
                 for _, eq in df_maestro.iterrows():
-                    # 1. Preparar datos
+                    # Preparar datos
                     src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
                     celular_full = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
                     
-                    # 2. Renderizar Fila
-                    c_img, c_info, c_btn = st.columns([0.15, 0.5, 0.35], vertical_alignment="center")
+                    # Layout Mínimo: [Imagen] [Texto con Vínculo]
+                    c_img, c_txt = st.columns([0.1, 0.9], vertical_alignment="center")
                     
                     with c_img:
-                        st.image(src_escudo, width=35)
+                        st.image(src_escudo, width=30)
                     
-                    with c_info:
-                        st.markdown(f"**{eq['nombre']}**", unsafe_allow_html=True)
-                        st.markdown(f"<span style='color:grey; font-size:12px'>🔑 PIN: {eq['pin']}</span>", unsafe_allow_html=True)
-                    
-                    with c_btn:
-                        st.link_button(f"📞 {eq['celular']}", f"https://wa.me/{celular_full}", use_container_width=True)
-                    
-                    st.markdown("<hr style='margin: 5px 0; opacity: 0.2;'>", unsafe_allow_html=True)
-
+                    with c_txt:
+                        # Vínculo Markdown: [Texto a mostrar](URL)
+                        # Ejemplo: 📞 [3171234567](https://wa.me/57317...)
+                        linea = f"**{eq['nombre']}** | PIN: `{eq['pin']}` | 📞 [{eq['celular']}](https://wa.me/{celular_full})"
+                        st.markdown(linea)
+                
+                st.write("---")
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
                 # ---------------------------------------------------------
@@ -1721,9 +1715,9 @@ if rol == "admin":
                         st.error(f"Equipo eliminado.")
                         time.sleep(1)
                         st.rerun()
-            
             else:
                 st.info("No hay equipos registrados.")
+
 
 
 
