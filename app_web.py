@@ -1618,8 +1618,8 @@ if rol == "admin":
 
                             st.markdown("</div>", unsafe_allow_html=True)
 
-   # ------------------------------------------
-        # B. DIRECTORIO (CORREGIDO - HTML SEGURO)
+# ------------------------------------------
+        # B. DIRECTORIO (LISTA SIMPLE Y ESTABLE)
         # ------------------------------------------
         elif opcion_admin == "🛠️ Directorio":
             st.subheader("📋 Directorio de Equipos")
@@ -1631,45 +1631,64 @@ if rol == "admin":
                 df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
-                # 1. LISTADO (EN CAJA CON SCROLL)
-                st.caption("Lista de equipos registrados (Desliza para ver más):")
+                st.caption("Equipos registrados:")
                 
-                with st.container(height=250): # Altura fija con scroll
-                    for _, eq in df_maestro.iterrows():
-                        estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
-                        
-                        # Datos seguros
-                        src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                        celular_full = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
-                        link_wa = f"https://wa.me/{celular_full}"
-                        
-                        # DEFINICIÓN DE ESTILOS CSS (VARIABLES PARA EVITAR ERRORES DE COMILLAS)
-                        style_card = f"display: flex; align-items: center; justify-content: space-between; background-color: rgba(255,255,255,0.05); padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {color_primario};"
-                        style_btn_wa = "background-color: rgba(37, 211, 102, 0.1); border: 1px solid #25D366; color: #25D366; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 4px;"
-                        
-                        # HTML LIMPIO
-                        html_fila = f"""
-                        <div style="{style_card}">
-                            <div style="display: flex; align-items: center;">
-                                <div style="font-size: 16px; margin-right: 8px;">{estado_icon}</div>
-                                <img src="{src_escudo}" width="25" style="border-radius: 50%; margin-right: 10px;">
-                                <div>
-                                    <div style="font-weight: bold; font-size: 14px; color: white;">{eq['nombre']}</div>
-                                    <div style="font-size: 11px; color: #aaa;">PIN: {eq['pin']}</div>
-                                </div>
+                # BUCLE DIRECTO (Sin contenedores complejos para evitar errores de renderizado)
+                for _, eq in df_maestro.iterrows():
+                    # Preparación de variables
+                    estado_icon = "✅" if eq['estado'] == 'aprobado' else "⏳"
+                    src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
+                    
+                    # Limpieza del número para WhatsApp
+                    celular_limpio = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
+                    link_wa = f"https://wa.me/{celular_limpio}"
+                    
+                    # HTML PURO Y SIMPLE
+                    # Usamos f-string con triple comilla para evitar conflictos
+                    html_card = f"""
+                    <div style="
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: center; 
+                        background-color: rgba(255,255,255,0.05); 
+                        padding: 10px; 
+                        border-radius: 8px; 
+                        margin-bottom: 8px; 
+                        border-left: 4px solid {color_primario};
+                    ">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 18px;">{estado_icon}</span>
+                            <img src="{src_escudo}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
+                            <div style="line-height: 1.2;">
+                                <div style="font-weight: bold; color: white; font-size: 14px;">{eq['nombre']}</div>
+                                <div style="font-size: 11px; color: #aaa;">PIN: {eq['pin']}</div>
                             </div>
-
-                            <a href="{link_wa}" target="_blank" style="text-decoration: none;">
-                                <div style="{style_btn_wa}">
-                                    📞 Chat
-                                </div>
-                            </a>
                         </div>
-                        """
-                        
-                        st.markdown(html_fila, unsafe_allow_html=True)
 
-                st.markdown("<div style='margin-bottom: 20px'></div>", unsafe_allow_html=True)
+                        <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                            <div style="
+                                background-color: rgba(37, 211, 102, 0.15); 
+                                border: 1px solid #25D366; 
+                                color: #25D366; 
+                                padding: 6px 12px; 
+                                border-radius: 20px; 
+                                font-size: 12px; 
+                                font-weight: bold;
+                                display: flex; 
+                                align-items: center; 
+                                gap: 5px;
+                                transition: 0.3s;
+                            ">
+                                <span>📞</span> Chat
+                            </div>
+                        </a>
+                    </div>
+                    """
+                    
+                    st.markdown(html_card, unsafe_allow_html=True)
+
+                st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
+                st.markdown("---")
 
                 # 2. ZONA DE EDICIÓN
                 st.subheader("✏️ Editar o Eliminar")
@@ -1699,6 +1718,7 @@ if rol == "admin":
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
                             
+                            # Si subió imagen nueva
                             if nuevo_escudo_img:
                                 try:
                                     res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
