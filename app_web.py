@@ -1427,7 +1427,7 @@ if rol == "dt":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: NOMBRE EDITABLE + SELECTOR PAÍS) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: SELECTOR PAÍS INTUITIVO + NOMBRE EDITABLE) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control")
@@ -1585,32 +1585,45 @@ if rol == "admin":
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
                     with st.form("edit_master_form"):
-                        # 1. NOMBRE (Editable ahora)
+                        # 1. NOMBRE (Editable)
                         st.markdown("**📝 Nombre del Equipo**")
                         new_name = st.text_input("Nombre", value=datos_sel['nombre'], label_visibility="collapsed")
                         
                         st.write("") 
 
-                        # 2. PAIS (SELECTOR) Y CELULAR
+                        # 2. PAIS (SELECTOR INTUITIVO) Y CELULAR
                         st.markdown("**📞 Datos de Contacto**")
                         
-                        # Definición de Países
-                        paises = {"Colombia +57": "+57", "EEUU +1": "+1", "México +52": "+52", "Ecuador +593": "+593", "Panamá +507": "+507", "Perú 51"": "+51", "Argentina +54": "+54", "Chile +56": "+56", "Venezuela +58": "+58"}
+                        # Diccionario de Paises (Visual -> Valor)
+                        paises_dict = {
+                            "Colombia (+57)": "+57",
+                            "EEUU (+1)": "+1",
+                            "México (+52)": "+52",
+                            "Ecuador (+593)": "+593",
+                            "Panamá (+507)": "+507",
+                            "Perú (+51)": "+51",
+                            "Argentina (+54)": "+54",
+                            "Chile (+56)": "+56",
+                            "Venezuela (+58)": "+58"
+                        }
                         
-                        # Buscar el índice del país actual
-                        pref_actual = str(datos_sel['prefijo'])
-                        keys_paises = list(paises.keys())
+                        # Lógica para preseleccionar el país actual
+                        pref_actual = str(datos_sel['prefijo']).strip()
+                        keys_paises = list(paises_dict.keys())
+                        valores_paises = list(paises_dict.values())
+                        
                         try:
-                            # Buscamos qué país tiene el prefijo actual
-                            val_list = list(paises.values())
-                            idx_def = val_list.index(pref_actual)
+                            # Buscamos el índice basándonos en el valor (+57)
+                            idx_def = valores_paises.index(pref_actual)
                         except:
-                            idx_def = 0 # Default a Colombia si no encuentra
+                            idx_def = 0 # Default a Colombia si no encuentra coincidencia
                         
-                        c_pais, c_cel = st.columns([1, 2])
+                        c_pais, c_cel = st.columns([1.2, 1.8]) # Un poco más ancho para que quepa "Colombia (+57)"
                         with c_pais:
-                            pais_sel = st.selectbox("País", keys_paises, index=idx_def)
-                            new_pref = paises[pais_sel] # Obtenemos el código (ej: +57)
+                            # El usuario ve "Colombia (+57)"
+                            pais_display_sel = st.selectbox("País", keys_paises, index=idx_def)
+                            # El sistema guarda "+57"
+                            new_pref = paises_dict[pais_display_sel]
                         with c_cel:
                             new_cel = st.text_input("WhatsApp (Sin prefijo)", value=datos_sel['celular'])
 
