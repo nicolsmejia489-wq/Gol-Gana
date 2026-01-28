@@ -300,11 +300,26 @@ def render_lobby():
                 else:
                     st.warning("⚠️ Faltan datos.")
 
-    # --- F. MANIFIESTO ---
+     # --- F. MANIFIESTO (FOOTER) ---
     st.markdown(f"""
         <div class="manifesto-container">
-            <div class="intro-quote">“Mientras otros solo anotan goles, tú construyes una historia”</div>
-            <div class="intro-text">El mundo ha cambiado... Gol-Gana es el futuro.</div>
+            <div class="intro-quote">
+                “Mientras otros solo anotan goles, tú construyes una historia”
+            </div>
+            <div class="intro-text">
+                El mundo ha cambiado. La tecnología y la Inteligencia Artificial han redefinido cada industria, y hoy, 
+                ese poder llega finalmente a la comunidad de Clubes Pro. Ya no se trata solo de jugar un partido; 
+                se trata del legado que dejas en cada cancha virtual.
+            </div>
+            <div class="intro-text">
+                En la élite, los equipos más grandes no solo se miden por sus títulos, sino por los datos e indicadores 
+                que respaldan cada trofeo. Por eso, en <b>Gol-Gana</b>, cada victoria, cada rivalidad y cada estadística 
+                forman parte de una historia viva y objetiva. La evolución no se detiene, es momento de dar paso a un 
+                ecosistema inteligente donde la historia de cada club puede ser eterna.
+            </div>
+            <div style="text-align:center; margin-top:15px; font-size:18px; font-weight:600; color:{COLOR_MARCA};">
+                ¿Estás listo para transformar tu comunidad? Únete a los clubes que ya compiten en el futuro.
+            </div>
         </div>
     """, unsafe_allow_html=True)
 
@@ -331,6 +346,7 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
 
 
 
