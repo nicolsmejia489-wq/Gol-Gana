@@ -32,7 +32,7 @@ conn = get_db_connection()
 st.markdown(f"""
     <style>
         /* IMPORTAR FUENTE DEPORTIVA/TECNOLÓGICA */
-        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap');
+       # @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap');
 
         /* 1. FONDO GENERAL Y TIPOGRAFÍA */
         .stApp {{
@@ -42,7 +42,7 @@ st.markdown(f"""
             background-position: center;
             background-attachment: fixed;
             color: white;
-            font-family: 'Rajdhani', sans-serif !important;
+            font-family: ''Oswald'', sans-serif !important;
         }}
         
         /* Forzar fuente en todos los elementos */
@@ -284,3 +284,4 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
