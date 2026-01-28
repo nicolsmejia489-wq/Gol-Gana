@@ -325,7 +325,7 @@ if "id" in params:
     torneo_id = params["id"]
     accion = params.get("action", "ver") # Detectamos si viene 'inscribir' o 'ver'
     
-    st.title(f"Visualizando Torneo ID: {torneo_id}")
+    st.title(f"Visualizando Torneo ID: {NOMBRE}")
     
     if accion == "inscribir":
         st.info("📝 Aquí se mostrará el Formulario de Inscripción (Próximo paso)")
@@ -337,6 +337,7 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
 
 
 
