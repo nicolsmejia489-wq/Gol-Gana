@@ -183,77 +183,79 @@ def render_lobby():
     # --- B. SALUDO DEL BOT ---
     mostrar_bot("Hola, Soy <b>Gol Bot</b>. Guardaré las estadísticas de equipo y apoyaré al admin en la organización de cada torneo.")
 
-    # --- C. NOVEDADES ---
+    # --- C. SECCIÓN: NOVEDADES (TABS) ---
     st.markdown(f"<h3 style='text-align:center; color:{COLOR_MARCA}; margin-top:10px; letter-spacing:2px;'>NOVEDADES</h3>", unsafe_allow_html=True)
+    
     tab_eq, tab_dt, tab_adm = st.tabs(["🛡️ Equipos", "🧠 DTs / Capitanes", "👮 Administradores"])
-    with tab_eq: mostrar_bot("Olvídate de los debates subjetivos; aquí hablamos con datos.")
-    with tab_dt: mostrar_bot("He simplificado todo para que cada competencia sea más fluida.")
-    with tab_adm: mostrar_bot("Yo te apoyaré con el trabajo sucio: lectura y proceso de marcadores.")
+    
+    with tab_eq:
+        mostrar_bot("Olvídate de los debates subjetivos; aquí hablamos con datos, no opiniones.")
+    
+    with tab_dt:
+        mostrar_bot("Sé que gestionar un equipo es difícil. He simplificado todo para que cada competencia sea más fluida.")
+        
+    with tab_adm:
+        mostrar_bot("Yo te apoyaré con el trabajo sucio: lectura y proceso de marcadores.")
 
+    # --- LÍNEA DIVISORIA ---
     st.markdown("---")
 
-# --- D. TORNEOS VIGENTES ---
-st.subheader("🔥 Torneos en Curso")
+    # ==============================================================================
+    # D. TORNEOS EN CURSO (ESTE ES EL BLOQUE QUE MOVIMOS BAJO NOVEDADES)
+    # ==============================================================================
+    st.subheader("🔥 Torneos en Curso")
 
-try:
-    if conn:
-        query = text("""
-            SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
-            FROM torneos 
-            WHERE fase != 'Terminado' 
-            ORDER BY fecha_creacion DESC
-        """)
-        df_torneos = pd.read_sql_query(query, conn)
-    else:
+    try:
+        if conn:
+            query = text("""
+                SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
+                FROM torneos 
+                WHERE fase != 'Terminado' 
+                ORDER BY fecha_creacion DESC
+            """)
+            df_torneos = pd.read_sql_query(query, conn)
+        else:
+            df_torneos = pd.DataFrame()
+    except:
+        st.error("Conectando al servidor...")
         df_torneos = pd.DataFrame()
-except:
-    st.error("Conectando al servidor...")
-    df_torneos = pd.DataFrame()
 
-if not df_torneos.empty:
-    for _, t in df_torneos.iterrows():
-        # Creamos un contenedor para agrupar visualmente
-        with st.container():
-            # 1. Dibujamos la cabecera visual (Sin enlaces, solo diseño)
-            estado_txt = "INSCRIPCIONES ABIERTAS" if t['fase'] == 'inscripcion' else t['fase'].upper()
-            
-            st.markdown(f"""
-                <div style="border-left: 6px solid {t['color_primario']}; 
-                            background: rgba(255,255,255,0.05); 
-                            padding: 15px; 
-                            border-radius: 0 12px 12px 0; 
-                            margin-bottom: -10px;">
-                    <h3 style="margin:0; color:white;">🏆 {t['nombre']}</h3>
-                    <p style="margin:0; color:{t['color_primario']}; font-weight:bold; font-size:14px;">
-                        ● {estado_txt}
-                    </p>
-                    <p style="margin:5px 0 0 0; opacity:0.7; font-size:14px;">
-                        👮 {t['organizador']} | 🎮 {t['formato']}
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
+    if not df_torneos.empty:
+        for _, t in df_torneos.iterrows():
+            with st.container():
+                # 1. Diseño Visual de la Tarjeta (HTML)
+                estado_txt = "INSCRIPCIONES ABIERTAS" if t['fase'] == 'inscripcion' else t['fase'].upper()
+                
+                st.markdown(f"""
+                    <div style="border-left: 6px solid {t['color_primario']}; 
+                                background: rgba(255,255,255,0.05); 
+                                padding: 15px; 
+                                border-radius: 0 12px 12px 0; 
+                                margin-bottom: -10px;">
+                        <h3 style="margin:0; color:white;">🏆 {t['nombre']}</h3>
+                        <p style="margin:0; color:{t['color_primario']}; font-weight:bold; font-size:14px;">
+                            ● {estado_txt}
+                        </p>
+                        <p style="margin:5px 0 0 0; opacity:0.7; font-size:14px;">
+                            👮 {t['organizador']} | 🎮 {t['formato']}
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
 
-            # 2. BOTONES NATIVOS (Aquí resolvemos el problema del clic)
-            # Usamos dos columnas para poner los botones lado a lado
-            col_ver, col_ins = st.columns(2)
-            
-            with col_ver:
-                if st.button(f"Ver Torneo", key=f"ver_{t['id']}", use_container_width=True):
-                    st.query_params["id"] = str(t['id'])
-                    st.rerun()
-
-            with col_ins:
-                # Botón con estilo "Primary" (Dorado por tu CSS) para destacar
-                if st.button(f"Inscribir mi equipo", key=f"ins_{t['id']}", use_container_width=True, type="primary"):
-                    st.query_params["id"] = str(t['id'])
-                    st.query_params["action"] = "inscribir"
-                    st.rerun()
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-else:
-    st.info("No hay torneos activos.")
-
-
+                # 2. Botones de Acción (Nativos)
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button(f"Ver Torneo", key=f"v_{t['id']}", use_container_width=True):
+                        st.query_params["id"] = str(t['id'])
+                        st.rerun()
+                with c2:
+                    if st.button(f"Inscribir mi equipo", key=f"i_{t['id']}", use_container_width=True, type="primary"):
+                        st.query_params["id"] = str(t['id'])
+                        st.query_params["action"] = "inscribir"
+                        st.rerun()
+                st.markdown("<br>", unsafe_allow_html=True)
+    else:
+        st.info("No hay torneos activos actualmente.")
 
     
 
@@ -329,6 +331,7 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
 
 
 
