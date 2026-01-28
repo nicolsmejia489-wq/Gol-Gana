@@ -324,17 +324,18 @@ def render_lobby():
 # ==============================================================================
 def validar_acceso(id_torneo, pin_ingresado):
     """
-    4.1: Valida el PIN en cascada: Torneos (Admin) -> Equipos Globales (DT).
+    4.1: Valida el PIN. Primero busca Admin, luego DT. 
+    Retorna Diccionario con datos o None si no existe.
     """
     try:
         with conn.connect() as db:
-            # CAPA 1: Buscar en Torneos (ADMIN)
+            # 1. BUSCAR ADMIN
             q_admin = text("SELECT nombre FROM torneos WHERE id = :id AND pin_admin = :pin")
             res_admin = db.execute(q_admin, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
             if res_admin:
                 return {"rol": "Admin", "id_equipo": None, "nombre_equipo": None}
             
-            # CAPA 2: Buscar en Equipos Globales (DT)
+            # 2. BUSCAR DT (En la tabla equipos_globales vinculada a este torneo)
             q_dt = text("""
                 SELECT id, nombre FROM equipos_globales 
                 WHERE id_torneo = :id AND pin_equipo = :pin
@@ -343,52 +344,48 @@ def validar_acceso(id_torneo, pin_ingresado):
             if res_dt:
                 return {"rol": "DT", "id_equipo": res_dt[0], "nombre_equipo": res_dt[1]}
                 
-        return None
+        return None # No se encontró nada, retorna None para el bot
     except Exception as e:
-        st.error(f"Error en validación: {e}")
-        return None
+        return None # Evita que la app se rompa si hay error de DB
+
+
+        
 # ==============================================================================
 # 4.2 RENDERIZADO DE VISTA DE TORNEO
 # ==============================================================================
 def render_torneo(id_torneo):
     """
-    4.2: Interfaz interna con pestañas dinámicas y Bot reactivo al PIN.
+    4.2: Interfaz interna del torneo.
     """
-    
-    # --- 4.2.1 Datos Maestros del Torneo ---
+    # --- 4.2.1 Datos Maestros ---
     try:
-        query = text("""
-            SELECT nombre, organizador, color_primario, url_portada, fase, formato 
-            FROM torneos WHERE id = :id
-        """)
+        query = text("SELECT nombre, organizador, color_primario, url_portada, fase FROM torneos WHERE id = :id")
         with conn.connect() as db:
             t = db.execute(query, {"id": id_torneo}).fetchone()
-        
         if not t:
-            st.error("Torneo no encontrado.")
-            if st.button("Volver al Lobby"):
-                st.query_params.clear()
-                st.rerun()
-            return
-            
-        t_nombre, t_org, t_color, t_portada, t_fase, t_formato = t
+            st.error("Torneo no encontrado."); return
+        t_nombre, t_org, t_color, t_portada, t_fase = t
     except Exception as e:
-        st.error(f"Error de conexión: {e}")
-        return
+        st.error(f"Error: {e}"); return
 
-    # --- 4.2.2 CSS Dinámico (Pestañas y Colores) ---
+    # --- 4.2.2 CSS Dinámico (Corrección de Acentos y Pestañas) ---
     st.markdown(f"""
         <style>
             button[kind="primary"] {{
                 background-color: {t_color} !important;
-                color: {"white" if t_color.lower() in ["#000000", "black"] else "black"} !important;
+                color: black !important;
             }}
+            /* Color de texto de pestaña activa */
             .stTabs [aria-selected="true"] p {{ color: {t_color} !important; }}
-            [data-baseweb="tab-highlight-renderer"] {{ background-color: {t_color} !important; }}
+            
+            /* CORRECCIÓN: Color de la barra/sombra inferior de la pestaña activa */
+            [data-baseweb="tab-highlight-renderer"] {{
+                background-color: {t_color} !important;
+            }}
 
             .tournament-title {{
                 color: white; font-size: 32px; font-weight: 600; text-transform: uppercase;
-                margin-top: 15px; margin-bottom: 0px; letter-spacing: 1px; line-height: 1.1;
+                margin-top: 15px; margin-bottom: 0px; letter-spacing: 1px;
             }}
             .tournament-subtitle {{
                 color: {t_color}; font-size: 16px; opacity: 0.9; margin-bottom: 25px;
@@ -396,88 +393,85 @@ def render_torneo(id_torneo):
         </style>
     """, unsafe_allow_html=True)
 
-    # --- 4.2.3 Cabecera y Navegación ---
-    img_banner = t_portada if t_portada else URL_PORTADA
-    st.image(img_banner, use_container_width=True)
+    # --- 4.2.3 Portada y Navegación ---
+    st.image(t_portada if t_portada else URL_PORTADA, use_container_width=True)
 
     if st.button("⬅ LOBBY", use_container_width=False):
-        for key in ["rol", "id_equipo", "nombre_equipo"]:
-            if key in st.session_state: del st.session_state[key]
+        for k in ["rol", "id_equipo", "nombre_equipo", "login_error"]: 
+            if k in st.session_state: del st.session_state[k]
         st.query_params.clear()
         st.rerun()
 
     st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
     
     user_label = st.session_state.get("rol", "Espectador")
-    if user_label == "DT":
-        user_label = f"DT: {st.session_state.get('nombre_equipo')}"
+    if user_label == "DT": user_label = f"DT: {st.session_state.get('nombre_equipo')}"
     st.markdown(f'<p class="tournament-subtitle">Organiza: {t_org} | Modo: {user_label}</p>', unsafe_allow_html=True)
 
-    # --- 4.2.4 Lógica de Pestañas Dinámicas ---
-    # Si la fase es 'inscripcion', cambiamos 'RESULTADOS' por 'INSCRIPCIONES'
-    nombres_tabs = ["📊 POSICIONES", "⚽ RESULTADOS", "⚙️ PANEL"]
+    # --- 4.2.4 Lógica de Pestañas Dinámicas (Fases) ---
+    tabs_base = ["📊 POSICIONES", "⚽ RESULTADOS", "⚙️ PANEL"]
     if t_fase == "inscripcion":
-        nombres_tabs[1] = "📝 INSCRIPCIONES"
-
-    tab_pos, tab_dinamico, tab_panel = st.tabs(nombres_tabs)
+        tabs_base[1] = "📝 INSCRIPCIONES"
+    
+    tab_pos, tab_main, tab_panel = st.tabs(tabs_base)
 
     with tab_pos:
         st.subheader("Clasificación General")
-        st.info("Tabla de puntos sincronizada.")
+        st.info("Estadísticas de equipos.")
 
-    with tab_dinamico:
+    with tab_main:
         if t_fase == "inscripcion":
             st.subheader("Formulario de Inscripción")
-            st.write("Aquí los equipos nuevos pueden registrarse.")
         else:
             st.subheader("Resultados de la Jornada")
-            st.write("Marcadores y estadísticas de partidos.")
 
     with tab_panel:
+        # Si no se ha logueado, mostramos el Bot y el acceso
         if st.session_state.get("rol", "Espectador") == "Espectador":
-            # --- 4.2.4.1 Lógica del Bot y Validación de PIN ---
-            # Definimos el mensaje por defecto
-            mensaje_bot = "Hola de nuevo. Si eres DT o Admin, <b>recuérdame tu PIN</b> para darte acceso a las herramientas de gestión."
             
-            # Campo de entrada de PIN
-            pin_input = st.text_input("PIN de 4 dígitos", type="password", placeholder="****")
-            
-            if pin_input:
+            # Mensaje dinámico del Bot
+            if st.session_state.get("login_error"):
+                mostrar_bot("No recuerdo tu PIN, <b>no está registrado</b> en este torneo.")
+            else:
+                mostrar_bot("Hola de nuevo. Si eres DT o Admin, <b>recuérdame tu PIN</b> para darte acceso a las herramientas de gestión.")
+
+            # Input con botón para facilitar uso móvil
+            c_in, c_bt = st.columns([3, 1])
+            with c_in:
+                pin_input = st.text_input("PIN", type="password", label_visibility="collapsed", placeholder="PIN de 4 dígitos")
+            with c_bt:
+                btn_ingresar = st.button("Ingresar", use_container_width=True, type="primary")
+
+            if btn_ingresar and pin_input:
                 acceso = validar_acceso(id_torneo, pin_input)
                 if acceso:
-                    # Si el PIN es correcto, guardamos sesión y refrescamos
                     st.session_state.rol = acceso["rol"]
                     st.session_state.id_equipo = acceso["id_equipo"]
                     st.session_state.nombre_equipo = acceso["nombre_equipo"]
+                    st.session_state.login_error = False
                     st.success("¡Identidad confirmada!")
-                    time.sleep(1)
-                    st.rerun()
+                    time.sleep(1); st.rerun()
                 else:
-                    # Si el PIN NO se encuentra, cambiamos el mensaje del Bot
-                    mensaje_bot = "No recuerdo tu PIN, <b>no está registrado</b> en este torneo."
-            
-            # Mostramos el bot con el mensaje correspondiente (Error o Bienvenida)
-            mostrar_bot(mensaje_bot)
+                    st.session_state.login_error = True
+                    st.rerun()
         
         else:
-            # PANEL DE GESTIÓN ACTIVO (Ya logueado)
-            st.markdown(f"### Panel: {st.session_state.rol}")
-            
+            # VISTA DE GESTIÓN (Ya logueado)
+            st.markdown(f"### Gestión: {st.session_state.rol}")
             if st.session_state.rol == "Admin":
-                st.button("⚙️ Configurar Fechas", use_container_width=True)
-                st.button("🚫 Cerrar Inscripciones", type="primary", use_container_width=True)
-            
+                st.button("⚙️ Configurar Torneo", use_container_width=True)
             elif st.session_state.rol == "DT":
-                st.info(f"Gestionando a: **{st.session_state.nombre_equipo}**")
-                st.button(f"📝 Reportar Marcador", type="primary", use_container_width=True)
-                st.button("👥 Editar mi Plantilla", use_container_width=True)
-            
-            if st.button("🚪 Cerrar Sesión de Gestión", use_container_width=True):
-                for k in ["rol", "id_equipo", "nombre_equipo"]: 
+                st.info(f"Equipo: **{st.session_state.nombre_equipo}**")
+                st.button("📝 Reportar Marcador", use_container_width=True, type="primary")
+
+            if st.button("🚪 Cerrar Sesión", use_container_width=True):
+                for k in ["rol", "id_equipo", "nombre_equipo", "login_error"]:
                     if k in st.session_state: del st.session_state[k]
                 st.rerun()
 
-# --- 4.3 EJECUCIÓN DEL ENRUTADOR ---
+# ==============================================================================
+# 4.3 EJECUCIÓN DEL ENRUTADOR
+# ==============================================================================
 params = st.query_params
 if "id" in params:
     render_torneo(params["id"])
