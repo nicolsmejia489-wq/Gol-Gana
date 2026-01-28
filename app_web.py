@@ -27,21 +27,19 @@ def get_db_connection():
 conn = get_db_connection()
 
 # ==============================================================================
-# 2. ESTILOS CSS (FUENTE OSWALD + TABS DINÁMICOS + BLINDAJE)
+# 2. ESTILOS CSS (FUENTE OSWALD + TABS + BLINDAJE TOTAL)
 # ==============================================================================
 st.markdown(f"""
     <style>
-        /* 0. AJUSTE GLOBAL DE PESTAÑAS (NUEVO) */
-        button[data-baseweb="tab"] {{
-            flex-grow: 1;           /* Cada pestaña crece para ocupar el espacio disponible */
-            justify-content: center; /* Centra el texto */
-            min-width: 150px;       /* Evita que se vean muy pequeñas en móvil */
-            transition: all 0.3s ease;
-        }}
-
+        /* 0. IMPORTACIÓN Y BLINDAJE DE FUENTE OSWALD */
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;600&display=swap');
 
-        /* 1. FONDO GENERAL Y TIPOGRAFÍA */
+        /* Forzado universal de la fuente */
+        .stApp, h1, h2, h3, h4, h5, h6, p, div, button, input, label, span, textarea, a {{
+            font-family: 'Oswald', sans-serif !important;
+        }}
+
+        /* 1. FONDO GENERAL */
         .stApp {{
             background: linear-gradient(rgba(14, 17, 23, 0.92), rgba(14, 17, 23, 0.96)), 
                         url("{URL_FONDO_BASE}");
@@ -49,15 +47,30 @@ st.markdown(f"""
             background-position: center;
             background-attachment: fixed;
             color: white;
-            font-family: 'Oswald', sans-serif !important;
-        }}
-        
-        /* Forzar fuente en todos los elementos interactivos */
-        h1, h2, h3, h4, h5, h6, p, div, button, input, label, span, textarea, a {{
-            font-family: 'Oswald', sans-serif !important;
         }}
 
-        /* 2. INPUTS Y BOTONES ESTÁNDAR */
+        /* 2. AJUSTE DE PESTAÑAS (TABS) - DISTRIBUCIÓN UNIFORME */
+        button[data-baseweb="tab"] {{
+            flex-grow: 1 !important;
+            justify-content: center !important;
+            min-width: 150px;
+            background-color: rgba(255,255,255,0.05);
+            border-radius: 8px 8px 0 0;
+            color: #aaa;
+            font-weight: 400;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }}
+        
+        .stTabs [data-baseweb="tab-list"] {{ gap: 10px; }}
+        
+        .stTabs [aria-selected="true"] {{
+            background-color: rgba(255, 215, 0, 0.1) !important;
+            color: {COLOR_MARCA} !important;
+            border-top: 3px solid {COLOR_MARCA} !important;
+        }}
+
+        /* 3. INPUTS Y BOTONES ESTÁNDAR */
         div[data-testid="stTextInput"] input, div[data-testid="stSelectbox"] > div > div {{
             background-color: #262730 !important;
             border: 1px solid #444 !important;
@@ -86,26 +99,6 @@ st.markdown(f"""
             font-size: 18px !important;
             border-radius: 8px !important;
             letter-spacing: 1px;
-        }}
-
-        /* 3. ESTILO DE LAS PESTAÑAS (TABS) - AJUSTES DE COLOR */
-        .stTabs [data-baseweb="tab-list"] {{ 
-            gap: 10px; 
-            background-color: transparent;
-        }}
-        
-        .stTabs [data-baseweb="tab"] {{
-            background-color: rgba(255,255,255,0.05);
-            border-radius: 8px 8px 0 0;
-            color: #aaa;
-            font-weight: 400;
-            letter-spacing: 1px;
-        }}
-        
-        .stTabs [aria-selected="true"] {{
-            background-color: rgba(255, 215, 0, 0.1) !important;
-            color: {COLOR_MARCA} !important;
-            border-top: 3px solid {COLOR_MARCA} !important;
         }}
 
         /* 4. TARJETAS DE LOBBY */
@@ -170,7 +163,6 @@ def mostrar_bot(mensaje):
             <div class="bot-text">{mensaje}</div>
         </div>
     """, unsafe_allow_html=True)
-
 # ==============================================================================
 # 3. LÓGICA DEL LOBBY
 # ==============================================================================
@@ -345,6 +337,7 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
 
 
 
