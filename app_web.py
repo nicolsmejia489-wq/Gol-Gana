@@ -31,7 +31,11 @@ conn = get_db_connection()
 # ==============================================================================
 st.markdown(f"""
     <style>
-        /* IMPORTAR FUENTE OSWALD (Estilo Deportivo) */
+          button[data-baseweb="tab"] {
+        flex-grow: 1;           /* Hace que cada pestaña crezca por igual */
+        justify-content: center; /* Centra el texto dentro de la pestaña */
+        min-width: 150px;       /* Opcional: define un ancho mínimo uniforme */
+        }
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;600&display=swap');
 
         /* 1. FONDO GENERAL Y TIPOGRAFÍA */
@@ -160,6 +164,8 @@ st.markdown(f"""
         }}
         .intro-quote {{ font-size: 20px; font-style: italic; color: {COLOR_MARCA}; text-align: center; margin-bottom: 20px; font-weight: 300; }}
         .intro-text {{ font-size: 15px; text-align: justify; color: #aaa; line-height: 1.6; margin-bottom: 10px; font-weight: 300; }}
+
+
     </style>
 """, unsafe_allow_html=True)
 
@@ -346,6 +352,7 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
 
 
 
