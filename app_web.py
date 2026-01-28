@@ -315,33 +315,89 @@ def render_lobby():
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 4. ENRUTADOR PRINCIPAL
+# 4. ENRUTADOR PRINCIPAL Y GESTIÓN DE TORNEO
 # ==============================================================================
 
+def render_torneo(id_torneo):
+    """Muestra la interfaz de un torneo específico basado en su ID"""
+    
+    # --- 1. CARGA DE DATOS DEL TORNEO ---
+    try:
+        if conn:
+            query = text("""
+                SELECT nombre, organizador, color_primario, url_portada, formato, fase 
+                FROM torneos WHERE id = :id_t
+            """)
+            with conn.connect() as db:
+                res = db.execute(query, {"id_t": id_torneo}).fetchone()
+            
+            if res:
+                t_nombre, t_org, t_color, t_portada, t_formato, t_fase = res
+            else:
+                st.error("Torneo no encontrado.")
+                if st.button("Volver al Lobby"):
+                    st.query_params.clear()
+                    st.rerun()
+                return
+    except Exception as e:
+        st.error(f"Error al cargar el torneo: {e}")
+        return
+
+    # --- 2. CABECERA DINÁMICA (PORTADA) ---
+    # Si el admin no ha subido portada, usamos la URL_PORTADA base por defecto
+    portada_final = t_portada if t_portada else URL_PORTADA
+    st.image(portada_final, use_container_width=True)
+
+    # --- 3. BARRA DE NAVEGACIÓN DEL TORNEO ---
+    col_back, col_title = st.columns([1, 4])
+    
+    with col_back:
+        if st.button("⬅ Lobby", use_container_width=True):
+            st.query_params.clear()
+            st.rerun()
+            
+    with col_title:
+        st.markdown(f"""
+            <div style="background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 8px; border-left: 5px solid {t_color};">
+                <h2 style="margin:0; color:white; letter-spacing:1px;">{t_nombre.upper()}</h2>
+                <p style="margin:0; font-size:14px; color:{t_color};">Organiza: {t_org} | Formato: {t_formato}</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # --- 4. ÁREA DE TRABAJO (TABS DEL TORNEO) ---
+    # Aquí es donde integrarás tu script antiguo de posiciones y resultados
+    tab_pos, tab_res, tab_insc = st.tabs(["📊 Posiciones", "⚽ Resultados", "📝 Inscripción"])
+
+    with tab_pos:
+        st.subheader("Tabla de Clasificación")
+        # Aquí pegas tu lógica de: df_posiciones = pd.read_sql(...) WHERE id_torneo = ...
+        st.info("Cargando datos de la tabla de posiciones...")
+
+    with tab_res:
+        st.subheader("Últimos Partidos")
+        # Aquí tu lógica de resultados
+        st.info("Cargando últimos resultados registrados...")
+
+    with tab_insc:
+        # Si la fase es 'inscripcion', mostramos el formulario
+        if t_fase == 'inscripcion':
+            st.markdown(f"### Inscribe tu equipo a {t_nombre}")
+            # Lógica del formulario de inscripción
+        else:
+            st.warning("Las inscripciones para este torneo están cerradas.")
+
+
+# --- LÓGICA FINAL DE ENRUTAMIENTO ---
 params = st.query_params
 
 if "id" in params:
-    # LÓGICA DE DETALLE DE TORNEO
-    torneo_id = params["id"]
-    accion = params.get("action", "ver") # Detectamos si viene 'inscribir' o 'ver'
-    
-    st.title(f"Visualizando Torneo ID: {NOMBRE}")
-    
-    if accion == "inscribir":
-        st.info("📝 Aquí se mostrará el Formulario de Inscripción (Próximo paso)")
-    else:
-        st.write("📊 Aquí se mostrará la tabla de posiciones y resultados.")
-        
-    if st.button("⬅ Volver al Lobby"):
-        st.query_params.clear()
-        st.rerun()
+    # Si la URL tiene ?id=XXX, entramos al torneo
+    render_torneo(params["id"])
 else:
+    # Si no hay ID, mostramos el Lobby principal
     render_lobby()
-
-
-
-
-
 
 
 
