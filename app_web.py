@@ -1651,41 +1651,41 @@ if rol == "admin":
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
                 # --- GESTIÓN Y EDICIÓN (VERSIÓN ANCHO TOTAL) ---
-st.subheader("✏️ Gestión y Edición")
+                st.subheader("✏️ Gestión y Edición")
 
-lista_nombres = df_maestro['nombre'].tolist()
-equipo_sel = st.selectbox("Selecciona equipo a gestionar:", lista_nombres)
+                lista_nombres = df_maestro['nombre'].tolist()
+                equipo_sel = st.selectbox("Selecciona equipo a gestionar:", lista_nombres)
 
-if equipo_sel:
-    datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
+                if equipo_sel:
+                datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
-    with st.form("edit_master_form"):
-        # 1. NOMBRE (OCUPA TODO EL ANCHO)
-        new_name = st.text_input("Nombre del Equipo", datos_sel['nombre'])
+                with st.form("edit_master_form"):
+                # 1. NOMBRE (OCUPA TODO EL ANCHO)
+                new_name = st.text_input("Nombre del Equipo", datos_sel['nombre'])
         
-        # 2. PIN (DEBAJO, OCUPANDO TODO EL ANCHO TAMBIÉN)
-        new_pin = st.text_input("PIN de acceso", str(datos_sel['pin']))
+                # 2. PIN (DEBAJO, OCUPANDO TODO EL ANCHO TAMBIÉN)
+                new_pin = st.text_input("PIN de acceso", str(datos_sel['pin']))
         
-        st.write("---")
-        st.markdown("**🛡️ Actualizar Escudo**")
+                st.write("---")
+                st.markdown("**🛡️ Actualizar Escudo**")
         
-        # 3. ESCUDO Y CARGA (Aquí sí usamos columnas pequeñas para que no se vea gigante)
-        c_e1, c_e2 = st.columns([1, 4], vertical_alignment="center")
-        with c_e1:
-            if datos_sel['escudo']:
+                # 3. ESCUDO Y CARGA (Aquí sí usamos columnas pequeñas para que no se vea gigante)
+                c_e1, c_e2 = st.columns([1, 4], vertical_alignment="center")
+                with c_e1:
+                if datos_sel['escudo']:
                 st.image(datos_sel['escudo'], width=80)
-        with c_e2:
-            nuevo_escudo_img = st.file_uploader("Cambiar imagen", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
-            quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
+                with c_e2:
+                nuevo_escudo_img = st.file_uploader("Cambiar imagen", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+                quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
         
-        st.write("") 
+                st.write("") 
         
-        # BOTÓN DE GUARDAR
-        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-            url_final = datos_sel['escudo']
-            if quitar_escudo: 
+                # BOTÓN DE GUARDAR
+                if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                url_final = datos_sel['escudo']
+                if quitar_escudo: 
                 url_final = None
-            elif nuevo_escudo_img:
+                elif nuevo_escudo_img:
                 try:
                     res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
                     url_final = res_std['secure_url']
@@ -1794,5 +1794,6 @@ if equipo_sel:
                     st.success("Torneo reiniciado.")
                     time.sleep(1)
                     st.rerun()
+
 
 
