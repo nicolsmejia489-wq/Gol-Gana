@@ -27,12 +27,12 @@ def get_db_connection():
 conn = get_db_connection()
 
 # ==============================================================================
-# 2. ESTILOS CSS (TIPOGRAFÍA + BLINDAJE + TABS)
+# 2. ESTILOS CSS (FUENTE OSWALD + BLINDAJE)
 # ==============================================================================
 st.markdown(f"""
     <style>
-        /* IMPORTAR FUENTE DEPORTIVA/TECNOLÓGICA */
-       # @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap');
+        /* IMPORTAR FUENTE OSWALD (Estilo Deportivo) */
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;600&display=swap');
 
         /* 1. FONDO GENERAL Y TIPOGRAFÍA */
         .stApp {{
@@ -42,12 +42,12 @@ st.markdown(f"""
             background-position: center;
             background-attachment: fixed;
             color: white;
-            font-family: ''Oswald'', sans-serif !important;
+            font-family: 'Oswald', sans-serif !important;
         }}
         
         /* Forzar fuente en todos los elementos */
-        h1, h2, h3, h4, h5, h6, p, div, button, input, label {{
-            font-family: 'Rajdhani', sans-serif !important;
+        h1, h2, h3, h4, h5, h6, p, div, button, input, label, span {{
+            font-family: 'Oswald', sans-serif !important;
         }}
 
         /* 2. INPUTS Y BOTONES */
@@ -56,14 +56,16 @@ st.markdown(f"""
             border: 1px solid #444 !important;
             color: white !important;
             height: 50px !important;
-            font-size: 18px !important; /* Letra más grande en inputs */
+            font-size: 18px !important;
+            letter-spacing: 0.5px;
             border-radius: 8px !important;
         }}
         button[kind="secondary"], div[data-testid="stLinkButton"] a {{
             background-color: #262730 !important;
             border: 1px solid #555 !important;
             color: white !important;
-            font-weight: 600 !important;
+            font-weight: 400 !important;
+            letter-spacing: 1px;
             border-radius: 8px !important;
         }}
         button[kind="secondary"]:hover {{
@@ -73,14 +75,15 @@ st.markdown(f"""
         button[kind="primary"] {{
             background-color: {COLOR_MARCA} !important;
             color: black !important;
-            font-weight: 800 !important;
+            font-weight: 600 !important;
             border: none !important;
             height: 50px !important;
             font-size: 18px !important;
             border-radius: 8px !important;
+            letter-spacing: 1px;
         }}
 
-        /* 3. ESTILO DE LAS PESTAÑAS (TABS) - EXPERIENCIA GOL GANA */
+        /* 3. ESTILO DE LAS PESTAÑAS (TABS) */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 10px;
         }}
@@ -88,12 +91,13 @@ st.markdown(f"""
             background-color: rgba(255,255,255,0.05);
             border-radius: 8px 8px 0 0;
             color: #aaa;
-            font-weight: 600;
+            font-weight: 400;
+            letter-spacing: 1px;
         }}
         .stTabs [aria-selected="true"] {{
             background-color: rgba(255, 215, 0, 0.1) !important;
             color: {COLOR_MARCA} !important;
-            border-top: 2px solid {COLOR_MARCA} !important;
+            border-top: 3px solid {COLOR_MARCA} !important;
         }}
 
         /* 4. TARJETAS DE LOBBY */
@@ -111,12 +115,12 @@ st.markdown(f"""
             background-color: rgba(255, 255, 255, 0.08);
         }}
         
-        /* 5. BURBUJA DEL BOT (Simple y Limpia) */
+        /* 5. BURBUJA DEL BOT */
         .bot-bubble {{
             background-color: rgba(30, 30, 40, 0.9);
             border-left: 4px solid {COLOR_MARCA};
             border-radius: 8px;
-            padding: 12px 20px;
+            padding: 15px 20px;
             margin-bottom: 20px;
             display: flex;
             align-items: center;
@@ -126,8 +130,8 @@ st.markdown(f"""
         }}
         .bot-text {{
             color: #ddd;
-            font-size: 16px;
-            font-weight: 500;
+            font-size: 17px; /* Un poco más grande para Oswald */
+            font-weight: 300;
             line-height: 1.4;
         }}
         .bot-avatar {{
@@ -157,20 +161,20 @@ def render_lobby():
     # SALUDO DEL BOT
     mostrar_bot("¡Hola! Soy <b>Bot Gana</b>. Organizo tus torneos y estadísticas. <br>Explora las ligas activas abajo o crea tu propia competencia.")
 
-    # --- NUEVA SECCIÓN: EXPERIENCIA GOL GANA ---
-    st.markdown(f"<h3 style='text-align:center; color:{COLOR_MARCA}; margin-top:10px;'>EXPERIENCIA GOL GANA</h3>", unsafe_allow_html=True)
+    # --- NUEVA SECCIÓN: NOVEDADES (Hablada por el Bot) ---
+    st.markdown(f"<h3 style='text-align:center; color:{COLOR_MARCA}; margin-top:10px; letter-spacing:2px;'>NOVEDADES</h3>", unsafe_allow_html=True)
     
     # Pestañas de información
     tab_eq, tab_dt, tab_adm = st.tabs(["🛡️ Equipos", "🧠 DTs / Capitanes", "👮 Administradores"])
     
     with tab_eq:
-        st.info("📊 **Ranking Global Unificado:** No importa en qué torneo juegues, si es Gol Gana, tus goles y victorias suman a tu historial único.")
+        mostrar_bot("📊 <b>Ranking Global Unificado:</b> No importa en qué torneo juegues, si es Gol Gana, tus goles y victorias suman a tu historial único de por vida.")
     
     with tab_dt:
-        st.info("📲 **Gestión sin Papel:** Olvídate de las planillas físicas. Inscribe tu nómina una vez y úsala en múltiples torneos con tu PIN.")
+        mostrar_bot("📲 <b>Gestión sin Papel:</b> Olvídate de las planillas físicas. Inscribe tu nómina una vez y úsala en múltiples torneos con tu PIN.")
         
     with tab_adm:
-        st.info("🎨 **Tu Marca, Tu Torneo:** Personaliza los colores de la web, automatiza la tabla de posiciones y deja que el Bot ayude a tus usuarios.")
+        mostrar_bot("🎨 <b>Tu Marca, Tu Torneo:</b> Personaliza los colores de la web, automatiza la tabla de posiciones y deja que yo ayude a tus usuarios.")
 
     st.markdown("---")
 
@@ -198,12 +202,12 @@ def render_lobby():
                 # Tarjeta visual
                 st.markdown(f"""
                 <div class="lobby-card" style="border-left: 6px solid {t['color_primario']};">
-                    <h3 style="margin:0; font-weight:700; color:white; font-size:22px;">{t['nombre']}</h3>
-                    <p style="margin:5px 0 0 0; font-size:15px; opacity:0.8; color:#ccc;">
+                    <h3 style="margin:0; font-weight:600; color:white; font-size:24px; letter-spacing:1px;">{t['nombre']}</h3>
+                    <p style="margin:5px 0 0 0; font-size:16px; opacity:0.8; color:#ccc; font-weight:300;">
                         👮 {t['organizador']} | 🎮 {t['formato']}
                     </p>
                     <div style="margin-top:8px;">
-                        <span style="border:1px solid {t['color_primario']}; color:{t['color_primario']}; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold;">
+                        <span style="border:1px solid {t['color_primario']}; color:{t['color_primario']}; padding:2px 8px; border-radius:4px; font-size:13px; font-weight:400;">
                             {t['fase'].upper()}
                         </span>
                     </div>
@@ -284,4 +288,3 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
-
