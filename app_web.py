@@ -322,9 +322,6 @@ def render_lobby():
 
 
 
-# ==============================================================================
-# 4.1 LOGICA DE VALIDACIÓN DE ACCESO
-# ==============================================================================
 def validar_acceso(id_torneo, pin_ingresado):
     """Verifica si el PIN corresponde a un Admin o a un DT del torneo"""
     try:
@@ -334,7 +331,7 @@ def validar_acceso(id_torneo, pin_ingresado):
             if db.execute(q_admin, {"id": id_torneo, "pin": pin_ingresado}).fetchone():
                 return "Admin"
             
-            # Check DT
+            # Check DT (Buscando en la tabla de equipos de este torneo)
             q_dt = text("SELECT nombre FROM equipos WHERE id_torneo = :id AND pin_dt = :pin")
             res_dt = db.execute(q_dt, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
             if res_dt:
@@ -342,136 +339,3 @@ def validar_acceso(id_torneo, pin_ingresado):
         return None
     except:
         return None
-
-# ==============================================================================
-# 4.2 RENDERIZADO DE VISTA DE TORNEO
-# ==============================================================================
-def render_torneo(id_torneo):
-    """Carga la interfaz personalizada del torneo seleccionado"""
-    
-    # 4.2.1 Extracción de datos maestros
-    try:
-        query = text("""
-            SELECT nombre, organizador, color_primario, url_portada, fase, formato 
-            FROM torneos WHERE id = :id
-        """)
-        with conn.connect() as db:
-            t = db.execute(query, {"id": id_torneo}).fetchone()
-        
-        if not t:
-            st.error("Torneo no localizado.")
-            if st.button("Volver al Lobby"):
-                st.query_params.clear()
-                st.rerun()
-            return
-            
-        t_nombre, t_org, t_color, t_portada, t_fase, t_formato = t
-    except Exception as e:
-        st.error(f"Error de conexión a la base de datos: {e}")
-        return
-
-    # 4.2.2 Inyección de Estilos Dinámicos (Corrección de Sombras y Acentos)
-    st.markdown(f"""
-        <style>
-            /* Botón Primario: Color dinámico */
-            button[kind="primary"] {{
-                background-color: {t_color} !important;
-                color: {"white" if t_color.lower() in ["#000000", "black"] else "black"} !important;
-            }}
-            
-            /* Pestañas: Color de texto y la línea de selección (Highlight) */
-            .stTabs [aria-selected="true"] p {{
-                color: {t_color} !important;
-            }}
-            
-            /* Corrección del indicador (sombra/línea inferior) de la pestaña activa */
-            div[data-baseweb="tab-highlight-renderer"] {{
-                background-color: {t_color} !important;
-            }}
-
-            /* Banner de identidad del torneo */
-            .tournament-header {{
-                background-color: {t_color}15; /* Opacidad del 15% */
-                border-left: 6px solid {t_color};
-                padding: 15px 25px;
-                border-radius: 5px;
-                margin: 20px 0;
-            }}
-        </style>
-    """, unsafe_allow_html=True)
-
-    # 4.2.3 Visualización de Cabecera
-    img_banner = t_portada if t_portada else URL_PORTADA
-    st.image(img_banner, use_container_width=True)
-
-    # 4.2.4 Control de Sesión y Acceso (Uso de Popover para estabilidad visual)
-    if "rol" not in st.session_state:
-        st.session_state.rol = "Espectador"
-
-    c_back, c_empty, c_login = st.columns([1, 1.5, 1.5])
-    
-    with c_back:
-        if st.button("⬅ LOBBY", use_container_width=True):
-            st.session_state.rol = "Espectador"
-            st.query_params.clear()
-            st.rerun()
-            
-    with c_login:
-        # Reemplazamos Expander por Popover: evita saltos visuales y es más limpio
-        with st.popover("🔐 ACCESO DT / ADMIN", use_container_width=True):
-            st.markdown(f"<p style='color:grey; font-size:14px;'>Gestión para {t_nombre}</p>", unsafe_allow_html=True)
-            pin_input = st.text_input("Ingresa tu PIN", type="password")
-            if st.button("VERIFICAR", use_container_width=True, type="primary"):
-                rol_valido = validar_acceso(id_torneo, pin_input)
-                if rol_valido:
-                    st.session_state.rol = rol_valido
-                    st.success(f"Acceso como: {rol_valido}")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("PIN incorrecto")
-
-    # Información del Torneo
-    st.markdown(f"""
-        <div class="tournament-header">
-            <h1 style="margin:0; font-weight:600; letter-spacing:1px; color:white;">{t_nombre.upper()}</h1>
-            <p style="margin:0; opacity:0.8; font-size:16px;">
-                Organiza: <b>{t_org}</b> | Modo actual: <span style="color:{t_color};">{st.session_state.rol}</span>
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # 4.2.5 Áreas de Trabajo (Tabs)
-    tab_pos, tab_res, tab_mng = st.tabs(["📊 POSICIONES", "⚽ RESULTADOS", "⚙️ PANEL"])
-
-    with tab_pos:
-        st.subheader("Clasificación de Equipos")
-        # Aquí llamarías a la función de tu script antiguo filtrando por id_torneo
-        st.info("Aquí se desplegará la tabla de puntos, DG y partidos jugados.")
-
-    with tab_res:
-        st.subheader("Calendario y Marcadores")
-        # Aquí llamarías a la lógica de resultados
-        st.info("Visualización de las fechas y carga de resultados históricos.")
-
-    with tab_mng:
-        if st.session_state.rol == "Admin":
-            st.markdown("### 🛠️ Configuración de Organizador")
-            st.write("Control total de inscripciones, edición de datos y cierre de torneo.")
-        elif "DT" in st.session_state.rol:
-            st.markdown(f"### 🛡️ Gestión de Equipo ({st.session_state.rol})")
-            st.write("Herramientas para reportar marcadores y actualizar plantilla.")
-        else:
-            st.warning("🔒 Esta sección es exclusiva para Directores Técnicos o el Administrador del torneo.")
-
-# ==============================================================================
-# 4.3 ENRUTADOR DE FLUJO (EJECUCIÓN)
-# ==============================================================================
-params = st.query_params
-
-if "id" in params:
-    # Si la URL contiene el ID, renderizamos el torneo específico
-    render_torneo(params["id"])
-else:
-    # De lo contrario, cargamos el Lobby principal
-    render_lobby()
