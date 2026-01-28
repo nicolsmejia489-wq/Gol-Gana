@@ -1427,7 +1427,7 @@ if rol == "dt":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: NOMBRE ANCHO + FASE ACTUAL) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: NOMBRE FULL WIDTH REAL) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control")
@@ -1438,7 +1438,7 @@ if rol == "admin":
             color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
         except: color_primario = "#FFD700"
         
-        # 1. APROBACIONES (Siempre visibles arriba)
+        # 1. APROBACIONES
         try:
             pend = pd.read_sql_query(text("SELECT * FROM equipos WHERE estado='pendiente'"), conn)
             if not pend.empty:
@@ -1519,33 +1519,25 @@ if rol == "admin":
                 df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
                 df_e = pd.read_sql_query("SELECT nombre, escudo, celular, prefijo FROM equipos", conn)
                 placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                
                 info_equipos = {}
                 for _, row in df_e.iterrows():
                     escudo_seguro = row['escudo'] if (row['escudo'] and len(str(row['escudo'])) > 5) else placeholder
-                    info_equipos[row['nombre']] = {
-                        'escudo': escudo_seguro,
-                        'cel': f"{str(row['prefijo']).replace('+','')}{row['celular']}"
-                    }
+                    info_equipos[row['nombre']] = {'escudo': escudo_seguro, 'cel': f"{str(row['prefijo']).replace('+','')}{row['celular']}"}
             except: df_p = pd.DataFrame(); info_equipos = {}
 
             if not df_p.empty:
-                if filtro_partidos == "Conflictos":
-                    df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
-                elif filtro_partidos == "Pendientes":
-                    df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
+                if filtro_partidos == "Conflictos": df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
+                elif filtro_partidos == "Pendientes": df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
             
             if df_p.empty:
-                st.info(f"No hay partidos en la categoría: {filtro_partidos}")
+                st.info(f"No hay partidos: {filtro_partidos}")
             else:
                 jornadas = sorted(df_p['jornada'].unique())
                 tabs_j = st.tabs([f"J{int(j)}" for j in jornadas]) 
-
                 for i, tab in enumerate(tabs_j):
                     with tab:
                         df_j = df_p[df_p['jornada'] == jornadas[i]]
                         if df_j.empty: st.caption("Sin partidos.")
-                        
                         for _, row in df_j.iterrows():
                             d_l = info_equipos.get(row['local'], {'escudo': placeholder, 'cel': ''})
                             d_v = info_equipos.get(row['visitante'], {'escudo': placeholder, 'cel': ''})
@@ -1553,63 +1545,34 @@ if rol == "admin":
                             css_card = "match-card conflict" if rev else "match-card"
                             
                             st.markdown(f'<div class="{css_card}">', unsafe_allow_html=True)
-                            
                             c_p1 = st.columns([0.6, 2.5, 1, 0.2, 1, 2.5, 0.6], vertical_alignment="center")
                             with c_p1[0]: st.image(d_l['escudo'], width=30)
                             with c_p1[1]: st.markdown(f"<div class='team-l'>{row['local']}</div>", unsafe_allow_html=True)
-                            
                             with c_p1[2]:
                                 vl = str(int(row['goles_l'])) if pd.notna(row['goles_l']) else ""
                                 gl = st.text_input("L", value=vl, max_chars=2, label_visibility="collapsed", key=f"gL_{row['id']}")
-                                
                             with c_p1[3]: st.markdown("<div style='text-align:center; opacity:0.5'>-</div>", unsafe_allow_html=True)
-                            
                             with c_p1[4]:
                                 vv = str(int(row['goles_v'])) if pd.notna(row['goles_v']) else ""
                                 gv = st.text_input("V", value=vv, max_chars=2, label_visibility="collapsed", key=f"gV_{row['id']}")
-                                
                             with c_p1[5]: st.markdown(f"<div class='team-v'>{row['visitante']}</div>", unsafe_allow_html=True)
                             with c_p1[6]: st.image(d_v['escudo'], width=30)
 
                             st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-                            
                             c_row1 = st.columns(2, gap="small")
                             with c_row1[0]:
                                 if st.button("💾 Guardar", key=f"s_{row['id']}", use_container_width=True):
-                                    if gl == "" or gv == "":
-                                        st.toast("⚠️ Faltan goles")
-                                    elif not (gl.isdigit() and gv.isdigit()):
-                                        st.toast("⚠️ Solo números")
+                                    if gl == "" or gv == "": st.toast("⚠️ Faltan goles")
+                                    elif not (gl.isdigit() and gv.isdigit()): st.toast("⚠️ Solo números")
                                     else:
                                         with conn.connect() as db:
-                                            db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"),
-                                                       {"l":int(gl), "v":int(gv), "id":row['id']})
+                                            db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"),{"l":int(gl), "v":int(gv), "id":row['id']})
                                             db.commit()
-                                        st.toast("Guardado")
-                                        st.rerun()
-
+                                        st.toast("Guardado"); st.rerun()
                             with c_row1[1]:
                                 url_ev = row['url_foto_l'] or row['url_foto_v']
-                                if url_ev:
-                                    st.link_button("📷 Ver Foto", url_ev, use_container_width=True)
-                                else:
-                                    st.button("🚫 Sin Foto", key=f"no_{row['id']}", disabled=True, use_container_width=True)
-
-                            st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
-                            c_row2 = st.columns(2, gap="small")
-
-                            with c_row2[0]:
-                                if d_l['cel']:
-                                    st.link_button(f"📞 {row['local']}", f"https://wa.me/{d_l['cel']}", use_container_width=True)
-                                else:
-                                    st.button(f"🚫 {row['local']}", key=f"nl_{row['id']}", disabled=True, use_container_width=True)
-
-                            with c_row2[1]:
-                                if d_v['cel']:
-                                    st.link_button(f"📞 {row['visitante']}", f"https://wa.me/{d_v['cel']}", use_container_width=True)
-                                else:
-                                    st.button(f"🚫 {row['visitante']}", key=f"nv_{row['id']}", disabled=True, use_container_width=True)
-
+                                if url_ev: st.link_button("📷 Ver Foto", url_ev, use_container_width=True)
+                                else: st.button("🚫 Sin Foto", key=f"no_{row['id']}", disabled=True, use_container_width=True)
                             st.markdown("</div>", unsafe_allow_html=True)
 
         # ==========================================
@@ -1620,33 +1583,27 @@ if rol == "admin":
             
             try:
                 df_maestro = pd.read_sql_query(text("SELECT * FROM equipos WHERE nombre NOT IN ('Admin', 'Sistema') ORDER BY nombre"), conn)
-            except:
-                df_maestro = pd.DataFrame()
+            except: df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
                 st.write("") 
                 
+                # LISTA NEÓN COMPACTA
                 for _, eq in df_maestro.iterrows():
                     src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
                     celular_url = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
                     celular_texto = f"{eq['prefijo']} {eq['celular']}"
                     
                     c_img, c_txt = st.columns([0.15, 0.85], vertical_alignment="center")
-                    
-                    with c_img:
-                        st.image(src_escudo, width=35)
-                    
+                    with c_img: st.image(src_escudo, width=35)
                     with c_txt:
                         linea = f"**{eq['nombre']}** | <span style='color:#888'>PIN: `{eq['pin']}`</span> | 📞 [{celular_texto}](https://wa.me/{celular_url})"
                         st.markdown(linea, unsafe_allow_html=True)
-                    
-                    st.markdown(f"""
-                        <hr style='border: 0; height: 1px; background-color: {color_primario}; box-shadow: 0 0 4px {color_primario}; margin: 5px 0; opacity: 0.6;'>
-                        """, unsafe_allow_html=True)
+                    st.markdown(f"<hr style='border: 0; height: 1px; background-color: {color_primario}; box-shadow: 0 0 4px {color_primario}; margin: 5px 0; opacity: 0.6;'>", unsafe_allow_html=True)
 
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
-                # --- GESTIÓN Y EDICIÓN (NOMBRE ANCHO TOTAL) ---
+                # --- GESTIÓN Y EDICIÓN (SOLUCIÓN DEFINITIVA ANCHO TOTAL) ---
                 st.subheader("✏️ Gestión y Edición")
                 
                 lista_nombres = df_maestro['nombre'].tolist()
@@ -1656,22 +1613,21 @@ if rol == "admin":
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
                     with st.form("edit_master_form"):
-                        # --- SOLUCIÓN: NOMBRE FUERA DE COLUMNAS (100% ANCHO) ---
-                        st.markdown("**Nombre del Equipo**")
-                        new_name = st.text_input("Nombre", datos_sel['nombre'], label_visibility="collapsed")
+                        # ETIQUETA MANUAL GRANDE PARA QUE SE VEA BIEN
+                        st.write("📝 **Nombre del Equipo:**")
                         
-                        # PIN Y ESCUDO ABAJO
-                        c_pin, c_esc = st.columns([1, 1], vertical_alignment="bottom")
-                        with c_pin:
-                            st.markdown("**PIN**")
-                            new_pin = st.text_input("PIN", str(datos_sel['pin']), label_visibility="collapsed")
+                        # INPUT SIN ETIQUETA (COLLAPSED) PARA QUE NO QUEDE PEQUEÑO
+                        # AL ESTAR FUERA DE CUALQUIER COLUMNA, OCUPARÁ EL 100%
+                        new_name = st.text_input("Nombre", value=datos_sel['nombre'], label_visibility="collapsed")
                         
-                        st.write("---")
+                        st.write("🔑 **PIN de Acceso:**")
+                        new_pin = st.text_input("PIN", value=str(datos_sel['pin']), label_visibility="collapsed")
                         
-                        c_e1, c_e2 = st.columns([1, 3], vertical_alignment="center")
+                        st.markdown("---")
+                        
+                        c_e1, c_e2 = st.columns([1, 4], vertical_alignment="center")
                         with c_e1:
-                            if datos_sel['escudo']:
-                                st.image(datos_sel['escudo'], width=60)
+                            if datos_sel['escudo']: st.image(datos_sel['escudo'], width=60)
                         with c_e2:
                             nuevo_escudo_img = st.file_uploader("Actualizar escudo", type=['png', 'jpg', 'jpeg'])
                         
@@ -1679,8 +1635,7 @@ if rol == "admin":
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
-                            if quitar_escudo: 
-                                url_final = None
+                            if quitar_escudo: url_final = None
                             elif nuevo_escudo_img:
                                 try:
                                     res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
@@ -1689,20 +1644,14 @@ if rol == "admin":
 
                             try:
                                 with conn.connect() as db:
-                                    db.execute(
-                                        text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
-                                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
-                                    )
+                                    db.execute(text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),{"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel})
                                     if new_name != equipo_sel:
                                         db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
                                         db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
-                                    
                                     db.commit()
                                 st.success(f"✅ ¡{new_name} actualizado!")
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error actualizando: {e}")
+                                time.sleep(1); st.rerun()
+                            except Exception as e: st.error(f"Error: {e}")
 
                     if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
                         with conn.connect() as db:
@@ -1710,10 +1659,8 @@ if rol == "admin":
                             db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
                             db.commit()
                         st.error(f"Equipo eliminado.")
-                        time.sleep(1)
-                        st.rerun()
-            else:
-                st.info("No hay equipos registrados.")
+                        time.sleep(1); st.rerun()
+            else: st.info("No hay equipos registrados.")
 
         # ==========================================
         # PESTAÑA 3: CONFIGURACIÓN
@@ -1722,10 +1669,10 @@ if rol == "admin":
             st.subheader("⚙️ Configuración General")
 
             # 1. DISEÑO
-            st.markdown("##### 🎨 Diseño del Torneo")
+            st.markdown("##### 🎨 Diseño")
             col_picker, col_btn_c = st.columns([1, 2], vertical_alignment="bottom")
             with col_picker:
-                nuevo_color = st.color_picker("Color Primario (Neón)", value=color_primario)
+                nuevo_color = st.color_picker("Color Neón", value=color_primario)
             with col_btn_c:
                 if st.button("Aplicar Color"):
                     with conn.connect() as db:
@@ -1733,15 +1680,12 @@ if rol == "admin":
                         if res.rowcount == 0:
                             db.execute(text("INSERT INTO config (clave, valor) VALUES ('color_primario', :v)"), {"v":nuevo_color})
                         db.commit()
-                    st.toast("Color actualizado")
-                    time.sleep(1)
-                    st.rerun()
+                    st.toast("Color actualizado"); time.sleep(1); st.rerun()
 
             st.divider()
 
-            # 2. CONTROL DE FASES (CLAVE 'fase_actual')
+            # 2. FASES
             st.markdown("##### 🚀 Estado del Torneo")
-            
             try:
                 res_fase = pd.read_sql_query("SELECT valor FROM config WHERE clave='fase_actual'", conn)
                 fase_actual_db = res_fase.iloc[0,0] if not res_fase.empty else "inscripcion"
@@ -1750,46 +1694,35 @@ if rol == "admin":
             st.info(f"Fase actual: **{fase_actual_db.upper()}**")
             
             if fase_actual_db == "inscripcion":
-                st.write("¿Ya tienes todos los equipos listos?")
                 if st.button("🚀 Iniciar Torneo (Ir a Clasificación)", type="primary", use_container_width=True):
                     with conn.connect() as db:
                         db.execute(text("UPDATE config SET valor='clasificacion' WHERE clave='fase_actual'"))
                         db.commit()
-                    st.balloons()
-                    time.sleep(1)
-                    st.rerun()
+                    st.balloons(); time.sleep(1); st.rerun()
                     
             elif fase_actual_db == "clasificacion":
-                st.write("¿Terminó la fase de grupos?")
                 if st.button("⚔️ Pasar a Eliminatorias", type="primary", use_container_width=True):
                     with conn.connect() as db:
                         db.execute(text("UPDATE config SET valor='eliminatorias' WHERE clave='fase_actual'"))
                         db.commit()
-                    st.snow()
-                    time.sleep(1)
-                    st.rerun()
+                    st.snow(); time.sleep(1); st.rerun()
 
             elif fase_actual_db == "eliminatorias":
-                st.success("El torneo está en sus fases finales.")
-                if st.button("🏆 Finalizar Torneo (Archivar)", type="primary", use_container_width=True):
-                    st.toast("Función de archivado pendiente.")
+                if st.button("🏆 Finalizar Torneo", type="primary", use_container_width=True):
+                    st.toast("Función pendiente.")
 
             st.divider()
 
             # 3. ZONA DE PELIGRO
-            st.markdown("##### 🚨 Zona de Peligro")
-            with st.expander("☠️ Cancelar / Reiniciar Torneo"):
-                st.warning("¡Cuidado! Esto borrará todos los partidos y resultados, regresando el torneo a fase de 'Inscripción'. Los equipos NO se borrarán.")
-                confirmar_reset = st.checkbox("Entiendo, quiero reiniciar el torneo.")
-                
+            with st.expander("☠️ Cancelar / Reiniciar"):
+                st.warning("Borrará partidos y resultados.")
+                confirmar_reset = st.checkbox("Confirmar reinicio")
                 if st.button("Reiniciar Torneo", type="secondary", disabled=not confirmar_reset, use_container_width=True):
                     with conn.connect() as db:
                         db.execute(text("DELETE FROM partidos"))
                         db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
                         db.commit()
-                    st.success("Torneo reiniciado.")
-                    time.sleep(1)
-                    st.rerun()
+                    st.success("Reiniciado."); time.sleep(1); st.rerun()
 
 
 
