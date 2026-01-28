@@ -16,23 +16,20 @@ COLOR_MARCA = "#FFD700"  # Dorado Gol Gana
 # --- CONEXIÓN A BASE DE DATOS (NEON) ---
 # Reemplaza esto con tu string real de Neon Console
 # "postgresql://usuario:password@host/nombre_db?sslmode=require"
-try:
-    # Intenta buscar en st.secrets si existe, si no, usa un string directo (cuidado al compartir)
-    DATABASE_URL = st.secrets["connections"]["postgresql"]["dialect"] + "://" + \
-                   st.secrets["connections"]["postgresql"]["username"] + ":" + \
-                   st.secrets["connections"]["postgresql"]["password"] + "@" + \
-                   st.secrets["connections"]["postgresql"]["host"] + "/" + \
-                   st.secrets["connections"]["postgresql"]["database"]
-except:
-    # Pega tu Link de Neon aquí si no usas secrets.toml
-    DATABASE_URL = "TU_LINK_DE_NEON_AQUI" 
 
-try:
-    engine = create_engine(DATABASE_URL)
-    conn = engine.connect()
-except Exception as e:
-    st.error(f"⚠️ Error de conexión a la base de datos: {e}")
-    st.stop()
+
+# --- 2. GESTIÓN DE CONEXIÓN ---
+@st.cache_resource
+def get_db_connection():
+    try:
+        if "connections" not in st.secrets or "postgresql" not in st.secrets["connections"]:
+            return None
+        db_url = st.secrets["connections"]["postgresql"]["url"]
+        return create_engine(db_url, pool_pre_ping=True)
+    except:
+        return None
+
+conn = get_db_connection()
 
 # ==============================================================================
 # 2. ESTILOS CSS (BLINDAJE VISUAL + FONDO)
@@ -268,3 +265,4 @@ if "id" in params:
 else:
     # SI NO HAY ID -> MOSTRAMOS EL LOBBY GOL GANA
     render_lobby()
+
