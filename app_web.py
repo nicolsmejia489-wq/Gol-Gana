@@ -27,15 +27,18 @@ def get_db_connection():
 conn = get_db_connection()
 
 # ==============================================================================
-# 2. ESTILOS CSS (FUENTE OSWALD + BLINDAJE + INTERACCIÓN)
+# 2. ESTILOS CSS (FUENTE OSWALD + TABS DINÁMICOS + BLINDAJE)
 # ==============================================================================
 st.markdown(f"""
     <style>
-          button[data-baseweb="tab"] {
-        flex-grow: 1;           /* Hace que cada pestaña crezca por igual */
-        justify-content: center; /* Centra el texto dentro de la pestaña */
-        min-width: 150px;       /* Opcional: define un ancho mínimo uniforme */
-        }
+        /* 0. AJUSTE GLOBAL DE PESTAÑAS (NUEVO) */
+        button[data-baseweb="tab"] {{
+            flex-grow: 1;           /* Cada pestaña crece para ocupar el espacio disponible */
+            justify-content: center; /* Centra el texto */
+            min-width: 150px;       /* Evita que se vean muy pequeñas en móvil */
+            transition: all 0.3s ease;
+        }}
+
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;600&display=swap');
 
         /* 1. FONDO GENERAL Y TIPOGRAFÍA */
@@ -49,7 +52,7 @@ st.markdown(f"""
             font-family: 'Oswald', sans-serif !important;
         }}
         
-        /* Forzar fuente en todos los elementos */
+        /* Forzar fuente en todos los elementos interactivos */
         h1, h2, h3, h4, h5, h6, p, div, button, input, label, span, textarea, a {{
             font-family: 'Oswald', sans-serif !important;
         }}
@@ -64,6 +67,7 @@ st.markdown(f"""
             letter-spacing: 0.5px;
             border-radius: 8px !important;
         }}
+        
         button[kind="secondary"], div[data-testid="stLinkButton"] a {{
             background-color: #262730 !important;
             border: 1px solid #555 !important;
@@ -72,6 +76,7 @@ st.markdown(f"""
             letter-spacing: 1px;
             border-radius: 8px !important;
         }}
+        
         button[kind="primary"] {{
             background-color: {COLOR_MARCA} !important;
             color: black !important;
@@ -83,8 +88,12 @@ st.markdown(f"""
             letter-spacing: 1px;
         }}
 
-        /* 3. ESTILO DE LAS PESTAÑAS (TABS) */
-        .stTabs [data-baseweb="tab-list"] {{ gap: 10px; }}
+        /* 3. ESTILO DE LAS PESTAÑAS (TABS) - AJUSTES DE COLOR */
+        .stTabs [data-baseweb="tab-list"] {{ 
+            gap: 10px; 
+            background-color: transparent;
+        }}
+        
         .stTabs [data-baseweb="tab"] {{
             background-color: rgba(255,255,255,0.05);
             border-radius: 8px 8px 0 0;
@@ -92,13 +101,14 @@ st.markdown(f"""
             font-weight: 400;
             letter-spacing: 1px;
         }}
+        
         .stTabs [aria-selected="true"] {{
             background-color: rgba(255, 215, 0, 0.1) !important;
             color: {COLOR_MARCA} !important;
             border-top: 3px solid {COLOR_MARCA} !important;
         }}
 
-        /* 4. TARJETAS DE LOBBY (INTERACTIVAS) */
+        /* 4. TARJETAS DE LOBBY */
         .lobby-card {{
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
@@ -106,39 +116,16 @@ st.markdown(f"""
             margin-bottom: 20px;
             border: 1px solid rgba(255,255,255,0.1);
             transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer; /* Indica que es clickeable */
             position: relative;
         }}
+        
         .lobby-card:hover {{
-            transform: scale(1.02);
+            transform: scale(1.01);
             border-color: {COLOR_MARCA};
             background-color: rgba(255, 255, 255, 0.08);
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }}
 
-        /* NUEVO: Botón específico dentro de la tarjeta HTML */
-        .btn-inscribir {{
-            display: inline-block;
-            background-color: {COLOR_MARCA}; /* Usa tu variable Python */
-            color: black !important;
-            padding: 10px 20px;
-            border-radius: 5px;
-            text-decoration: none !important;
-            font-weight: 600;
-            font-size: 16px;
-            margin-top: 15px;
-            width: 100%; /* Ocupa todo el ancho si quieres */
-            text-align: center;
-            border: none;
-            transition: background-color 0.2s;
-            position: relative;
-            z-index: 10; /* Encima del click de la tarjeta */
-        }}
-        .btn-inscribir:hover {{
-            background-color: #e6c200; /* Un poco más oscuro al hover */
-            color: black !important;
-        }}
-        
         /* 5. BURBUJA DEL BOT */
         .bot-bubble {{
             background-color: rgba(30, 30, 40, 0.9);
@@ -152,20 +139,26 @@ st.markdown(f"""
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             animation: fadeIn 1s ease-in;
         }}
+        
         .bot-text {{ color: #ddd; font-size: 16px; font-weight: 300; line-height: 1.4; }}
         .bot-avatar {{ font-size: 28px; }}
-        @keyframes fadeIn {{ from {{ opacity:0; transform:translateY(10px); }} to {{ opacity:1; transform:translateY(0); }} }}
-
-        /* 6. MANIFIESTO */
-        .manifesto-container {{
-            margin-top: 50px; padding: 30px;
-            background: rgba(0,0,0,0.3);
-            border-top: 1px solid #333; border-radius: 15px;
+        
+        @keyframes fadeIn {{ 
+            from {{ opacity:0; transform:translateY(10px); }} 
+            to {{ opacity:1; transform:translateY(0); }} 
         }}
+
+        /* 6. MANIFIESTO (FOOTER) */
+        .manifesto-container {{
+            margin-top: 50px; 
+            padding: 30px;
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid #333; 
+            border-radius: 15px;
+        }}
+        
         .intro-quote {{ font-size: 20px; font-style: italic; color: {COLOR_MARCA}; text-align: center; margin-bottom: 20px; font-weight: 300; }}
         .intro-text {{ font-size: 15px; text-align: justify; color: #aaa; line-height: 1.6; margin-bottom: 10px; font-weight: 300; }}
-
-
     </style>
 """, unsafe_allow_html=True)
 
@@ -195,13 +188,13 @@ def render_lobby():
     tab_eq, tab_dt, tab_adm = st.tabs(["🛡️ Equipos", "🧠 DTs / Capitanes", "👮 Administradores"])
     
     with tab_eq:
-        mostrar_bot("Olvídate de los debates subjetivos; aquí hablamos con datos, no opiniones.")
+        mostrar_bot(""Olvídate de los debates subjetivos; aquí hablamos con datos, no opiniones. Te muestro contra quién compites más, a quién has dominado siempre o quién no has podido vencer nunca. Cada partido, título y victoria forma parte de la historia de Clubes Pro."")
     
     with tab_dt:
-        mostrar_bot("Sé que gestionar un equipo es difícil. He simplificado todo para que cada competencia sea más fluida.")
+        mostrar_bot("Sé que gestionar un equipo es difícil. He simplificado todo para que cada competencia sea más fluida. Te facilitaré el Contacto con rivales, la revisión de marcadores y una actualización Instantánea.")
         
     with tab_adm:
-        mostrar_bot("Yo te apoyaré con el trabajo sucio: lectura y proceso de marcadores.")
+        mostrar_bot("Yo te apoyaré con el trabajo sucio: lectura y proceso de marcadores, actualización de tablas, rondas y estadísticas. Tú tomas las decisiones importantes y defines los colores de tu competición para que tu comunidad resalte sobre las demás.")
 
     # --- LÍNEA DIVISORIA ---
     st.markdown("---")
@@ -352,6 +345,7 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
 
 
 
