@@ -407,7 +407,7 @@ def render_torneo(id_torneo):
             
     with col_acc:
         # Menú flotante para ingreso de PIN
-        with st.popover("🔐 Acceso DT/Admin", use_container_width=True):
+        with st.popover("Acceso DT/Admin", use_container_width=True):
             st.write(f"Acceso restringido")
             pin_input = st.text_input("Ingresa PIN", type="password", key="pin_torneo")
             if st.button("Verificar", use_container_width=True, type="primary"):
@@ -464,6 +464,7 @@ if "id" in params:
 else:
     # De lo contrario, mostramos el Lobby principal
     render_lobby()
+
 
 
 
