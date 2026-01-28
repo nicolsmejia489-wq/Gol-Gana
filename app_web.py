@@ -1427,7 +1427,7 @@ if rol == "dt":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: NOMBRE FULL WIDTH REAL) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: CONTACTO EDITABLE, NOMBRE FIJO) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control")
@@ -1603,7 +1603,7 @@ if rol == "admin":
 
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
-                # --- GESTIÓN Y EDICIÓN (SOLUCIÓN DEFINITIVA ANCHO TOTAL) ---
+                # --- GESTIÓN Y EDICIÓN (NOMBRE FIJO, CONTACTO EDITABLE) ---
                 st.subheader("✏️ Gestión y Edición")
                 
                 lista_nombres = df_maestro['nombre'].tolist()
@@ -1613,25 +1613,33 @@ if rol == "admin":
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
                     with st.form("edit_master_form"):
-                        # ETIQUETA MANUAL GRANDE PARA QUE SE VEA BIEN
-                        st.write("📝 **Nombre del Equipo:**")
+                        # NOMBRE NO EDITABLE (TITULAR)
+                        st.markdown(f"### 🛡️ {datos_sel['nombre']}")
+                        st.caption("El nombre del equipo no se puede modificar.")
+                        st.write("")
+
+                        # 1. EDITAR CONTACTO (NUEVO)
+                        st.markdown("**📞 Datos de Contacto**")
+                        c_pref, c_cel = st.columns([1, 2])
+                        with c_pref:
+                            new_pref = st.text_input("Prefijo", value=datos_sel['prefijo'])
+                        with c_cel:
+                            new_cel = st.text_input("WhatsApp", value=datos_sel['celular'])
+
+                        # 2. PIN Y ESCUDO
+                        st.write("")
+                        st.markdown("**🔑 Seguridad y Diseño**")
+                        c_pin, c_esc = st.columns([1, 2], vertical_alignment="center")
+                        with c_pin:
+                            new_pin = st.text_input("PIN Acceso", value=str(datos_sel['pin']))
                         
-                        # INPUT SIN ETIQUETA (COLLAPSED) PARA QUE NO QUEDE PEQUEÑO
-                        # AL ESTAR FUERA DE CUALQUIER COLUMNA, OCUPARÁ EL 100%
-                        new_name = st.text_input("Nombre", value=datos_sel['nombre'], label_visibility="collapsed")
-                        
-                        st.write("🔑 **PIN de Acceso:**")
-                        new_pin = st.text_input("PIN", value=str(datos_sel['pin']), label_visibility="collapsed")
-                        
-                        st.markdown("---")
-                        
-                        c_e1, c_e2 = st.columns([1, 4], vertical_alignment="center")
-                        with c_e1:
-                            if datos_sel['escudo']: st.image(datos_sel['escudo'], width=60)
-                        with c_e2:
-                            nuevo_escudo_img = st.file_uploader("Actualizar escudo", type=['png', 'jpg', 'jpeg'])
+                        with c_esc:
+                            if datos_sel['escudo']: st.image(datos_sel['escudo'], width=40)
+                            nuevo_escudo_img = st.file_uploader("Cambiar Escudo", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
                         
                         quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
+                        
+                        st.write("")
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
@@ -1644,16 +1652,17 @@ if rol == "admin":
 
                             try:
                                 with conn.connect() as db:
-                                    db.execute(text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),{"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel})
-                                    if new_name != equipo_sel:
-                                        db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
-                                        db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                    # UPDATE SOLO DATOS, NO NOMBRE
+                                    db.execute(
+                                        text("UPDATE equipos SET pin=:np, escudo=:ne, prefijo=:pr, celular=:cel WHERE nombre=:n"),
+                                        {"np": new_pin, "ne": url_final, "pr": new_pref, "cel": new_cel, "n": equipo_sel}
+                                    )
                                     db.commit()
-                                st.success(f"✅ ¡{new_name} actualizado!")
+                                st.success(f"✅ Datos de {equipo_sel} actualizados!")
                                 time.sleep(1); st.rerun()
                             except Exception as e: st.error(f"Error: {e}")
 
-                    if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
+                    if st.button(f"✖️ Eliminar Equipo: {equipo_sel}", use_container_width=True):
                         with conn.connect() as db:
                             db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
                             db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
