@@ -83,7 +83,24 @@ st.markdown(f"""
             letter-spacing: 1px;
         }}
 
-        /* 3. TARJETAS DE LOBBY */
+        /* 3. ESTILO DE LAS PESTAÑAS (TABS) */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 10px;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            background-color: rgba(255,255,255,0.05);
+            border-radius: 8px 8px 0 0;
+            color: #aaa;
+            font-weight: 400;
+            letter-spacing: 1px;
+        }}
+        .stTabs [aria-selected="true"] {{
+            background-color: rgba(255, 215, 0, 0.1) !important;
+            color: {COLOR_MARCA} !important;
+            border-top: 3px solid {COLOR_MARCA} !important;
+        }}
+
+        /* 4. TARJETAS DE LOBBY */
         .lobby-card {{
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
@@ -98,7 +115,7 @@ st.markdown(f"""
             background-color: rgba(255, 255, 255, 0.08);
         }}
         
-        /* 4. BURBUJA DEL BOT */
+        /* 5. BURBUJA DEL BOT */
         .bot-bubble {{
             background-color: rgba(30, 30, 40, 0.9);
             border-left: 4px solid {COLOR_MARCA};
@@ -113,7 +130,7 @@ st.markdown(f"""
         }}
         .bot-text {{
             color: #ddd;
-            font-size: 17px; 
+            font-size: 16px; 
             font-weight: 300;
             line-height: 1.4;
         }}
@@ -122,9 +139,16 @@ st.markdown(f"""
         }}
         @keyframes fadeIn {{ from {{ opacity:0; transform:translateY(10px); }} to {{ opacity:1; transform:translateY(0); }} }}
 
-        /* 5. ESTILO MANIFIESTO (INTRO) */
+        /* 6. ESTILO MANIFIESTO (FOOTER) */
+        .manifesto-container {{
+            margin-top: 50px;
+            padding: 30px;
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid #333;
+            border-radius: 15px;
+        }}
         .intro-quote {{
-            font-size: 22px;
+            font-size: 20px;
             font-style: italic;
             color: {COLOR_MARCA};
             text-align: center;
@@ -132,16 +156,12 @@ st.markdown(f"""
             font-weight: 300;
         }}
         .intro-text {{
-            font-size: 16px;
+            font-size: 15px;
             text-align: justify;
-            color: #e0e0e0;
+            color: #aaa;
             line-height: 1.6;
             margin-bottom: 10px;
             font-weight: 300;
-        }}
-        .intro-highlight {{
-            color: white;
-            font-weight: 600;
         }}
     </style>
 """, unsafe_allow_html=True)
@@ -163,30 +183,23 @@ def render_lobby():
     # --- A. PORTADA ---
     st.image(URL_PORTADA, use_container_width=True)
     
-    # --- B. MANIFIESTO / INTRODUCCIÓN ---
-    st.markdown(f"""
-        <div class="intro-quote">
-            “Mientras otros solo anotan goles, tú construyes una historia”
-        </div>
-        <div class="intro-text">
-            El mundo ha cambiado. La tecnología y la Inteligencia Artificial han redefinido cada industria, y hoy, 
-            ese poder llega finalmente a la comunidad de Clubes Pro. Ya no se trata solo de jugar un partido; 
-            se trata del legado que dejas en cada cancha virtual.
-        </div>
-        <div class="intro-text">
-            En la élite, los equipos más grandes no solo se miden por sus títulos, sino por los datos e indicadores 
-            que respaldan cada trofeo. Por eso, en <b>Gol-Gana</b>, cada victoria, cada rivalidad y cada estadística 
-            forman parte de una historia viva y objetiva. La evolución no se detiene, es momento de dar paso a un 
-            ecosistema inteligente donde la historia de cada club puede ser eterna.
-        </div>
-        <div style="text-align:center; margin-top:15px; font-size:18px; font-weight:600; color:{COLOR_MARCA};">
-            ¿Estás listo para transformar tu comunidad? Únete a los clubes que ya compiten en el futuro.
-        </div>
-        <br>
-    """, unsafe_allow_html=True)
-
-    # --- C. SALUDO DEL BOT ---
+    # --- B. SALUDO DEL BOT ---
     mostrar_bot("Hola, Soy <b>Gol Bot</b>. Guardaré las estadísticas de equipo y apoyaré al admin en la organización de cada torneo.")
+
+    # --- C. SECCIÓN: NOVEDADES (TABS) ---
+    st.markdown(f"<h3 style='text-align:center; color:{COLOR_MARCA}; margin-top:10px; letter-spacing:2px;'>NOVEDADES</h3>", unsafe_allow_html=True)
+    
+    # Pestañas de información
+    tab_eq, tab_dt, tab_adm = st.tabs(["🛡️ Equipos", "🧠 DTs / Capitanes", "👮 Administradores"])
+    
+    with tab_eq:
+        mostrar_bot("Olvídate de los debates subjetivos; aquí hablamos con datos, no opiniones. Te muestro contra quién compites más, a quién has dominado siempre o quién no has podido vencer nunca. Cada partido, título y victoria forma parte de la historia de Clubes Pro.")
+    
+    with tab_dt:
+        mostrar_bot("Sé que gestionar un equipo es difícil. He simplificado todo para que cada competencia sea más fluida. Te facilitaré el Contacto con rivales, la revisión de marcadores y una actualización Instantánea.")
+        
+    with tab_adm:
+        mostrar_bot("Yo te apoyaré con el trabajo sucio: lectura y proceso de marcadores, actualización de tablas, rondas y estadísticas. Tú tomas las decisiones importantes y defines los colores de tu competición para que tu comunidad resalte sobre las demás.")
 
     st.markdown("---")
 
@@ -284,6 +297,29 @@ def render_lobby():
                         st.error(f"Error creando el torneo: {e}")
                 else:
                     st.warning("⚠️ Faltan datos obligatorios.")
+
+    # --- F. MANIFIESTO (FOOTER) ---
+    st.markdown(f"""
+        <div class="manifesto-container">
+            <div class="intro-quote">
+                “Mientras otros solo anotan goles, tú construyes una historia”
+            </div>
+            <div class="intro-text">
+                El mundo ha cambiado. La tecnología y la Inteligencia Artificial han redefinido cada industria, y hoy, 
+                ese poder llega finalmente a la comunidad de Clubes Pro. Ya no se trata solo de jugar un partido; 
+                se trata del legado que dejas en cada cancha virtual.
+            </div>
+            <div class="intro-text">
+                En la élite, los equipos más grandes no solo se miden por sus títulos, sino por los datos e indicadores 
+                que respaldan cada trofeo. Por eso, en <b>Gol-Gana</b>, cada victoria, cada rivalidad y cada estadística 
+                forman parte de una historia viva y objetiva. La evolución no se detiene, es momento de dar paso a un 
+                ecosistema inteligente donde la historia de cada club puede ser eterna.
+            </div>
+            <div style="text-align:center; margin-top:15px; font-size:18px; font-weight:600; color:{COLOR_MARCA};">
+                ¿Estás listo para transformar tu comunidad? Únete a los clubes que ya compiten en el futuro.
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
 # ==============================================================================
 # 4. ENRUTADOR PRINCIPAL
