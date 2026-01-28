@@ -13,36 +13,29 @@ URL_FONDO_BASE = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769030979/
 URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769050565/a906a330-8b8c-4b52-b131-8c75322bfc10_hwxmqb.png"
 COLOR_MARCA = "#FFD700"  # Dorado Gol Gana
 
-# ==============================================================================
-# 2. GESTIÓN DE CONEXIÓN A BASE DE DATOS (A PRUEBA DE FALLOS)
-# ==============================================================================
+# --- CONEXIÓN A BASE DE DATOS (SEGURA CON SECRETS) ---
 @st.cache_resource
 def get_db_connection():
-    # INTENTO 1: Buscar en st.secrets (Producción / Local bien configurado)
     try:
-        # Verificamos si existe el archivo de secretos
-        if hasattr(st, "secrets") and "connections" in st.secrets:
-            db_url = st.secrets["connections"]["postgresql"]["url"]
-            return create_engine(db_url, pool_pre_ping=True)
+        if "connections" not in st.secrets or "postgresql" not in st.secrets["connections"]:
+            st.error("⚠️ No se encontraron las credenciales en st.secrets")
+            return None
+        db_url = st.secrets["connections"]["postgresql"]["url"]
+        return create_engine(db_url, pool_pre_ping=True)
     except Exception as e:
-        print(f"Nota: No se usaron secrets ({e})")
-    
-    # INTENTO 2: String directo (Pega tu link de NEON aquí si fallan los secrets)
-    # db_url = "postgresql://usuario:pass@host/db..." 
-    # return create_engine(db_url)
-
-    return None # Si retorna None, la app funcionará en modo "Solo Diseño"
+        st.error(f"⚠️ Error conectando a BD: {e}")
+        return None
 
 conn = get_db_connection()
 
 # ==============================================================================
-# 3. ESTILOS CSS (AJUSTADO: MENOS OSCURO)
+# 2. ESTILOS CSS & COMPONENTE BOT
 # ==============================================================================
 st.markdown(f"""
     <style>
-        /* A. FONDO GENERAL (Aclarado al 85% para que veas el fondo) */
+        /* 1. FONDO GENERAL */
         .stApp {{
-            background: linear-gradient(rgba(14, 17, 23, 0.85), rgba(14, 17, 23, 0.90)), 
+            background: linear-gradient(rgba(14, 17, 23, 0.92), rgba(14, 17, 23, 0.96)), 
                         url("{URL_FONDO_BASE}");
             background-size: cover;
             background-position: center;
@@ -50,22 +43,21 @@ st.markdown(f"""
             color: white;
         }}
         
-        /* B. INPUTS Y SELECTORES */
+        /* 2. INPUTS Y BOTONES (Blindaje Visual) */
         div[data-testid="stTextInput"] input, div[data-testid="stSelectbox"] > div > div {{
             background-color: #262730 !important;
             border: 1px solid #444 !important;
             color: white !important;
-            height: 48px !important;
+            height: 50px !important;
+            font-size: 16px !important;
             border-radius: 8px !important;
         }}
-        
-        /* C. BOTONES */
         button[kind="secondary"], div[data-testid="stLinkButton"] a {{
             background-color: #262730 !important;
             border: 1px solid #555 !important;
             color: white !important;
         }}
-        button[kind="secondary"]:hover, div[data-testid="stLinkButton"] a:hover {{
+        button[kind="secondary"]:hover {{
             border-color: {COLOR_MARCA} !important;
             color: {COLOR_MARCA} !important;
         }}
@@ -75,134 +67,178 @@ st.markdown(f"""
             font-weight: 800 !important;
             border: none !important;
         }}
-        
-        /* D. TARJETAS */
+
+        /* 3. TARJETAS DE LOBBY */
         .lobby-card {{
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
-            padding: 15px 20px;
-            margin-bottom: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
             border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.2s;
+        }}
+        .lobby-card:hover {{
+            transform: scale(1.02);
+            border-color: {COLOR_MARCA};
         }}
         
-        /* E. ANIMACIONES DEL BOT */
-        @keyframes slideInUp {{ from {{ transform: translateY(20px); opacity: 0; }} to {{ transform: translateY(0); opacity: 1; }} }}
-        .bot-bar {{
-            animation: slideInUp 0.5s ease-out;
-            background-color: rgba(30, 30, 40, 0.95);
-            border-left: 4px solid {COLOR_MARCA};
-            border-radius: 8px;
-            padding: 8px 15px;
-            margin-bottom: 15px;
-            display: flex; align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        /* 4. BURBUJA DEL BOT (Personalización) */
+        .bot-bubble {{
+            background-color: rgba(255, 215, 0, 0.1);
+            border-left: 3px solid {COLOR_MARCA};
+            border-radius: 0 10px 10px 0;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }}
-        .bot-icon {{ animation: float 3s ease-in-out infinite; font-size: 22px; }}
-        @keyframes float {{ 0% {{ transform: translateY(0px); }} 50% {{ transform: translateY(-3px); }} 100% {{ transform: translateY(0px); }} }}
-        
-        /* REACCIONES */
-        div[data-testid="column"] button.reaccion-btn {{ background: transparent !important; border: none !important; }}
+        .bot-text {{
+            color: #eee;
+            font-size: 14px;
+            font-style: italic;
+        }}
+        .bot-avatar {{
+            font-size: 24px;
+            animation: float 3s ease-in-out infinite;
+        }}
+        @keyframes float {{
+            0% {{ transform: translateY(0px); }}
+            50% {{ transform: translateY(-5px); }}
+            100% {{ transform: translateY(0px); }}
+        }}
     </style>
 """, unsafe_allow_html=True)
 
-# ==============================================================================
-# 4. COMPONENTE: BOT GANA (MINI)
-# ==============================================================================
-def mostrar_bot_mini(mensaje, key_unica):
-    session_key = f"bot_closed_{key_unica}"
-    if session_key not in st.session_state: st.session_state[session_key] = False
-    if st.session_state[session_key]: return
-
-    c_bot = st.container()
-    with c_bot:
-        cols = st.columns([0.1, 0.75, 0.075, 0.075], vertical_alignment="center")
-        with cols[0]: st.markdown('<div class="bot-icon">🤖</div>', unsafe_allow_html=True)
-        with cols[1]: st.markdown(f"<span style='color:#ddd; font-size:14px; font-style:italic;'>{mensaje}</span>", unsafe_allow_html=True)
-        with cols[2]: 
-            if st.button("👍", key=f"lk_{key_unica}", help="Útil"):
-                st.session_state[session_key] = True; st.toast("¡Anotado!"); time.sleep(0.2); st.rerun()
-        with cols[3]: 
-            if st.button("✖️", key=f"cl_{key_unica}", help="Cerrar"):
-                st.session_state[session_key] = True; st.rerun()
-        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+def mostrar_bot(mensaje):
+    """Componente reutilizable para el asistente virtual"""
+    st.markdown(f"""
+        <div class="bot-bubble">
+            <div class="bot-avatar">🤖</div>
+            <div class="bot-text">{mensaje}</div>
+        </div>
+    """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 5. LÓGICA DEL LOBBY
+# 3. LÓGICA DEL LOBBY
 # ==============================================================================
+
 def render_lobby():
-    # --- HEADER ---
-    try:
-        st.image(URL_PORTADA, use_container_width=True)
-    except:
-        st.header("🏆 GOL GANA") # Fallback si la imagen falla
-
-    # --- DIAGNÓSTICO DE BASE DE DATOS ---
-    if conn is None:
-        st.warning("⚠️ **Modo Diseño (Sin Base de Datos):** No se detectaron credenciales en secrets.toml. La interfaz se muestra pero no guardará datos.")
-
-    # BOT INTRO
-    mostrar_bot_mini("¡Hola! Soy Bot Gana. Abajo encuentras los torneos activos.", "bot_lobby_intro")
+    # --- A. PORTADA ---
+    st.image(URL_PORTADA, use_container_width=True)
+    
+    # SALUDO DEL BOT (Primera interacción)
+    mostrar_bot("¡Hola! Soy <b>Bot Gana</b>. Estoy aquí para organizar tus torneos y estadísticas. <br>Abajo encontrarás las ligas activas o puedes crear la tuya.")
 
     st.markdown("---")
+
+    # --- B. TORNEOS VIGENTES ---
     st.subheader("🔥 Torneos en Curso")
 
-    # --- LISTAR TORNEOS ---
     try:
         if conn:
-            query = text("SELECT id, nombre, organizador, color_primario, fase, formato FROM torneos WHERE fase != 'Terminado' ORDER BY fecha_creacion DESC")
+            query = text("""
+                SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
+                FROM torneos 
+                WHERE fase != 'Terminado' 
+                ORDER BY fecha_creacion DESC
+            """)
             df_torneos = pd.read_sql_query(query, conn)
         else:
             df_torneos = pd.DataFrame()
     except Exception as e:
-        # st.error(f"Error SQL: {e}") # Descomentar para ver error real
+        st.error("Error de conexión.")
         df_torneos = pd.DataFrame()
 
     if not df_torneos.empty:
         for _, t in df_torneos.iterrows():
             with st.container():
+                # Tarjeta visual
                 st.markdown(f"""
-                <div class="lobby-card" style="border-left: 5px solid {t['color_primario']};">
-                    <h3 style="margin:0; color:white;">{t['nombre']}</h3>
-                    <p style="margin:0; font-size:13px; opacity:0.7; color:#ccc;">👮 {t['organizador']} | 🎮 {t['formato']}</p>
-                    <span style="color:{t['color_primario']}; font-size:11px; border:1px solid {t['color_primario']}; padding:2px 5px; border-radius:4px;">{t['fase']}</span>
-                </div>""", unsafe_allow_html=True)
-                if st.button(f"⚽ Ver Torneo", key=f"btn_{t['id']}", use_container_width=True):
-                    st.query_params["id"] = str(t['id']); st.rerun()
+                <div class="lobby-card" style="border-left: 6px solid {t['color_primario']};">
+                    <h2 style="margin:0; font-weight:800; font-size: 22px; color:white;">{t['nombre']}</h2>
+                    <p style="margin:5px 0 0 0; font-size:14px; opacity:0.7; color:#ccc;">
+                        👮 Organiza: {t['organizador']} | 🎮 {t['formato']}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Botón de acción
+                if st.button(f"⚽ Entrar al Torneo", key=f"btn_lobby_{t['id']}", use_container_width=True):
+                    st.query_params["id"] = str(t['id'])
+                    st.rerun()
     else:
-        st.info("No hay torneos activos (o no hay conexión a BD).")
+        st.info("No hay torneos activos. ¡Sé el primero en crear uno!")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- CREAR TORNEO ---
-    with st.expander("✨ ¿Eres Organizador? Crea tu Torneo", expanded=False):
-        mostrar_bot_mini("Elige un color único para tu marca.", "bot_crear_color")
-        with st.form("form_crear"):
-            new_nombre = st.text_input("Nombre del Torneo")
-            c1, c2 = st.columns(2)
-            new_formato = c1.selectbox("Formato", ["Grupos", "Liga"])
-            new_color = c2.color_picker("Color", "#00FF00")
-            c3, c4 = st.columns(2)
-            new_org = c3.text_input("Organizador")
-            new_pin = c4.text_input("PIN (4 dígitos)", type="password", max_chars=4)
+    # --- C. CREAR NUEVO TORNEO (Con guía del Bot) ---
+    with st.expander("✨ ¡Soy Organizador! Crear mi Torneo", expanded=False):
+        
+        # EL BOT GUÍA AL ADMIN
+        mostrar_bot("¡Excelente decisión! Configura tu torneo aquí. <br>Recuerda: <b>El PIN es sagrado</b>, será tu única llave para editar resultados.")
+        
+        with st.form("form_crear_torneo"):
+            st.markdown("##### 1. Identidad del Torneo")
+            new_nombre = st.text_input("Nombre de la Competencia", placeholder="Ej: Relámpago Gol Gana Jueves")
             
-            if st.form_submit_button("🚀 Crear", use_container_width=True, type="primary"):
-                if conn and new_nombre and new_pin:
+            c_f1, c_f2 = st.columns(2)
+            new_formato = c_f1.selectbox("Formato", ["Grupos + Eliminatoria", "Todos contra Todos", "Eliminación Directa"])
+            
+            with c_f2:
+                # AQUÍ REEMPLAZAMOS EL HELP TEXT POR UNA INTERVENCIÓN DEL BOT
+                # El bot explica para qué sirve el color antes de elegirlo
+                new_color = st.color_picker("Color de Marca", "#00FF00")
+            
+            # Mensaje contextual del Bot sobre el color
+            mostrar_bot(f"El color que elijas arriba pintará toda la web para tus jugadores. ¡Haz que se vea único!")
+
+            st.markdown("---")
+            st.markdown("##### 2. Tus Datos (Admin)")
+            c_adm1, c_adm2 = st.columns(2)
+            new_org = c_adm1.text_input("Tu Nombre / Cancha")
+            new_wa = c_adm2.text_input("WhatsApp (Sin +)")
+            
+            st.markdown("##### 3. Llave de Acceso")
+            new_pin = st.text_input("Crea un PIN de 4 dígitos", type="password", max_chars=4)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            if st.form_submit_button("🚀 Lanzar Torneo", use_container_width=True, type="primary"):
+                if new_nombre and new_pin and new_org and conn:
                     try:
                         with conn.connect() as db:
-                            res = db.execute(text("INSERT INTO torneos (nombre, organizador, whatsapp_admin, pin_admin, color_primario, fase, formato) VALUES (:n, :o, '', :p, :c, 'inscripcion', :f) RETURNING id"), 
-                                            {"n": new_nombre, "o": new_org, "p": new_pin, "c": new_color, "f": new_formato})
-                            nid = res.fetchone()[0]; db.commit()
-                        st.balloons(); time.sleep(1); st.query_params["id"] = str(nid); st.rerun()
-                    except Exception as e: st.error(f"Error: {e}")
+                            result = db.execute(text("""
+                                INSERT INTO torneos (nombre, organizador, whatsapp_admin, pin_admin, color_primario, fase, formato)
+                                VALUES (:n, :o, :w, :p, :c, 'inscripcion', :f) RETURNING id
+                            """), {
+                                "n": new_nombre, "o": new_org, "w": new_wa, 
+                                "p": new_pin, "c": new_color, "f": new_formato
+                            })
+                            nuevo_id = result.fetchone()[0]
+                            db.commit()
+                        
+                        st.balloons()
+                        time.sleep(1)
+                        st.query_params["id"] = str(nuevo_id)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error creando el torneo: {e}")
                 else:
-                    st.warning("Faltan datos o conexión.")
+                    st.warning("⚠️ Faltan datos obligatorios o no hay conexión.")
 
 # ==============================================================================
-# 6. ENRUTADOR
+# 4. ENRUTADOR PRINCIPAL
 # ==============================================================================
+
 params = st.query_params
+
 if "id" in params:
-    st.title(f"🚧 Torneo ID: {params['id']}")
-    if st.button("Volver"): st.query_params.clear(); st.rerun()
+    # AQUÍ IRÁ LA LÓGICA DE 'RENDER_TORNEO' (Próximo paso)
+    st.title("🚧 Cargando Torneo...")
+    st.write(f"ID del Torneo: {params['id']}")
+    if st.button("Volver al Lobby"):
+        st.query_params.clear()
+        st.rerun()
 else:
     render_lobby()
