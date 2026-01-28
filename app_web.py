@@ -1427,7 +1427,7 @@ if rol == "dt":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: INPUTS GRANDES ESTILO REGISTRO) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: NOMBRE EDITABLE + SELECTOR PAÍS) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control")
@@ -1438,20 +1438,16 @@ if rol == "admin":
             color_primario = c_res.iloc[0,0] if not c_res.empty else "#FFD700"
         except: color_primario = "#FFD700"
         
-        # --- CSS PARA "INFLAR" LOS INPUTS (Hacerlos grandes como en Registro) ---
+        # --- CSS PARA INPUTS GRANDES (ESTILO REGISTRO) ---
         st.markdown(f"""
         <style>
-            /* Aumentar tamaño de fuente y altura de TODOS los text inputs en esta sección */
-            div[data-testid="stTextInput"] input {{
+            div[data-testid="stTextInput"] input, div[data-testid="stSelectbox"] > div > div {{
                 font-size: 16px !important;
-                height: 45px !important; /* Más altos */
-                padding: 10px !important;
+                height: 45px !important;
             }}
-            /* Estilo especial para los inputs de goles (Centrados y Grandes) */
+            /* Estilo para goles */
             .st-key-gL_{{}} input, .st-key-gV_{{}} input {{
-                text-align: center !important;
-                font-weight: bold !important;
-                font-size: 20px !important;
+                text-align: center !important; font-weight: bold !important; font-size: 20px !important;
                 background-color: rgba(255,255,255,0.05) !important;
                 border: 2px solid {color_primario} !important;
             }}
@@ -1494,21 +1490,17 @@ if rol == "admin":
         tab_resultados, tab_directorio, tab_config = st.tabs(["⚽ Resultados", "🛠️ Directorio", "⚙️ Configuración"])
 
         # ==========================================
-        # PESTAÑA 1: RESULTADOS (INPUTS DE GOLES MEJORADOS)
+        # PESTAÑA 1: RESULTADOS
         # ==========================================
         with tab_resultados:
             st.subheader("📝 Marcadores y Partidos")
-            
             filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True)
             
             try:
                 df_p = pd.read_sql_query("SELECT * FROM partidos ORDER BY jornada ASC, id ASC", conn)
                 df_e = pd.read_sql_query("SELECT nombre, escudo, celular, prefijo FROM equipos", conn)
                 placeholder = "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
-                info_equipos = {}
-                for _, row in df_e.iterrows():
-                    escudo_seguro = row['escudo'] if (row['escudo'] and len(str(row['escudo'])) > 5) else placeholder
-                    info_equipos[row['nombre']] = {'escudo': escudo_seguro, 'cel': f"{str(row['prefijo']).replace('+','')}{row['celular']}"}
+                info_equipos = {row['nombre']: {'escudo': row['escudo'] or placeholder, 'cel': f"{str(row['prefijo']).replace('+','')}{row['celular']}"} for _, row in df_e.iterrows()}
             except: df_p = pd.DataFrame(); info_equipos = {}
 
             if not df_p.empty:
@@ -1524,50 +1516,27 @@ if rol == "admin":
                     with tab:
                         df_j = df_p[df_p['jornada'] == jornadas[i]]
                         if df_j.empty: st.caption("Sin partidos.")
-                        
                         for _, row in df_j.iterrows():
-                            # Preparar datos
                             d_l = info_equipos.get(row['local'], {'escudo': placeholder, 'cel': ''})
                             d_v = info_equipos.get(row['visitante'], {'escudo': placeholder, 'cel': ''})
                             
-                            # Tarjeta contenedora
-                            st.markdown(f"""
-                            <div style='
-                                background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%);
-                                border-left: 4px solid {color_primario};
-                                border-radius: 8px;
-                                padding: 10px;
-                                margin-bottom: 15px;
-                            '>
-                            """, unsafe_allow_html=True)
+                            st.markdown(f"""<div style='background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%); border-left: 4px solid {color_primario}; border-radius: 8px; padding: 10px; margin-bottom: 15px;'>""", unsafe_allow_html=True)
                             
-                            # --- FILA DE MARCADOR (Columnas ajustadas para espacio) ---
-                            # Damos más espacio a los inputs (cols 2 y 4)
                             c_p1 = st.columns([0.5, 2, 0.8, 0.2, 0.8, 2, 0.5], vertical_alignment="center")
-                            
                             with c_p1[0]: st.image(d_l['escudo'], width=35)
                             with c_p1[1]: st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:14px; line-height:1.2'>{row['local']}</div>", unsafe_allow_html=True)
-                            
-                            # INPUT LOCAL
                             with c_p1[2]:
                                 vl = str(int(row['goles_l'])) if pd.notna(row['goles_l']) else ""
-                                # key única para aplicar CSS específico si se desea
                                 gl = st.text_input("L", value=vl, max_chars=2, label_visibility="collapsed", key=f"gL_{row['id']}")
-
                             with c_p1[3]: st.markdown("<div style='text-align:center; font-weight:bold; opacity:0.7'>-</div>", unsafe_allow_html=True)
-                            
-                            # INPUT VISITANTE
                             with c_p1[4]:
                                 vv = str(int(row['goles_v'])) if pd.notna(row['goles_v']) else ""
                                 gv = st.text_input("V", value=vv, max_chars=2, label_visibility="collapsed", key=f"gV_{row['id']}")
-
                             with c_p1[5]: st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:14px; line-height:1.2'>{row['visitante']}</div>", unsafe_allow_html=True)
                             with c_p1[6]: st.image(d_v['escudo'], width=35)
 
-                            # --- BOTONES DE ACCIÓN (Debajo del marcador) ---
                             st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
                             c_act = st.columns([1, 1])
-                            
                             with c_act[0]:
                                 if st.button("💾 Guardar", key=f"btn_s_{row['id']}", use_container_width=True):
                                     if gl == "" or gv == "": st.toast("⚠️ Faltan goles")
@@ -1577,28 +1546,23 @@ if rol == "admin":
                                             db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=0, metodo_registro='Manual' WHERE id=:id"),{"l":int(gl), "v":int(gv), "id":row['id']})
                                             db.commit()
                                         st.toast("Guardado"); st.rerun()
-                            
                             with c_act[1]:
                                 url_ev = row['url_foto_l'] or row['url_foto_v']
                                 if url_ev: st.link_button("📷 Foto", url_ev, use_container_width=True)
-                                else: st.caption("Sin foto") # Caption ocupa menos que un botón deshabilitado
-                                
-                            st.markdown("</div>", unsafe_allow_html=True) # Cierre div tarjeta
+                                else: st.caption("Sin foto")
+                            st.markdown("</div>", unsafe_allow_html=True)
 
         # ==========================================
         # PESTAÑA 2: DIRECTORIO
         # ==========================================
         with tab_directorio:
             st.subheader("📋 Directorio de Equipos")
-            
             try:
                 df_maestro = pd.read_sql_query(text("SELECT * FROM equipos WHERE nombre NOT IN ('Admin', 'Sistema') ORDER BY nombre"), conn)
             except: df_maestro = pd.DataFrame()
 
             if not df_maestro.empty:
                 st.write("") 
-                
-                # LISTA NEÓN COMPACTA
                 for _, eq in df_maestro.iterrows():
                     src_escudo = eq['escudo'] if (eq['escudo'] and len(str(eq['escudo'])) > 5) else "https://cdn-icons-png.flaticon.com/512/5329/5329945.png"
                     celular_url = f"{str(eq['prefijo']).replace('+','')}{eq['celular']}"
@@ -1607,15 +1571,13 @@ if rol == "admin":
                     c_img, c_txt = st.columns([0.15, 0.85], vertical_alignment="center")
                     with c_img: st.image(src_escudo, width=35)
                     with c_txt:
-                        linea = f"**{eq['nombre']}** | <span style='color:#888'>PIN: `{eq['pin']}`</span> | 📞 [{celular_texto}](https://wa.me/{celular_url})"
-                        st.markdown(linea, unsafe_allow_html=True)
+                        st.markdown(f"**{eq['nombre']}** | <span style='color:#888'>PIN: `{eq['pin']}`</span> | 📞 [{celular_texto}](https://wa.me/{celular_url})", unsafe_allow_html=True)
                     st.markdown(f"<hr style='border: 0; height: 1px; background-color: {color_primario}; box-shadow: 0 0 4px {color_primario}; margin: 5px 0; opacity: 0.6;'>", unsafe_allow_html=True)
 
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
-                # --- GESTIÓN Y EDICIÓN (ESTILO REGISTRO: GRANDES Y ESPACIOSOS) ---
+                # --- GESTIÓN Y EDICIÓN ---
                 st.subheader("✏️ Gestión y Edición")
-                
                 lista_nombres = df_maestro['nombre'].tolist()
                 equipo_sel = st.selectbox("Selecciona equipo a gestionar:", lista_nombres)
                 
@@ -1623,41 +1585,50 @@ if rol == "admin":
                     datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
                     with st.form("edit_master_form"):
-                        # HEADER CON ESCUDO Y NOMBRE
-                        col_h1, col_h2 = st.columns([0.2, 0.8], vertical_alignment="center")
-                        with col_h1:
-                            if datos_sel['escudo']: st.image(datos_sel['escudo'], width=50)
-                        with col_h2:
-                            st.markdown(f"### {datos_sel['nombre']}")
-                            st.caption("Edita los datos de contacto y seguridad abajo.")
-
-                        st.markdown("---")
-
-                        # 1. DATOS DE CONTACTO (Inputs anchos como en registro)
-                        st.markdown("**📞 Contacto (WhatsApp)**")
+                        # 1. NOMBRE (Editable ahora)
+                        st.markdown("**📝 Nombre del Equipo**")
+                        new_name = st.text_input("Nombre", value=datos_sel['nombre'], label_visibility="collapsed")
                         
-                        # Usamos columnas anchas [1, 2] para que el input sea generoso
-                        c_pref, c_cel = st.columns([1, 2]) 
-                        with c_pref:
-                            new_pref = st.text_input("Prefijo", value=datos_sel['prefijo'])
+                        st.write("") 
+
+                        # 2. PAIS (SELECTOR) Y CELULAR
+                        st.markdown("**📞 Datos de Contacto**")
+                        
+                        # Definición de Países
+                        paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54", "Chile": "+56", "Venezuela": "+58"}
+                        
+                        # Buscar el índice del país actual
+                        pref_actual = str(datos_sel['prefijo'])
+                        keys_paises = list(paises.keys())
+                        try:
+                            # Buscamos qué país tiene el prefijo actual
+                            val_list = list(paises.values())
+                            idx_def = val_list.index(pref_actual)
+                        except:
+                            idx_def = 0 # Default a Colombia si no encuentra
+                        
+                        c_pais, c_cel = st.columns([1, 2])
+                        with c_pais:
+                            pais_sel = st.selectbox("País", keys_paises, index=idx_def)
+                            new_pref = paises[pais_sel] # Obtenemos el código (ej: +57)
                         with c_cel:
-                            new_cel = st.text_input("Número", value=datos_sel['celular'])
+                            new_cel = st.text_input("WhatsApp (Sin prefijo)", value=datos_sel['celular'])
 
-                        st.write("") # Espacio vertical
-
-                        # 2. SEGURIDAD
-                        st.markdown("**🔑 Seguridad**")
-                        # El PIN ocupa todo el ancho disponible si no lo metemos en columna
-                        new_pin = st.text_input("PIN de Acceso", value=str(datos_sel['pin']))
-                        
                         st.write("")
+
+                        # 3. PIN Y ESCUDO
+                        st.markdown("**🔑 Seguridad y Diseño**")
+                        c_pin, c_esc = st.columns([1, 2], vertical_alignment="center")
+                        with c_pin:
+                            st.caption("PIN Acceso")
+                            new_pin = st.text_input("PIN", value=str(datos_sel['pin']), label_visibility="collapsed")
+                        with c_esc:
+                            st.caption("Escudo")
+                            if datos_sel['escudo']: st.image(datos_sel['escudo'], width=30)
+                            nuevo_escudo_img = st.file_uploader("Subir", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
                         
-                        # 3. IMAGEN
-                        st.markdown("**🛡️ Escudo**")
-                        nuevo_escudo_img = st.file_uploader("Subir nuevo escudo", type=['png', 'jpg', 'jpeg'])
-                        quitar_escudo = st.checkbox("Eliminar escudo actual")
-                        
-                        st.markdown("---")
+                        quitar_escudo = st.checkbox("❌ Eliminar escudo")
+                        st.write("")
                         
                         if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                             url_final = datos_sel['escudo']
@@ -1670,13 +1641,18 @@ if rol == "admin":
 
                             try:
                                 with conn.connect() as db:
-                                    # UPDATE SOLO DATOS
+                                    # Update Equipo
                                     db.execute(
-                                        text("UPDATE equipos SET pin=:np, escudo=:ne, prefijo=:pr, celular=:cel WHERE nombre=:n"),
-                                        {"np": new_pin, "ne": url_final, "pr": new_pref, "cel": new_cel, "n": equipo_sel}
+                                        text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne, prefijo=:pr, celular=:cel WHERE nombre=:viejo"),
+                                        {"nn": new_name, "np": new_pin, "ne": url_final, "pr": new_pref, "cel": new_cel, "viejo": equipo_sel}
                                     )
+                                    # Update Partidos si cambió el nombre
+                                    if new_name != equipo_sel:
+                                        db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                        db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                    
                                     db.commit()
-                                st.success(f"✅ Datos actualizados!")
+                                st.success(f"✅ ¡{new_name} actualizado!")
                                 time.sleep(1); st.rerun()
                             except Exception as e: st.error(f"Error: {e}")
 
@@ -1695,7 +1671,6 @@ if rol == "admin":
         with tab_config:
             st.subheader("⚙️ Configuración")
 
-            # 1. DISEÑO
             st.markdown("##### 🎨 Diseño")
             col_picker, col_btn_c = st.columns([1, 2], vertical_alignment="bottom")
             with col_picker:
@@ -1704,14 +1679,12 @@ if rol == "admin":
                 if st.button("Aplicar Color"):
                     with conn.connect() as db:
                         res = db.execute(text("UPDATE config SET valor=:v WHERE clave='color_primario'"), {"v":nuevo_color})
-                        if res.rowcount == 0:
-                            db.execute(text("INSERT INTO config (clave, valor) VALUES ('color_primario', :v)"), {"v":nuevo_color})
+                        if res.rowcount == 0: db.execute(text("INSERT INTO config (clave, valor) VALUES ('color_primario', :v)"), {"v":nuevo_color})
                         db.commit()
-                    st.toast("Color actualizado"); time.sleep(1); st.rerun()
+                    st.toast("Actualizado"); time.sleep(1); st.rerun()
 
             st.divider()
 
-            # 2. FASES
             st.markdown("##### 🚀 Estado del Torneo")
             try:
                 res_fase = pd.read_sql_query("SELECT valor FROM config WHERE clave='fase_actual'", conn)
@@ -1726,21 +1699,17 @@ if rol == "admin":
                         db.execute(text("UPDATE config SET valor='clasificacion' WHERE clave='fase_actual'"))
                         db.commit()
                     st.balloons(); time.sleep(1); st.rerun()
-                    
             elif fase_actual_db == "clasificacion":
                 if st.button("⚔️ Pasar a Eliminatorias", type="primary", use_container_width=True):
                     with conn.connect() as db:
                         db.execute(text("UPDATE config SET valor='eliminatorias' WHERE clave='fase_actual'"))
                         db.commit()
                     st.snow(); time.sleep(1); st.rerun()
-
             elif fase_actual_db == "eliminatorias":
-                if st.button("🏆 Finalizar Torneo", type="primary", use_container_width=True):
-                    st.toast("Función pendiente.")
+                if st.button("🏆 Finalizar Torneo", type="primary", use_container_width=True): st.toast("Función pendiente.")
 
             st.divider()
 
-            # 3. ZONA DE PELIGRO
             with st.expander("☠️ Cancelar / Reiniciar"):
                 st.warning("Borrará partidos y resultados.")
                 confirmar_reset = st.checkbox("Confirmar reinicio")
