@@ -26,17 +26,15 @@ def get_db_connection():
 
 conn = get_db_connection()
 
-# ==============================================================================
-# 2. ESTILOS CSS (FUENTE  + TABS + BLINDAJE TOTAL)
-# ==============================================================================
 st.markdown(f"""
     <style>
-        /* 0. IMPORTACIÓN Y BLINDAJE DE FUENTE OSWALD */
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;600&display=swap');
+        /* 0. IMPORTACIÓN Y BLINDAJE DE FUENTE OSWALD (Pesos más fuertes) */
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap');
 
-        /* Forzado universal de la fuente */
+        /* Forzado universal de la fuente con ajuste de espaciado (Impacto) */
         .stApp, h1, h2, h3, h4, h5, h6, p, div, button, input, label, span, textarea, a {{
             font-family: 'Oswald', sans-serif !important;
+            letter-spacing: -0.02em !important; /* Letras más juntas como antes */
         }}
 
         /* 1. FONDO GENERAL */
@@ -47,6 +45,13 @@ st.markdown(f"""
             background-position: center;
             background-attachment: fixed;
             color: white;
+            -webkit-font-smoothing: antialiased;
+        }}
+
+        /* Títulos con negrilla máxima (700) */
+        h1, h2, h3, .tournament-title {{
+            font-weight: 700 !important;
+            text-transform: uppercase;
         }}
 
         /* 2. AJUSTE DE PESTAÑAS (TABS) - DISTRIBUCIÓN UNIFORME */
@@ -57,9 +62,10 @@ st.markdown(f"""
             background-color: rgba(255,255,255,0.05);
             border-radius: 8px 8px 0 0;
             color: #aaa;
-            font-weight: 400;
-            letter-spacing: 1px;
+            font-weight: 600 !important; /* Más gruesa la letra */
+            letter-spacing: 0px !important; /* Sin separación extra */
             transition: all 0.3s ease;
+            text-transform: uppercase;
         }}
         
         .stTabs [data-baseweb="tab-list"] {{ gap: 10px; }}
@@ -77,7 +83,6 @@ st.markdown(f"""
             color: white !important;
             height: 50px !important;
             font-size: 18px !important;
-            letter-spacing: 0.5px;
             border-radius: 8px !important;
         }}
         
@@ -85,20 +90,19 @@ st.markdown(f"""
             background-color: #262730 !important;
             border: 1px solid #555 !important;
             color: white !important;
-            font-weight: 400 !important;
-            letter-spacing: 1px;
+            font-weight: 600 !important;
             border-radius: 8px !important;
         }}
         
         button[kind="primary"] {{
             background-color: {COLOR_MARCA} !important;
             color: black !important;
-            font-weight: 600 !important;
+            font-weight: 700 !important; /* Negrilla máxima en botones */
             border: none !important;
             height: 50px !important;
             font-size: 18px !important;
             border-radius: 8px !important;
-            letter-spacing: 1px;
+            text-transform: uppercase;
         }}
 
         /* 4. TARJETAS DE LOBBY */
@@ -133,7 +137,7 @@ st.markdown(f"""
             animation: fadeIn 1s ease-in;
         }}
         
-        .bot-text {{ color: #ddd; font-size: 16px; font-weight: 300; line-height: 1.4; }}
+        .bot-text {{ color: #ddd; font-size: 16px; font-weight: 400; line-height: 1.4; }}
         .bot-avatar {{ font-size: 28px; }}
         
         @keyframes fadeIn {{ 
@@ -150,8 +154,8 @@ st.markdown(f"""
             border-radius: 15px;
         }}
         
-        .intro-quote {{ font-size: 20px; font-style: italic; color: {COLOR_MARCA}; text-align: center; margin-bottom: 20px; font-weight: 300; }}
-        .intro-text {{ font-size: 15px; text-align: justify; color: #aaa; line-height: 1.6; margin-bottom: 10px; font-weight: 300; }}
+        .intro-quote {{ font-size: 20px; font-style: italic; color: {COLOR_MARCA}; text-align: center; margin-bottom: 20px; font-weight: 400; }}
+        .intro-text {{ font-size: 15px; text-align: justify; color: #aaa; line-height: 1.6; margin-bottom: 10px; font-weight: 400; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -477,3 +481,4 @@ if "id" in params:
     render_torneo(params["id"])
 else:
     render_lobby()
+
