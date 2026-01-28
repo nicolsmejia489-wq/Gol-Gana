@@ -1427,7 +1427,7 @@ if rol == "dt":
 
 
             
-# --- TAB: GESTIÓN ADMIN (FINAL: AJUSTE NOMBRE + FASE ACTUAL) ---
+# --- TAB: GESTIÓN ADMIN (FINAL: NOMBRE ANCHO + FASE ACTUAL) ---
 if rol == "admin":
     with tabs[2]:
         st.header("⚙️ Panel de Control")
@@ -1529,7 +1529,6 @@ if rol == "admin":
                     }
             except: df_p = pd.DataFrame(); info_equipos = {}
 
-            # Aplicar Filtros
             if not df_p.empty:
                 if filtro_partidos == "Conflictos":
                     df_p = df_p[(df_p['estado']=='Revision') | (df_p['conflicto']==1)]
@@ -1555,7 +1554,6 @@ if rol == "admin":
                             
                             st.markdown(f'<div class="{css_card}">', unsafe_allow_html=True)
                             
-                            # PISO 1: MARCADOR
                             c_p1 = st.columns([0.6, 2.5, 1, 0.2, 1, 2.5, 0.6], vertical_alignment="center")
                             with c_p1[0]: st.image(d_l['escudo'], width=30)
                             with c_p1[1]: st.markdown(f"<div class='team-l'>{row['local']}</div>", unsafe_allow_html=True)
@@ -1575,7 +1573,6 @@ if rol == "admin":
 
                             st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
                             
-                            # PISO 2: ACCIONES
                             c_row1 = st.columns(2, gap="small")
                             with c_row1[0]:
                                 if st.button("💾 Guardar", key=f"s_{row['id']}", use_container_width=True):
@@ -1622,7 +1619,6 @@ if rol == "admin":
             st.subheader("📋 Directorio de Equipos")
             
             try:
-                # Consulta excluyendo al Admin/Sistema
                 df_maestro = pd.read_sql_query(text("SELECT * FROM equipos WHERE nombre NOT IN ('Admin', 'Sistema') ORDER BY nombre"), conn)
             except:
                 df_maestro = pd.DataFrame()
@@ -1650,72 +1646,74 @@ if rol == "admin":
 
                 st.markdown("<div style='margin-bottom: 30px'></div>", unsafe_allow_html=True)
 
-                # --- GESTIÓN Y EDICIÓN (VERSIÓN ANCHO TOTAL) ---
+                # --- GESTIÓN Y EDICIÓN (NOMBRE ANCHO TOTAL) ---
                 st.subheader("✏️ Gestión y Edición")
-
+                
                 lista_nombres = df_maestro['nombre'].tolist()
                 equipo_sel = st.selectbox("Selecciona equipo a gestionar:", lista_nombres)
-
+                
                 if equipo_sel:
-                datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
+                    datos_sel = df_maestro[df_maestro['nombre'] == equipo_sel].iloc[0]
 
-                with st.form("edit_master_form"):
-                # 1. NOMBRE (OCUPA TODO EL ANCHO)
-                new_name = st.text_input("Nombre del Equipo", datos_sel['nombre'])
-        
-                # 2. PIN (DEBAJO, OCUPANDO TODO EL ANCHO TAMBIÉN)
-                new_pin = st.text_input("PIN de acceso", str(datos_sel['pin']))
-        
-                st.write("---")
-                st.markdown("**🛡️ Actualizar Escudo**")
-        
-                # 3. ESCUDO Y CARGA (Aquí sí usamos columnas pequeñas para que no se vea gigante)
-                c_e1, c_e2 = st.columns([1, 4], vertical_alignment="center")
-                with c_e1:
-                if datos_sel['escudo']:
-                st.image(datos_sel['escudo'], width=80)
-                with c_e2:
-                nuevo_escudo_img = st.file_uploader("Cambiar imagen", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
-                quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
-        
-                st.write("") 
-        
-                # BOTÓN DE GUARDAR
-                if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-                url_final = datos_sel['escudo']
-                if quitar_escudo: 
-                url_final = None
-                elif nuevo_escudo_img:
-                try:
-                    res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
-                    url_final = res_std['secure_url']
-                except: pass
+                    with st.form("edit_master_form"):
+                        # --- SOLUCIÓN: NOMBRE FUERA DE COLUMNAS (100% ANCHO) ---
+                        st.markdown("**Nombre del Equipo**")
+                        new_name = st.text_input("Nombre", datos_sel['nombre'], label_visibility="collapsed")
+                        
+                        # PIN Y ESCUDO ABAJO
+                        c_pin, c_esc = st.columns([1, 1], vertical_alignment="bottom")
+                        with c_pin:
+                            st.markdown("**PIN**")
+                            new_pin = st.text_input("PIN", str(datos_sel['pin']), label_visibility="collapsed")
+                        
+                        st.write("---")
+                        
+                        c_e1, c_e2 = st.columns([1, 3], vertical_alignment="center")
+                        with c_e1:
+                            if datos_sel['escudo']:
+                                st.image(datos_sel['escudo'], width=60)
+                        with c_e2:
+                            nuevo_escudo_img = st.file_uploader("Actualizar escudo", type=['png', 'jpg', 'jpeg'])
+                        
+                        quitar_escudo = st.checkbox("❌ Eliminar escudo actual")
+                        
+                        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                            url_final = datos_sel['escudo']
+                            if quitar_escudo: 
+                                url_final = None
+                            elif nuevo_escudo_img:
+                                try:
+                                    res_std = cloudinary.uploader.upload(nuevo_escudo_img, folder="escudos_limpios")
+                                    url_final = res_std['secure_url']
+                                except: pass
 
-            try:
-                with conn.connect() as db:
-                    db.execute(
-                        text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
-                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
-                    )
-                    if new_name != equipo_sel:
-                        db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
-                        db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
-                    db.commit()
-                st.success(f"✅ ¡{new_name} actualizado!")
-                time.sleep(1)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error: {e}")
+                            try:
+                                with conn.connect() as db:
+                                    db.execute(
+                                        text("UPDATE equipos SET nombre=:nn, pin=:np, escudo=:ne WHERE nombre=:viejo"),
+                                        {"nn": new_name, "np": new_pin, "ne": url_final, "viejo": equipo_sel}
+                                    )
+                                    if new_name != equipo_sel:
+                                        db.execute(text("UPDATE partidos SET local=:nn WHERE local=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                        db.execute(text("UPDATE partidos SET visitante=:nn WHERE visitante=:viejo"), {"nn": new_name, "viejo": equipo_sel})
+                                    
+                                    db.commit()
+                                st.success(f"✅ ¡{new_name} actualizado!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error actualizando: {e}")
 
-    # BOTÓN DE ELIMINAR (FUERA DEL FORM)
-    if st.button(f"🗑️ Eliminar a {equipo_sel}", use_container_width=True, type="secondary"):
-        with conn.connect() as db:
-            db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
-            db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
-            db.commit()
-        st.error(f"Equipo eliminado.")
-        time.sleep(1)
-        st.rerun()
+                    if st.button(f"✖️ Eliminar: {equipo_sel}", use_container_width=True):
+                        with conn.connect() as db:
+                            db.execute(text("DELETE FROM equipos WHERE nombre = :n"), {"n": equipo_sel})
+                            db.execute(text("DELETE FROM partidos WHERE local = :n OR visitante = :n"), {"n": equipo_sel})
+                            db.commit()
+                        st.error(f"Equipo eliminado.")
+                        time.sleep(1)
+                        st.rerun()
+            else:
+                st.info("No hay equipos registrados.")
 
         # ==========================================
         # PESTAÑA 3: CONFIGURACIÓN
@@ -1741,11 +1739,10 @@ if rol == "admin":
 
             st.divider()
 
-            # 2. CONTROL DE FASES (CORREGIDO A 'fase_actual')
+            # 2. CONTROL DE FASES (CLAVE 'fase_actual')
             st.markdown("##### 🚀 Estado del Torneo")
             
             try:
-                # --- CORRECCIÓN: usamos 'fase_actual' ---
                 res_fase = pd.read_sql_query("SELECT valor FROM config WHERE clave='fase_actual'", conn)
                 fase_actual_db = res_fase.iloc[0,0] if not res_fase.empty else "inscripcion"
             except: fase_actual_db = "inscripcion"
@@ -1788,7 +1785,6 @@ if rol == "admin":
                 if st.button("Reiniciar Torneo", type="secondary", disabled=not confirmar_reset, use_container_width=True):
                     with conn.connect() as db:
                         db.execute(text("DELETE FROM partidos"))
-                        # --- CORRECCIÓN: usamos 'fase_actual' ---
                         db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
                         db.commit()
                     st.success("Torneo reiniciado.")
