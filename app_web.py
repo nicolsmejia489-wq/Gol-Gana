@@ -1595,7 +1595,7 @@ if rol == "admin":
                         st.markdown("**📞 Datos de Contacto**")
                         
                         # Definición de Países
-                        paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54", "Chile": "+56", "Venezuela": "+58"}
+                        paises = {"Colombia +57": "+57", "EEUU +1": "+1", "México +52": "+52", "Ecuador +593": "+593", "Panamá +507": "+507", "Perú 51"": "+51", "Argentina +54": "+54", "Chile +56": "+56", "Venezuela +58": "+58"}
                         
                         # Buscar el índice del país actual
                         pref_actual = str(datos_sel['prefijo'])
@@ -1719,6 +1719,7 @@ if rol == "admin":
                         db.execute(text("UPDATE config SET valor='inscripcion' WHERE clave='fase_actual'"))
                         db.commit()
                     st.success("Reiniciado."); time.sleep(1); st.rerun()
+
 
 
 
