@@ -356,15 +356,8 @@ def render_torneo(id_torneo):
             st.query_params.clear()
             st.rerun()
             
-    with col_title:
-        st.markdown(f"""
-            <div style="background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 8px; border-left: 5px solid {t_color};">
-                <h2 style="margin:0; color:white; letter-spacing:1px;">{t_nombre.upper()}</h2>
-                <p style="margin:0; font-size:14px; color:{t_color};">Organiza: {t_org} | Formato: {t_formato}</p>
-            </div>
-        """, unsafe_allow_html=True)
+   
 
-    st.markdown("---")
 
     # --- 4. ÁREA DE TRABAJO (TABS DEL TORNEO) ---
     # Aquí es donde integrarás tu script antiguo de posiciones y resultados
@@ -398,6 +391,7 @@ if "id" in params:
 else:
     # Si no hay ID, mostramos el Lobby principal
     render_lobby()
+
 
 
 
