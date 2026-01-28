@@ -192,68 +192,70 @@ def render_lobby():
 
     st.markdown("---")
 
-    # --- D. TORNEOS VIGENTES (AQUÍ ESTÁ LA MAGIA MODIFICADA) ---
-    st.subheader("🔥 Torneos en Curso")
+  # --- D. TORNEOS VIGENTES ---
+st.subheader("🔥 Torneos en Curso")
 
-    try:
-        if conn:
-            query = text("""
-                SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
-                FROM torneos 
-                WHERE fase != 'Terminado' 
-                ORDER BY fecha_creacion DESC
-            """)
-            df_torneos = pd.read_sql_query(query, conn)
-        else:
-            df_torneos = pd.DataFrame()
-    except:
-        st.error("Conectando al servidor...")
+try:
+    if conn:
+        query = text("""
+            SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
+            FROM torneos 
+            WHERE fase != 'Terminado' 
+            ORDER BY fecha_creacion DESC
+        """)
+        df_torneos = pd.read_sql_query(query, conn)
+    else:
         df_torneos = pd.DataFrame()
+except:
+    st.error("Conectando al servidor...")
+    df_torneos = pd.DataFrame()
 
-    if not df_torneos.empty:
-        for _, t in df_torneos.iterrows():
-            with st.container():
-                
-                # Preparamos las URLs para el Javascript
-                url_torneo = f"/?id={t['id']}"
-                url_inscripcion = f"/?id={t['id']}&action=inscribir"
-                
-                # Determinamos el texto del estado
-                estado_display = "INSCRIPCIONES ABIERTAS" if t['fase'] == 'inscripcion' else t['fase'].upper()
-
-                # Renderizamos la tarjeta HTML COMPLETA
-                # 1. El div principal tiene onclick -> lleva a ver el torneo
-                # 2. El botón interno tiene onclick stopPropagation -> lleva a inscribir
-                st.markdown(f"""
-                <div class="lobby-card" 
-                     style="border-left: 6px solid {t['color_primario']};"
-                     onclick="window.parent.location.href='{url_torneo}'">
-                    
-                    <div style="display:flex; justify-content:space-between; align-items:start;">
-                        <h3 style="margin:0; font-weight:600; color:white; font-size:24px; letter-spacing:1px;">
-                            {t['nombre']}
-                        </h3>
-                        <span style="border:1px solid {t['color_primario']}; color:{t['color_primario']}; padding:2px 8px; border-radius:4px; font-size:12px;">
-                            ● {estado_display}
-                        </span>
-                    </div>
-
-                    <p style="margin:5px 0 0 0; font-size:16px; opacity:0.8; color:#ccc; font-weight:300;">
+if not df_torneos.empty:
+    for _, t in df_torneos.iterrows():
+        # Creamos un contenedor para agrupar visualmente
+        with st.container():
+            # 1. Dibujamos la cabecera visual (Sin enlaces, solo diseño)
+            estado_txt = "INSCRIPCIONES ABIERTAS" if t['fase'] == 'inscripcion' else t['fase'].upper()
+            
+            st.markdown(f"""
+                <div style="border-left: 6px solid {t['color_primario']}; 
+                            background: rgba(255,255,255,0.05); 
+                            padding: 15px; 
+                            border-radius: 0 12px 12px 0; 
+                            margin-bottom: -10px;">
+                    <h3 style="margin:0; color:white;">🏆 {t['nombre']}</h3>
+                    <p style="margin:0; color:{t['color_primario']}; font-weight:bold; font-size:14px;">
+                        ● {estado_txt}
+                    </p>
+                    <p style="margin:5px 0 0 0; opacity:0.7; font-size:14px;">
                         👮 {t['organizador']} | 🎮 {t['formato']}
                     </p>
-                    
-                    <a href="{url_inscripcion}" 
-                       class="btn-inscribir" 
-                       onclick="event.stopPropagation();">
-                       Inscribir mi equipo
-                    </a>
                 </div>
-                """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-    else:
-        st.info("No hay torneos activos. ¡Sé el primero en crear uno!")
+            # 2. BOTONES NATIVOS (Aquí resolvemos el problema del clic)
+            # Usamos dos columnas para poner los botones lado a lado
+            col_ver, col_ins = st.columns(2)
+            
+            with col_ver:
+                if st.button(f"Ver Torneo", key=f"ver_{t['id']}", use_container_width=True):
+                    st.query_params["id"] = str(t['id'])
+                    st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
+            with col_ins:
+                # Botón con estilo "Primary" (Dorado por tu CSS) para destacar
+                if st.button(f"Inscribir mi equipo", key=f"ins_{t['id']}", use_container_width=True, type="primary"):
+                    st.query_params["id"] = str(t['id'])
+                    st.query_params["action"] = "inscribir"
+                    st.rerun()
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+else:
+    st.info("No hay torneos activos.")
+
+
+
+    
 
     # --- E. CREAR NUEVO TORNEO (Sin cambios) ---
     with st.expander("✨ ¿Eres Organizador? Crea tu Torneo", expanded=False):
@@ -327,3 +329,4 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
