@@ -1,28 +1,7 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
-import random
-import easyocr
-import cloudinary
-import cloudinary.uploader
-import io
-import numpy as np
-from PIL import Image
-import cv2
-import re  # Para expresiones regulares (encontrar números difíciles)
-from thefuzz import fuzz # Para comparación flexible de nombres
-import json
-import os
-import streamlit as st
 from sqlalchemy import create_engine, text
 import time
-import motor_colores
-import motor_grafico
-from io import BytesIO
-import PIL.Image
-import requests
-import extcolors
-from difflib import SequenceMatcher
 
 # ==============================================================================
 # 1. CONFIGURACIÓN E IDENTIDAD
@@ -34,28 +13,36 @@ URL_FONDO_BASE = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769030979/
 URL_PORTADA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769050565/a906a330-8b8c-4b52-b131-8c75322bfc10_hwxmqb.png"
 COLOR_MARCA = "#FFD700"  # Dorado Gol Gana
 
-# --- CONEXIÓN A BASE DE DATOS (SEGURA) ---
+# ==============================================================================
+# 2. GESTIÓN DE CONEXIÓN A BASE DE DATOS (A PRUEBA DE FALLOS)
+# ==============================================================================
 @st.cache_resource
 def get_db_connection():
+    # INTENTO 1: Buscar en st.secrets (Producción / Local bien configurado)
     try:
-        # Verifica si existen los secretos
-        if "connections" not in st.secrets or "postgresql" not in st.secrets["connections"]:
-            return None
-        db_url = st.secrets["connections"]["postgresql"]["url"]
-        return create_engine(db_url, pool_pre_ping=True)
-    except:
-        return None
+        # Verificamos si existe el archivo de secretos
+        if hasattr(st, "secrets") and "connections" in st.secrets:
+            db_url = st.secrets["connections"]["postgresql"]["url"]
+            return create_engine(db_url, pool_pre_ping=True)
+    except Exception as e:
+        print(f"Nota: No se usaron secrets ({e})")
+    
+    # INTENTO 2: String directo (Pega tu link de NEON aquí si fallan los secrets)
+    # db_url = "postgresql://usuario:pass@host/db..." 
+    # return create_engine(db_url)
+
+    return None # Si retorna None, la app funcionará en modo "Solo Diseño"
 
 conn = get_db_connection()
 
 # ==============================================================================
-# 2. ESTILOS CSS (BLINDAJE VISUAL + BOT DISCRETO)
+# 3. ESTILOS CSS (AJUSTADO: MENOS OSCURO)
 # ==============================================================================
 st.markdown(f"""
     <style>
-        /* A. FONDO GENERAL */
+        /* A. FONDO GENERAL (Aclarado al 85% para que veas el fondo) */
         .stApp {{
-            background: linear-gradient(rgba(14, 17, 23, 0.92), rgba(14, 17, 23, 0.96)), 
+            background: linear-gradient(rgba(14, 17, 23, 0.85), rgba(14, 17, 23, 0.90)), 
                         url("{URL_FONDO_BASE}");
             background-size: cover;
             background-position: center;
@@ -69,7 +56,6 @@ st.markdown(f"""
             border: 1px solid #444 !important;
             color: white !important;
             height: 48px !important;
-            font-size: 16px !important;
             border-radius: 8px !important;
         }}
         
@@ -78,220 +64,145 @@ st.markdown(f"""
             background-color: #262730 !important;
             border: 1px solid #555 !important;
             color: white !important;
-            height: 45px !important;
-            border-radius: 8px !important;
-            transition: all 0.3s ease;
         }}
         button[kind="secondary"]:hover, div[data-testid="stLinkButton"] a:hover {{
             border-color: {COLOR_MARCA} !important;
             color: {COLOR_MARCA} !important;
-            transform: translateY(-2px);
         }}
         button[kind="primary"] {{
             background-color: {COLOR_MARCA} !important;
             color: black !important;
             font-weight: 800 !important;
             border: none !important;
-            height: 48px !important;
-            border-radius: 8px !important;
-            font-size: 16px !important;
         }}
         
-        /* D. TARJETAS DEL LOBBY */
+        /* D. TARJETAS */
         .lobby-card {{
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
             padding: 15px 20px;
             margin-bottom: 15px;
             border: 1px solid rgba(255,255,255,0.1);
-            transition: transform 0.2s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }}
-        .lobby-card:hover {{
-            transform: scale(1.01);
-            border-color: {COLOR_MARCA};
+        
+        /* E. ANIMACIONES DEL BOT */
+        @keyframes slideInUp {{ from {{ transform: translateY(20px); opacity: 0; }} to {{ transform: translateY(0); opacity: 1; }} }}
+        .bot-bar {{
+            animation: slideInUp 0.5s ease-out;
+            background-color: rgba(30, 30, 40, 0.95);
+            border-left: 4px solid {COLOR_MARCA};
+            border-radius: 8px;
+            padding: 8px 15px;
+            margin-bottom: 15px;
+            display: flex; align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }}
-
-        /* E. ANIMACIÓN FLOTANTE PARA EL ROBOT */
-        @keyframes float {{
-            0% {{ transform: translateY(0px); }}
-            50% {{ transform: translateY(-3px); }}
-            100% {{ transform: translateY(0px); }}
-        }}
-        .bot-icon {{
-            animation: float 3s ease-in-out infinite;
-            font-size: 22px;
-        }}
+        .bot-icon {{ animation: float 3s ease-in-out infinite; font-size: 22px; }}
+        @keyframes float {{ 0% {{ transform: translateY(0px); }} 50% {{ transform: translateY(-3px); }} 100% {{ transform: translateY(0px); }} }}
+        
+        /* REACCIONES */
+        div[data-testid="column"] button.reaccion-btn {{ background: transparent !important; border: none !important; }}
     </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 3. COMPONENTE: BOT GANA (VERSIÓN DISCRETA)
+# 4. COMPONENTE: BOT GANA (MINI)
 # ==============================================================================
 def mostrar_bot_mini(mensaje, key_unica):
-    """
-    Asistente virtual discreto en una sola línea.
-    """
     session_key = f"bot_closed_{key_unica}"
-    
-    # Inicializar estado
-    if session_key not in st.session_state:
-        st.session_state[session_key] = False
+    if session_key not in st.session_state: st.session_state[session_key] = False
+    if st.session_state[session_key]: return
 
-    # Si está cerrado, no renderizar nada
-    if st.session_state[session_key]:
-        return
-
-    # Contenedor visual limpio
-    # Usamos columnas para alinear: [Icono] [Texto] [Like] [Cerrar]
     c_bot = st.container()
     with c_bot:
         cols = st.columns([0.1, 0.75, 0.075, 0.075], vertical_alignment="center")
-        
-        with cols[0]:
-            st.markdown('<div class="bot-icon">🤖</div>', unsafe_allow_html=True)
-        
-        with cols[1]:
-            st.markdown(f"<span style='color:#ddd; font-size:14px; font-style:italic;'>{mensaje}</span>", unsafe_allow_html=True)
-            
-        with cols[2]:
+        with cols[0]: st.markdown('<div class="bot-icon">🤖</div>', unsafe_allow_html=True)
+        with cols[1]: st.markdown(f"<span style='color:#ddd; font-size:14px; font-style:italic;'>{mensaje}</span>", unsafe_allow_html=True)
+        with cols[2]: 
             if st.button("👍", key=f"lk_{key_unica}", help="Útil"):
-                st.session_state[session_key] = True
-                st.toast("¡Anotado! 😎")
-                time.sleep(0.3)
-                st.rerun()
-                
-        with cols[3]:
+                st.session_state[session_key] = True; st.toast("¡Anotado!"); time.sleep(0.2); st.rerun()
+        with cols[3]: 
             if st.button("✖️", key=f"cl_{key_unica}", help="Cerrar"):
-                st.session_state[session_key] = True
-                st.rerun()
-        
-        # Separador invisible para dar aire
+                st.session_state[session_key] = True; st.rerun()
         st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 4. LÓGICA DEL LOBBY
+# 5. LÓGICA DEL LOBBY
 # ==============================================================================
-
 def render_lobby():
-    # --- A. PORTADA ---
-    st.image(URL_PORTADA, use_container_width=True)
-    
-    st.markdown("""
-        <div style="text-align: center; margin-bottom: 25px;">
-            <p style="font-size: 16px; opacity: 0.7;">
-                Plataforma profesional para torneos relámpago y ligas.
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
+    # --- HEADER ---
+    try:
+        st.image(URL_PORTADA, use_container_width=True)
+    except:
+        st.header("🏆 GOL GANA") # Fallback si la imagen falla
 
-    # BOT: Bienvenida Discreta
-    mostrar_bot_mini(
-        "¡Hola! Abajo están los torneos activos. Si eres organizador, crea el tuyo al final.", 
-        "bot_lobby_intro"
-    )
+    # --- DIAGNÓSTICO DE BASE DE DATOS ---
+    if conn is None:
+        st.warning("⚠️ **Modo Diseño (Sin Base de Datos):** No se detectaron credenciales en secrets.toml. La interfaz se muestra pero no guardará datos.")
+
+    # BOT INTRO
+    mostrar_bot_mini("¡Hola! Soy Bot Gana. Abajo encuentras los torneos activos.", "bot_lobby_intro")
 
     st.markdown("---")
-
-    # --- B. TORNEOS VIGENTES ---
     st.subheader("🔥 Torneos en Curso")
 
+    # --- LISTAR TORNEOS ---
     try:
         if conn:
-            query = text("""
-                SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
-                FROM torneos 
-                WHERE fase != 'Terminado' 
-                ORDER BY fecha_creacion DESC
-            """)
+            query = text("SELECT id, nombre, organizador, color_primario, fase, formato FROM torneos WHERE fase != 'Terminado' ORDER BY fecha_creacion DESC")
             df_torneos = pd.read_sql_query(query, conn)
         else:
             df_torneos = pd.DataFrame()
     except Exception as e:
-        st.error("Conectando con el servidor...") # Mensaje suave de error
+        # st.error(f"Error SQL: {e}") # Descomentar para ver error real
         df_torneos = pd.DataFrame()
 
     if not df_torneos.empty:
         for _, t in df_torneos.iterrows():
             with st.container():
-                # Tarjeta HTML
                 st.markdown(f"""
                 <div class="lobby-card" style="border-left: 5px solid {t['color_primario']};">
-                    <div style="display:flex; justify-content:space-between; align-items:start;">
-                        <div>
-                            <h3 style="margin:0; font-weight:700; font-size: 20px; color:white;">{t['nombre']}</h3>
-                            <p style="margin:5px 0 0 0; font-size:13px; opacity:0.7; color:#ccc;">
-                                👮 {t['organizador']} | 🎮 {t['formato']}
-                            </p>
-                        </div>
-                        <div style="text-align:right;">
-                             <span style="border: 1px solid {t['color_primario']}; color: {t['color_primario']}; padding:2px 8px; border-radius:12px; font-size:11px; text-transform:uppercase;">
-                                {t['fase']}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Botón Entrar
-                col_b = st.columns([1, 2, 1])[1]
-                if st.button(f"⚽ Ver Torneo", key=f"btn_go_{t['id']}", use_container_width=True):
-                    st.query_params["id"] = str(t['id'])
-                    st.rerun()
+                    <h3 style="margin:0; color:white;">{t['nombre']}</h3>
+                    <p style="margin:0; font-size:13px; opacity:0.7; color:#ccc;">👮 {t['organizador']} | 🎮 {t['formato']}</p>
+                    <span style="color:{t['color_primario']}; font-size:11px; border:1px solid {t['color_primario']}; padding:2px 5px; border-radius:4px;">{t['fase']}</span>
+                </div>""", unsafe_allow_html=True)
+                if st.button(f"⚽ Ver Torneo", key=f"btn_{t['id']}", use_container_width=True):
+                    st.query_params["id"] = str(t['id']); st.rerun()
     else:
-        st.info("No hay torneos activos. ¡Crea el primero!")
+        st.info("No hay torneos activos (o no hay conexión a BD).")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- C. CREAR TORNEO ---
+    # --- CREAR TORNEO ---
     with st.expander("✨ ¿Eres Organizador? Crea tu Torneo", expanded=False):
-        
-        # BOT: Consejo sobre el color
-        mostrar_bot_mini(
-            "Elige un color único. ¡Ese color definirá la identidad de toda la web para tus jugadores!", 
-            "bot_crear_color"
-        )
-        
-        with st.form("form_crear_torneo"):
-            st.markdown("##### 1. El Torneo")
-            new_nombre = st.text_input("Nombre del Torneo", placeholder="Ej: Relámpago Jueves")
-            
+        mostrar_bot_mini("Elige un color único para tu marca.", "bot_crear_color")
+        with st.form("form_crear"):
+            new_nombre = st.text_input("Nombre del Torneo")
             c1, c2 = st.columns(2)
-            new_formato = c1.selectbox("Formato", ["Grupos + Eliminatoria", "Todos contra Todos", "Eliminación Directa"])
-            new_color = c2.color_picker("Color de Marca", "#00FF00")
-            
-            st.markdown("##### 2. El Admin")
+            new_formato = c1.selectbox("Formato", ["Grupos", "Liga"])
+            new_color = c2.color_picker("Color", "#00FF00")
             c3, c4 = st.columns(2)
-            new_org = c3.text_input("Tu Nombre / Cancha")
-            new_wa = c4.text_input("WhatsApp (Sin +)")
+            new_org = c3.text_input("Organizador")
+            new_pin = c4.text_input("PIN (4 dígitos)", type="password", max_chars=4)
             
-            st.markdown("##### 3. Seguridad")
-            # BOT: Consejo sobre el PIN
-            st.caption("🤖 Bot: El PIN es tu llave maestra. ¡No lo olvides!")
-            new_pin = st.text_input("PIN de Admin (4 dígitos)", type="password", max_chars=4)
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            if st.form_submit_button("🚀 Crear y Gestionar", use_container_width=True, type="primary"):
-                if new_nombre and new_pin and new_org and conn:
+            if st.form_submit_button("🚀 Crear", use_container_width=True, type="primary"):
+                if conn and new_nombre and new_pin:
                     try:
                         with conn.connect() as db:
-                            res = db.execute(text("""
-                                INSERT INTO torneos (nombre, organizador, whatsapp_admin, pin_admin, color_primario, fase, formato)
-                                VALUES (:n, :o, :w, :p, :c, 'inscripcion', :f) RETURNING id
-                            """), {
-                                "n": new_nombre, "o": new_org, "w": new_wa, 
-                                "p": new_pin, "c": new_color, "f": new_formato
-                            })
-                            nuevo_id = res.fetchone()[0]
-                            db.commit()
-                        
-                        st.balloons()
-                        time.sleep(1)
-                        st.query_params["id"] = str(nuevo_id)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error creando: {e}")
+                            res = db.execute(text("INSERT INTO torneos (nombre, organizador, whatsapp_admin, pin_admin, color_primario, fase, formato) VALUES (:n, :o, '', :p, :c, 'inscripcion', :f) RETURNING id"), 
+                                            {"n": new_nombre, "o": new_org, "p": new_pin, "c": new_color, "f": new_formato})
+                            nid = res.fetchone()[0]; db.commit()
+                        st.balloons(); time.sleep(1); st.query_params["id"] = str(nid); st.rerun()
+                    except Exception as e: st.error(f"Error: {e}")
                 else:
-                    st.warning("⚠️ Faltan datos obligatorios.")
+                    st.warning("Faltan datos o conexión.")
 
+# ==============================================================================
+# 6. ENRUTADOR
+# ==============================================================================
+params = st.query_params
+if "id" in params:
+    st.title(f"🚧 Torneo ID: {params['id']}")
+    if st.button("Volver"): st.query_params.clear(); st.rerun()
+else:
+    render_lobby()
