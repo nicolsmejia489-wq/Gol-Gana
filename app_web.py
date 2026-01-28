@@ -1,7 +1,28 @@
 import streamlit as st
+import sqlite3
 import pandas as pd
+import random
+import easyocr
+import cloudinary
+import cloudinary.uploader
+import io
+import numpy as np
+from PIL import Image
+import cv2
+import re  # Para expresiones regulares (encontrar números difíciles)
+from thefuzz import fuzz # Para comparación flexible de nombres
+import json
+import os
+import streamlit as st
 from sqlalchemy import create_engine, text
 import time
+import motor_colores
+import motor_grafico
+from io import BytesIO
+import PIL.Image
+import requests
+import extcolors
+from difflib import SequenceMatcher
 
 # ==============================================================================
 # 1. CONFIGURACIÓN E IDENTIDAD
@@ -273,3 +294,4 @@ def render_lobby():
                         st.error(f"Error creando: {e}")
                 else:
                     st.warning("⚠️ Faltan datos obligatorios.")
+
