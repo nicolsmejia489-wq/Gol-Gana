@@ -342,16 +342,15 @@ def validar_acceso(id_torneo, pin_ingresado):
         return None
     except:
         return None
-
 # ==============================================================================
 # 4.2 RENDERIZADO DE VISTA DE TORNEO
 # ==============================================================================
 def render_torneo(id_torneo):
     """
-    4.2: Interfaz interna del torneo seleccionado con personalización dinámica.
+    4.2: Interfaz interna del torneo seleccionado.
     """
     
-    # --- 4.2.1 Extracción de Datos de la Base de Datos ---
+    # --- 4.2.1 Extracción de Datos Maestros ---
     try:
         query = text("""
             SELECT nombre, organizador, color_primario, url_portada, fase, formato 
@@ -361,7 +360,7 @@ def render_torneo(id_torneo):
             t = db.execute(query, {"id": id_torneo}).fetchone()
         
         if not t:
-            st.error("Torneo no localizado en la base de datos.")
+            st.error("Torneo no localizado.")
             if st.button("Volver al Lobby"):
                 st.query_params.clear()
                 st.rerun()
@@ -372,10 +371,10 @@ def render_torneo(id_torneo):
         st.error(f"Error de conexión: {e}")
         return
 
-    # --- 4.2.2 Inyección de Estilos (Corrección de Acentos y Pestañas) ---
+    # --- 4.2.2 Inyección de Estilos (Corrección de Pestañas y Acentos) ---
     st.markdown(f"""
         <style>
-            /* 1. Botón Primario: Dinámico según el torneo */
+            /* 1. Botón Primario: Color dinámico del torneo */
             button[kind="primary"] {{
                 background-color: {t_color} !important;
                 color: {"white" if t_color.lower() in ["#000000", "black"] else "black"} !important;
@@ -386,96 +385,90 @@ def render_torneo(id_torneo):
                 color: {t_color} !important;
             }}
             
-            /* 3. Corrección de la Línea Inferior (Highlight/Sombra) de la Pestaña */
+            /* 3. Corrección DEFINITIVA de la línea/sombra inferior de la pestaña activa */
             [data-baseweb="tab-highlight-renderer"] {{
                 background-color: {t_color} !important;
             }}
-            
-            /* 4. Estilo de Diálogo del Bot para el PIN */
-            .bot-dialogue {{
-                font-size: 15px; 
-                color: #aaa; 
-                line-height: 1.2; 
-                padding-bottom: 5px;
+
+            /* 4. Título Estilo 'Caja' (Sin el contenedor) */
+            .tournament-title {{
+                color: white;
+                font-size: 32px;
+                font-weight: 600;
+                letter-spacing: 1px;
+                margin-top: 10px;
+                margin-bottom: 0px;
+                text-transform: uppercase;
+            }}
+            .tournament-subtitle {{
+                color: {t_color};
+                font-size: 16px;
+                opacity: 0.9;
+                margin-bottom: 20px;
+                font-weight: 400;
             }}
         </style>
     """, unsafe_allow_html=True)
 
-    # --- 4.2.3 Cabecera Gráfica ---
+    # --- 4.2.3 Cabecera Gráfica y Navegación ---
     img_banner = t_portada if t_portada else URL_PORTADA
     st.image(img_banner, use_container_width=True)
 
-    # --- 4.2.4 Navegación y Acceso Directo (Diseño Estable) ---
+    # Botón Volver (Tamaño estándar)
+    if st.button("⬅ LOBBY", use_container_width=False):
+        st.session_state.rol = "Espectador"
+        st.query_params.clear()
+        st.rerun()
+
+    # Título del Torneo (Justo debajo de la portada/botón)
+    st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p class="tournament-subtitle">Organiza: {t_org} | Modo: {st.session_state.rol}</p>', unsafe_allow_html=True)
+
+    # --- 4.2.4 Control de Sesión ---
     if "rol" not in st.session_state:
         st.session_state.rol = "Espectador"
 
-    # Fila combinada para Lobby y PIN
-    c_back, c_pin_ui = st.columns([1, 2])
+    # --- 4.2.5 Áreas de Trabajo (Tabs) ---
+    tab_pos, tab_res, tab_panel = st.tabs(["📊 POSICIONES", "⚽ RESULTADOS", "⚙️ PANEL"])
 
-    with c_back:
-        st.write("") # Alineación vertical
-        if st.button("⬅ LOBBY", use_container_width=True):
-            st.session_state.rol = "Espectador"
-            st.query_params.clear()
-            st.rerun()
+    with tab_pos:
+        st.subheader("Clasificación General")
+        st.info(f"Visualizando estadísticas de {t_nombre}.")
 
-    with c_pin_ui:
-        st.markdown(f"""
-            <div class="bot-dialogue">
-                🤖 <b>Gol Bot:</b> Si eres DT o Admin recuérdame tu PIN para gestionar el torneo.
-            </div>
-        """, unsafe_allow_html=True)
+    with tab_res:
+        st.subheader("Marcadores y Fechas")
+        st.info("Calendario de encuentros.")
+
+    with tab_panel:
+        # 1. El Bot aparece aquí con su estética original del lobby
+        mostrar_bot("Hola de nuevo. Si eres DT o Admin, <b>recuérdame tu PIN</b> para darte acceso a las herramientas de gestión.")
         
-        # Input de PIN integrado (sin expander)
-        pin_input = st.text_input("PIN de Acceso", type="password", 
-                                 label_visibility="collapsed", 
-                                 placeholder="Ingresa tu PIN y pulsa Enter")
+        # 2. Caja de PIN Integrada
+        pin_input = st.text_input("Introduce tu PIN", type="password", placeholder="PIN de 4 dígitos")
         
         if pin_input:
             rol_valido = validar_acceso(id_torneo, pin_input)
             if rol_valido:
                 st.session_state.rol = rol_valido
-                st.success(f"Modo: {rol_valido}")
+                st.success(f"Acceso confirmado como {rol_valido}")
                 time.sleep(1)
                 st.rerun()
             else:
                 st.error("PIN incorrecto.")
 
-    # Título y Estado del Torneo
-    st.markdown(f"""
-        <div style="border-left: 6px solid {t_color}; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 0 10px 10px 0; margin-top: 20px;">
-            <h1 style="margin:0; font-weight:600;">{t_nombre.upper()}</h1>
-            <p style="margin:0; opacity:0.8;">
-                Organizador: {t_org} | Modo: <b style="color:{t_color};">{st.session_state.rol}</b>
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
+        st.markdown("---")
 
-    # --- 4.2.5 Áreas de Trabajo (Tabs de Gestión) ---
-    tab_pos, tab_res, tab_mng = st.tabs(["📊 POSICIONES", "⚽ RESULTADOS", "⚙️ PANEL"])
-
-    with tab_pos:
-        st.subheader("Clasificación de Equipos")
-        # Integrar aquí la tabla de posiciones filtrada por id_torneo
-        st.info(f"Mostrando estadísticas para: {t_nombre}")
-
-    with tab_res:
-        st.subheader("Marcadores y Fechas")
-        st.info("Módulo de partidos jugados y próximos encuentros.")
-
-    with tab_mng:
+        # 3. Contenido condicional según el Rol
         if st.session_state.rol == "Admin":
-            st.markdown("### 🛠️ Configuración de Organizador")
-            st.button("Finalizar Inscripciones", type="primary")
+            st.markdown("### 🛠 Herramientas de Organizador")
+            st.button("Finalizar Inscripciones", type="primary", use_container_width=True)
         elif "DT" in st.session_state.rol:
-            st.markdown(f"### 🛡️ Gestión de Equipo ({st.session_state.rol})")
-            st.button("Cargar Resultado", type="primary")
+            st.markdown(f"### 🛡 Gestión de {st.session_state.rol}")
+            st.button("Reportar Marcador", type="primary", use_container_width=True)
         else:
-            st.warning("🔒 Ingresa tu PIN en la parte superior para habilitar este panel de gestión.")
+            st.warning("🔒 Debes validar tu PIN para habilitar las funciones de este panel.")
 
-# ==============================================================================
-# 4.3 EJECUCIÓN DEL ENRUTADOR
-# ==============================================================================
+# --- 4.3 EJECUCIÓN DEL ENRUTADOR ---
 params = st.query_params
 if "id" in params:
     render_torneo(params["id"])
