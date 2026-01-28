@@ -184,7 +184,7 @@ def render_lobby():
     st.image(URL_PORTADA, use_container_width=True)
     
     # --- B. SALUDO DEL BOT ---
-    mostrar_bot("Hola, Soy <b>Gol Bot</b>. Guardaré las estadísticas de equipo y apoyaré al admin en la organización de cada torneo.")
+    mostrar_bot("Hola, Soy <b>Gol Bot</b>. Guardaré las estadísticas de cada partido y apoyaré al admin en la organización de cada torneo.")
 
     # --- C. SECCIÓN: NOVEDADES (TABS) ---
     st.markdown(f"<h3 style='text-align:center; color:{COLOR_MARCA}; margin-top:10px; letter-spacing:2px;'>NOVEDADES</h3>", unsafe_allow_html=True)
@@ -336,3 +336,4 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
