@@ -192,23 +192,23 @@ def render_lobby():
 
     st.markdown("---")
 
-  # --- D. TORNEOS VIGENTES ---
-    st.subheader("🔥 Torneos en Curso")
+# --- D. TORNEOS VIGENTES ---
+st.subheader("🔥 Torneos en Curso")
 
-    try:
-        if conn:
-            query = text("""
-                SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
-                FROM torneos 
-                WHERE fase != 'Terminado' 
-                ORDER BY fecha_creacion DESC
-            """)
-            df_torneos = pd.read_sql_query(query, conn)
-        else:
-            df_torneos = pd.DataFrame()
-    except:
-        st.error("Conectando al servidor...")
+try:
+    if conn:
+        query = text("""
+            SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
+            FROM torneos 
+            WHERE fase != 'Terminado' 
+            ORDER BY fecha_creacion DESC
+        """)
+        df_torneos = pd.read_sql_query(query, conn)
+    else:
         df_torneos = pd.DataFrame()
+except:
+    st.error("Conectando al servidor...")
+    df_torneos = pd.DataFrame()
 
 if not df_torneos.empty:
     for _, t in df_torneos.iterrows():
@@ -329,5 +329,6 @@ if "id" in params:
         st.rerun()
 else:
     render_lobby()
+
 
 
