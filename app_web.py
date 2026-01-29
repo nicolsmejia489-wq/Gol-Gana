@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 import time
+import cloudinary
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
 
 # ==============================================================================
 # 1. CONFIGURACIÓN E IDENTIDAD
@@ -551,6 +554,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
