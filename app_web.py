@@ -369,20 +369,19 @@ def render_torneo(id_torneo):
     except Exception as e:
         st.error(f"Error DB: {e}"); return
 
-    # --- 4.2.2 CSS de Identidad Visual (Oswald Impact) ---
+    # --- 4.2.2 CSS Oswald Impact ---
     st.markdown(f"""
         <style>
             button[kind="primary"] {{ background-color: {t_color} !important; color: black !important; font-weight: 700 !important; }}
             .stTabs [aria-selected="true"] p {{ color: {t_color} !important; font-weight: 700 !important; }}
             [data-baseweb="tab-highlight-renderer"] {{ background-color: {t_color} !important; }}
             .tournament-title {{ color: white; font-size: 32px; font-weight: 700; text-transform: uppercase; margin-top: 10px; margin-bottom: 0px; letter-spacing: -0.02em; }}
-            .tournament-subtitle {{ color: {t_color}; font-size: 16px; opacity: 0.9; margin-bottom: 20px; font-weight: 400; }}
+            .tournament-subtitle {{ color: {t_color}; font-size: 16px; opacity: 0.9; margin-bottom: 25px; font-weight: 400; }}
         </style>
     """, unsafe_allow_html=True)
 
     # --- 4.2.3 Cabecera ---
     st.image(t_portada if t_portada else URL_PORTADA, use_container_width=True)
-
     if st.button("⬅ LOBBY", use_container_width=False):
         for k in ["rol", "id_equipo", "nombre_equipo", "login_error", "datos_temp", "reg_estado", "msg_bot_ins"]:
             if k in st.session_state: del st.session_state[k]
@@ -391,6 +390,7 @@ def render_torneo(id_torneo):
 
     st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
     
+    # Etiqueta de Modo
     rol_actual = st.session_state.get("rol", "Espectador")
     label_modo = f"DT: {st.session_state.get('nombre_equipo')}" if rol_actual == "DT" else rol_actual
     st.markdown(f'<p class="tournament-subtitle">Organiza: {t_org} | Modo: {label_modo}</p>', unsafe_allow_html=True)
@@ -402,95 +402,98 @@ def render_torneo(id_torneo):
 
     with tabs[0]:
         st.subheader("Clasificación General")
-        st.info("Tabla de puntos en desarrollo...")
+        st.info("Tabla de posiciones en desarrollo...")
 
-    # --- TAB 2: INSCRIPCIONES (Lógica de Búsqueda y Registro) ---
+    # --- 4.2.5 TAB: INSCRIPCIONES (Vía Rápida + Formulario) ---
     with tabs[1]:
         if t_fase == "inscripcion":
-            # ---------------------------------------------------------
-            # 4.2.5 MÓDULO DE BÚSQUEDA Y REGISTRO (CON GOL BOT)
-            # ---------------------------------------------------------
-            
-            # Inicializamos mensaje del bot para inscripciones
+            # --- Lógica de Mensaje del Bot ---
             if "msg_bot_ins" not in st.session_state:
                 st.session_state.msg_bot_ins = "Este registro es necesario una sola vez, si ya estás registrado recuérdame el PIN y presiona BUSCAR para saber quién eres."
 
             mostrar_bot(st.session_state.msg_bot_ins)
 
-            # Buscador de PIN preventivo
+            # --- SECCIÓN A: BÚSQUEDA RÁPIDA ---
             c_pin_ins, c_btn_bus = st.columns([3, 1])
             with c_pin_ins:
-                pin_buscar = st.text_input("Verificar mi PIN", type="password", label_visibility="collapsed", placeholder="PIN a buscar...")
+                pin_buscar = st.text_input("Verificar mi PIN", type="password", label_visibility="collapsed", placeholder="PIN de 4 dígitos...")
             with c_btn_bus:
                 if st.button("BUSCAR", use_container_width=True):
                     if pin_buscar:
-                        with conn.connect() as db:
-                            res_bus = db.execute(text("SELECT nombre FROM equipos_globales WHERE id_torneo = :id_t AND pin_equipo = :pin"), 
-                                               {"id_t": id_torneo, "pin": pin_buscar}).fetchone()
-                            if res_bus:
-                                st.session_state.msg_bot_ins = f"El club <b>{res_bus[0]}</b> ya está en lista de espera."
-                            else:
-                                st.session_state.msg_bot_ins = "No te conozco aún, <b>no tengo ese PIN registrado</b>."
-                        st.rerun()
+                        try:
+                            with conn.connect() as db:
+                                q_check = text("SELECT nombre FROM equipos_globales WHERE id_torneo = :id_t AND pin_equipo = :pin")
+                                res_bus = db.execute(q_check, {"id_t": id_torneo, "pin": pin_buscar}).fetchone()
+                                if res_bus:
+                                    st.session_state.msg_bot_ins = f"El club <b>{res_bus[0]}</b> ya está en lista de espera."
+                                else:
+                                    st.session_state.msg_bot_ins = "No te conozco aún, <b>no tengo ese PIN registrado</b>."
+                            st.rerun()
+                        except:
+                            st.session_state.msg_bot_ins = "No te conozco aún, no tengo ese PIN registrado."
+                            st.rerun()
 
             st.markdown("---")
+
+            # --- SECCIÓN B: FORMULARIO TRADICIONAL (SIEMPRE DISPONIBLE) ---
+            st.markdown("#### ¿Eres nuevo? Regístrate aquí")
             
-            # Lógica de Formulario (Solo se muestra si el usuario decide seguir)
             if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
+            if "datos_temp" not in st.session_state:
+                st.session_state.datos_temp = {"n": "", "wa": "", "pin": "", "pref": "+57", "escudo_obj": None}
 
             if st.session_state.reg_estado == "exito":
-                st.success("✅ ¡Inscripción recibida!")
-                if st.button("Nuevo Registro"):
+                st.success("✅ ¡Inscripción enviada!")
+                if st.button("Volver a Formulario"):
                     st.session_state.reg_estado = "formulario"; st.rerun()
 
             elif st.session_state.reg_estado == "confirmar":
-                # (Lógica de confirmación idéntica a la anterior...)
-                d = st.session_state.get("datos_temp", {})
+                d = st.session_state.datos_temp
                 st.warning("⚠️ **Confirma tus datos:**")
-                st.write(f"Equipo: {d.get('n')}")
-                if st.button("✅ Enviar"):
-                    # ... Proceso de guardado ...
+                st.write(f"**Equipo:** {d['n']} | **WhatsApp:** {d['pref']} {d['wa']} | **PIN:** {d['pin']}")
+                c1, c2 = st.columns(2)
+                if c1.button("✅ Confirmar y Enviar", use_container_width=True):
+                    # Aquí va tu lógica de guardado en DB que ya tenías
                     st.session_state.reg_estado = "exito"; st.rerun()
+                if c2.button("✏️ Editar", use_container_width=True):
+                    st.session_state.reg_estado = "formulario"; st.rerun()
+
             else:
-                with st.expander("📝 No estoy registrado, quiero inscribirme", expanded=False):
-                    with st.form("form_registro_nuevo"):
-                        nom = st.text_input("Nombre Equipo")
-                        tel = st.text_input("WhatsApp")
-                        pin_r = st.text_input("Crea un PIN (4 dígitos)", max_chars=4)
-                        if st.form_submit_button("Siguiente", use_container_width=True):
-                            # Validar que no exista para proceder
-                            st.session_state.datos_temp = {"n": nom, "wa": tel, "pin": pin_r, "pref": "+57", "escudo_obj": None}
+                with st.form("registro_primera_vez"):
+                    d = st.session_state.datos_temp
+                    f_nom = st.text_input("Nombre del Club", value=d['n'])
+                    f_wa = st.text_input("WhatsApp", value=d['wa'])
+                    f_pin = st.text_input("Crea un PIN (4 dígitos)", max_chars=4, value=d['pin'])
+                    if st.form_submit_button("Siguiente", use_container_width=True):
+                        if not f_nom or not f_wa or len(f_pin) < 4:
+                            st.error("Por favor completa los campos.")
+                        else:
+                            st.session_state.datos_temp.update({"n": f_nom, "wa": f_wa, "pin": f_pin})
                             st.session_state.reg_estado = "confirmar"; st.rerun()
         else:
-            st.subheader("Resultados de la Jornada")
+            st.subheader("Resultados")
 
-    # --- TAB 3: PANEL (GESTIÓN) ---
+    # --- TAB 3: PANEL ---
     with tabs[2]:
         if st.session_state.get("rol", "Espectador") == "Espectador":
-            # El bot del panel mantiene su discurso de gestión
-            msg_panel = "Hola de nuevo. Si eres DT o Admin, <b>recuérdame tu PIN</b> para darte acceso a las herramientas."
-            if st.session_state.get("login_error"):
-                msg_panel = "No recuerdo tu PIN, <b>no está registrado</b> en este torneo."
-            
-            mostrar_bot(msg_panel)
-            c_in, c_bt = st.columns([3, 1])
-            with c_in: pin_login = st.text_input("PIN Admin/DT", type="password", label_visibility="collapsed")
-            with c_bt:
+            mostrar_bot("Si eres DT o Admin, <b>recuérdame tu PIN</b> para gestionar.")
+            c_p, c_b = st.columns([3, 1])
+            with c_p: p_login = st.text_input("PIN Login", type="password", label_visibility="collapsed")
+            with c_b:
                 if st.button("Ingresar", use_container_width=True, type="primary"):
-                    acceso = validar_acceso(id_torneo, pin_login)
-                    if acceso:
-                        st.session_state.update(acceso)
-                        st.session_state.login_error = False
+                    acc = validar_acceso(id_torneo, p_login)
+                    if acc:
+                        st.session_state.update(acc)
                         st.rerun()
                     else:
-                        st.session_state.login_error = True; st.rerun()
+                        st.error("PIN Incorrecto")
         else:
-            st.success(f"Sesión activa: **{st.session_state.nombre_equipo if st.session_state.rol == 'DT' else 'Administrador'}**")
+            st.success(f"Logueado como: **{st.session_state.nombre_equipo or 'Admin'}**")
             if st.button("Cerrar Sesión", use_container_width=True):
-                for k in ["rol", "id_equipo", "nombre_equipo", "login_error"]: del st.session_state[k]
+                for k in ["rol", "id_equipo", "nombre_equipo"]: del st.session_state[k]
                 st.rerun()
 
-# --- 4.3 EJECUCIÓN DEL ENRUTADOR ---
+# --- 4.3 ENRUTADOR ---
 params = st.query_params
 if "id" in params:
     render_torneo(params["id"])
