@@ -441,7 +441,7 @@ def render_torneo(id_torneo):
         st.subheader("Clasificación General")
 
     # --- TAB 2: INSCRIPCIONES (Vía Rápida + Formulario con IA) ---
-   with tabs[1]:
+    with tabs[1]:
     if t_fase == "inscripcion":
         if "msg_bot_ins" not in st.session_state:
             st.session_state.msg_bot_ins = "Este registro es necesario una sola vez, si ya estás registrado recuérdame el PIN y presiona BUSCAR."
@@ -551,5 +551,6 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
