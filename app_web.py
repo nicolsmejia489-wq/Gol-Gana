@@ -441,93 +441,92 @@ def render_torneo(id_torneo):
         st.subheader("Clasificación General")
 
     # --- TAB 2: INSCRIPCIONES (Vía Rápida + Formulario con IA) ---
-    with tabs[1]:
-        if t_fase == "inscripcion":
-            if "msg_bot_ins" not in st.session_state:
-                st.session_state.msg_bot_ins = "Este registro es necesario una sola vez, si ya estás registrado recuérdame el PIN y presiona BUSCAR para saber quién eres."
+   with tabs[1]:
+    if t_fase == "inscripcion":
+        if "msg_bot_ins" not in st.session_state:
+            st.session_state.msg_bot_ins = "Este registro es necesario una sola vez, si ya estás registrado recuérdame el PIN y presiona BUSCAR."
 
-            mostrar_bot(st.session_state.msg_bot_ins)
+        mostrar_bot(st.session_state.msg_bot_ins)
 
-            # --- A. BÚSQUEDA RÁPIDA ---
-            c_pin_ins, c_btn_bus = st.columns([3, 1])
-            with c_pin_ins:
-                pin_buscar = st.text_input("Verificar mi PIN", max_chars=6, label_visibility="collapsed", placeholder="PIN a buscar...")
-            with c_btn_bus:
-                if st.button("BUSCAR", use_container_width=True):
-                    if pin_buscar:
-                        with conn.connect() as db:
-                            res_bus = db.execute(text("SELECT nombre FROM equipos_globales WHERE id_torneo = :id_t AND pin_equipo = :pin"), 
-                                               {"id_t": id_torneo, "pin": pin_buscar}).fetchone()
-                            if res_bus:
-                                st.session_state.msg_bot_ins = f"El club <b>{res_bus[0]}</b> ya está en lista de espera."
-                            else:
-                                st.session_state.msg_bot_ins = "No te conozco aún, <b>no tengo ese PIN registrado</b> en este torneo."
-                        st.rerun()
-
-            st.markdown("---")
-
-            # --- B. FORMULARIO CON IA DE ESCUDO ---
-            if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
-            if "datos_temp" not in st.session_state:
-                st.session_state.datos_temp = {"n": "", "wa": "", "pin": "", "pref": "+57", "escudo_obj": None}
-
-            d = st.session_state.datos_temp
-
-            if st.session_state.reg_estado == "exito":
-                st.success("✅ ¡Inscripción enviada!")
-                if st.button("Volver a Formulario"):
-                    st.session_state.reg_estado = "formulario"; st.rerun()
-
-            elif st.session_state.reg_estado == "confirmar":
-                st.warning("⚠️ **Confirma los datos:**")
-                st.write(f"**Equipo:** {d['n']} | **WhatsApp:** {d['pref']} {d['wa']} | **PIN:** {d['pin']}")
-                if d['escudo_obj']: st.image(d['escudo_obj'], width=100)
-                
-                c1, c2 = st.columns(2)
-                if c1.button("✅ Confirmar y Enviar", use_container_width=True):
-                    with st.spinner("Procesando escudo con IA..."):
-                        url_escudo = None
-                        if d['escudo_obj']:
-                            # LLAMADA A LA FUNCIÓN DE IA
-                            url_escudo = procesar_y_subir_escudo(d['escudo_obj'], d['n'], id_torneo)
-                        
-                        try:
-                            with conn.connect() as db:
-                                db.execute(text("""
-                                    INSERT INTO equipos_globales (id_torneo, nombre, celular, prefijo, pin_equipo, escudo, estado) 
-                                    VALUES (:id_t, :n, :c, :p, :pi, :e, 'pendiente')
-                                """), {"id_t": id_torneo, "n": d['n'], "c": d['wa'], "p": d['pref'], "pi": d['pin'], "e": url_escudo})
-                                db.commit()
-                            st.session_state.reg_estado = "exito"; st.rerun()
-                        except Exception as e:
-                            st.error(f"Error al guardar: {e}")
-
-                if c2.button("✏️ Editar", use_container_width=True):
-                    st.session_state.reg_estado = "formulario"; st.rerun()
-
-            else:
-                st.markdown("#### ¿Eres nuevo? Regístrate aquí")
-                with st.form("reg_preventivo"):
-                    nom = st.text_input("Nombre Equipo", value=d['n']).strip()
-                    paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54", "Chile": "+56", "Venezuela": "+58"}
-                    opciones = [f"{p} ({pref})" for p, pref in paises.items()]
-                    idx_pref = next((i for i, opt in enumerate(opciones) if d['pref'] in opt), 0)
-
-                    pais_sel = st.selectbox("País", opciones, index=idx_pref)
-                    tel = st.text_input("WhatsApp", value=d['wa']).strip()
-                    pin_r = st.text_input("Crea un PIN (Max 6 caracteres)", max_chars=6, value=d['pin']).strip()
-                    archivo_escudo = st.file_uploader("🛡️ Escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
-                    
-                    if st.form_submit_button("Siguiente", use_container_width=True):
-                        if not nom or not tel or len(pin_r) < 4:
-                            st.error("Completa los datos. PIN mínimo 4 caracteres.")
+        # --- A. BÚSQUEDA RÁPIDA ---
+        c_pin, c_btn = st.columns([3, 1])
+        with c_pin:
+            pin_bus = st.text_input("PIN", max_chars=6, key="bus_pin", label_visibility="collapsed", placeholder="PIN alfanumérico...")
+        with c_btn:
+            if st.button("BUSCAR", use_container_width=True):
+                try:
+                    with conn.connect() as db:
+                        res = db.execute(text("SELECT nombre FROM equipos_globales WHERE id_torneo=:id AND pin_equipo=:p"), 
+                                       {"id": id_torneo, "p": pin_bus}).fetchone()
+                        if res:
+                            st.session_state.msg_bot_ins = f"El club <b>{res[0]}</b> ya está en lista de espera."
                         else:
-                            st.session_state.datos_temp = {
-                                "n": nom, "wa": tel, "pin": pin_r, 
-                                "pref": pais_sel.split('(')[-1].replace(')', ''),
-                                "escudo_obj": archivo_escudo
-                            }
-                            st.session_state.reg_estado = "confirmar"; st.rerun()
+                            st.session_state.msg_bot_ins = "No te conozco aún, <b>no tengo ese PIN registrado</b>."
+                    st.rerun()
+                except:
+                    st.session_state.msg_bot_ins = "No te conozco aún, no tengo ese PIN registrado."
+                    st.rerun()
+
+        st.markdown("---")
+
+        # --- B. FORMULARIO DE REGISTRO ---
+        if st.session_state.get("reg_estado") == "exito":
+            st.success("⚽ ¡Inscripción enviada!")
+            if st.button("Hacer otro registro"):
+                st.session_state.reg_estado = "formulario"; st.rerun()
+
+        elif st.session_state.get("reg_estado") == "confirmar":
+            d = st.session_state.datos_temp
+            st.warning("⚠️ **Confirma los datos del Club:**")
+            col_t, col_i = st.columns([2, 1])
+            with col_t:
+                st.write(f"**Club:** {d['n']}")
+                st.write(f"**Contacto:** ({d['pref']}) {d['wa']}")
+                st.write(f"**PIN:** {d['pin']}")
+            with col_i:
+                if d['escudo_obj']: st.image(d['escudo_obj'], width=100)
+            
+            if st.button("✅ Confirmar y Guardar", use_container_width=True):
+                with st.spinner("Subiendo escudo y registrando..."):
+                    url_logo = None
+                    if d['escudo_obj']:
+                        url_logo = procesar_y_subir_escudo(d['escudo_obj'], d['n'], id_torneo)
+                    
+                    with conn.connect() as db:
+                        db.execute(text("""
+                            INSERT INTO equipos_globales (id_torneo, nombre, celular, prefijo, pin_equipo, escudo, estado)
+                            VALUES (:id_t, :n, :c, :p, :pi, :e, 'pendiente')
+                        """), {"id_t": id_torneo, "n": d['n'], "c": d['wa'], "p": d['pref'], "pi": d['pin'], "e": url_logo})
+                        db.commit()
+                st.session_state.reg_estado = "exito"; st.rerun()
+            
+            if st.button("✏️ Corregir datos"):
+                st.session_state.reg_estado = "formulario"; st.rerun()
+
+        else:
+            # ESTADO: FORMULARIO
+            with st.form("registro_club"):
+                d = st.session_state.get("datos_temp", {"n":"", "wa":"", "pin":"", "pref":"+57", "escudo_obj":None})
+                nom_f = st.text_input("Nombre del Equipo", value=d['n'])
+                
+                paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54"}
+                opciones = [f"{p} ({pref})" for p, pref in paises.items()]
+                p_sel = st.selectbox("País", opciones)
+                
+                wa_f = st.text_input("WhatsApp (Sin prefijo)", value=d['wa'])
+                pin_f = st.text_input("Crea un PIN (4-6 caracteres)", value=d['pin'], max_chars=6)
+                escudo_f = st.file_uploader("🛡️ Sube tu escudo", type=['png', 'jpg'])
+                
+                if st.form_submit_button("Siguiente"):
+                    if not nom_f or not wa_f or len(pin_f) < 4:
+                        st.error("Datos incompletos.")
+                    else:
+                        st.session_state.datos_temp = {
+                            "n": nom_f, "wa": wa_f, "pin": pin_f,
+                            "pref": p_sel.split('(')[-1].replace(')', ''),
+                            "escudo_obj": escudo_f
+                        }
+                        st.session_state.reg_estado = "confirmar"; st.rerun()
         else:
             st.subheader("Resultados")
 
@@ -552,4 +551,5 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
