@@ -663,7 +663,8 @@ def render_torneo(id_torneo):
                 st.subheader("Equipos Aprobados")
                 try:
                     with conn.connect() as db:
-                        df_aprob = pd.read_sql_query(text("SELECT nombre, celular_capitan, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC"), db, params={"id": id_torneo})
+                        q_aprob = text("SELECT nombre, celular, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC")
+                        df_aprob = pd.read_sql_query(q_aprob, db, params={"id": id_torneo})
                     
                     if df_aprob.empty:
                         st.warning("Aún no has aprobado equipos.")
@@ -671,14 +672,22 @@ def render_torneo(id_torneo):
                         st.markdown(f"**Total:** {len(df_aprob)} equipos listos.")
                         for _, row in df_aprob.iterrows():
                             with st.container():
-                                c_img, c_info = st.columns([0.5, 4])
+                                c_img, c_info = st.columns([0.5, 4], vertical_alignment="center")
                                 with c_img:
                                     if row['escudo']: st.image(row['escudo'], width=35)
                                     else: st.write("🛡️")
                                 with c_info:
-                                    st.markdown(f"**{row['nombre']}** • {row['prefijo']} {row['celular_capitan']}")
+                                    # 1. Construcción de la URL limpia para la API de WhatsApp
+                                    pref_url = str(row['prefijo']).replace('+', '')
+                                    cel_url = str(row['celular']).replace(' ', '')
+                                    link_wa = f"https://wa.me/{pref_url}{cel_url}"
+                                    
+                                    # 2. Renderizado: Nombre • [Número con Link]
+                                    # Usamos sintaxis Markdown: [Texto Visible](URL)
+                                    st.markdown(f"**{row['nombre']}** • [`{row['prefijo']} {row['celular']}`]({link_wa})")
                                 st.divider()
-                except Exception as e: st.error(f"Error: {e}")
+                except Exception as e:
+                    st.error(f"Error listando equipos: {e}")
 
             # ==========================================
             # TAB 3: CONFIGURACIÓN (Con Confirmación de Gol Bot)
@@ -736,6 +745,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
