@@ -511,7 +511,7 @@ def render_torneo(id_torneo):
                         try:
                             with conn.connect() as db:
                                 query_insert = text("""
-                                    INSERT INTO equipos_globales (id_torneo, nombre, celular, prefijo, pin_equipo, escudo, estado)
+                                    INSERT INTO equipos_globales (id_torneo, nombre, celular_capitan, prefijo, pin_equipo, escudo, estado)
                                     VALUES (:id_t, :n, :c, :p, :pi, :e, 'pendiente')
                                 """)
                                 db.execute(query_insert, {
@@ -587,6 +587,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
