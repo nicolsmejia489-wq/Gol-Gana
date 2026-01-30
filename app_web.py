@@ -663,7 +663,7 @@ def render_torneo(id_torneo):
                 st.subheader("Equipos Aprobados")
                 try:
                     with conn.connect() as db:
-                        df_aprob = pd.read_sql_query(text("SELECT nombre, celular, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC"), db, params={"id": id_torneo})
+                        df_aprob = pd.read_sql_query(text("SELECT nombre, celular_capitan, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC"), db, params={"id": id_torneo})
                     
                     if df_aprob.empty:
                         st.warning("Aún no has aprobado equipos.")
@@ -736,6 +736,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
