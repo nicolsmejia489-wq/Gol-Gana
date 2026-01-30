@@ -12,9 +12,9 @@ from cloudinary.utils import cloudinary_url
 # --- CONFIGURACIÓN DE CLOUDINARY () ---
 # Debe ir antes de cualquier función
 cloudinary.config( 
-    cloud_name = st.secrets["dlvczeqlp"], 
-    api_key = st.secrets["276694391654197"], 
-    api_secret = st.secrets["j-_6AaUam_Acwng0GGr8tmb8Zyk"],
+    cloud_name = st.secrets[dlvczeqlp], 
+    api_key = st.secrets[276694391654197], 
+    api_secret = st.secrets[j-_6AaUam_Acwng0GGr8tmb8Zyk],
     secure = True
 )
 
@@ -808,6 +808,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
