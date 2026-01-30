@@ -641,8 +641,8 @@ def render_torneo(id_torneo):
                                         else: st.write("🛡️")
                                     with c2:
                                         st.markdown(f"**{r['nombre']}**")
-                                        cel_clean = str(r['celular']).replace(' ', '')
-                                        st.markdown(f"📞 [{r['prefijo']} {r['celular']}](https://wa.me/{r['prefijo'].replace('+','')}{cel_clean}) | PIN: `{r['pin_equipo']}`")
+                                        cel_clean = str(r['celular_capitan']).replace(' ', '')
+                                        st.markdown(f"📞 [{r['prefijo']} {r['celular_capitan']}](https://wa.me/{r['prefijo'].replace('+','')}{cel_clean}) | PIN: `{r['pin_equipo']}`")
                                     with c3:
                                         if st.button("Aprobar ✅", key=f"apr_{r['id']}", use_container_width=True):
                                             with conn.connect() as db:
@@ -736,6 +736,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
