@@ -819,109 +819,123 @@ def render_torneo(id_torneo):
                 st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=100)
 
            # ==========================================
-            # TAB: MI EQUIPO (Gestión de Identidad y Contacto)
+            # TAB: MI EQUIPO (Diseño Modular y Limpio)
             # ==========================================
             with tabs_dt[idx_mi_equipo]:
                 try:
                     with conn.connect() as db:
-                        # Obtenemos datos frescos
                         q_me = text("SELECT * FROM equipos_globales WHERE id = :id")
                         me = db.execute(q_me, {"id": id_eq}).fetchone()
 
                     if me:
-                        st.markdown("#### ✏️ Editar información de club")
+                        # Recuperamos datos de DTs para validaciones previas
+                        p1 = me.prefijo_dt1 if me.prefijo_dt1 else "+57"
+                        n1 = me.celular_dt1 if me.celular_dt1 else ""
+                        p2 = me.prefijo_dt2 if me.prefijo_dt2 else "+57"
+                        n2 = me.celular_dt2 if me.celular_dt2 else ""
                         
-                        # ==========================================
-                        # 1. SELECTOR DE ENCARGADO (SOLO SI HAY 2)
-                        # ==========================================
-                        # Verificamos si ya existen dos números registrados en BD
-                        tiene_dos_contactos = me.celular_dt1 and me.celular_dt2 and len(me.celular_dt1) > 5 and len(me.celular_dt2) > 5
-                        seleccion_encargado = "DT Principal" # Valor por defecto
-                        
-                        if tiene_dos_contactos:
-                            # MENSAJE GOL BOT UNIFICADO
-                            mostrar_bot("🤖 Veo dos contactos registrados. **¿A quién deben llamar los rivales para jugar en este torneo?** (Tranquilo, puedes cambiar de encargado aquí mismo cuando quieras).")
-                            
-                            # Determinamos quién es el actual activo
-                            idx_activo = 0 # Por defecto DT 1
-                            if me.celular_capitan == me.celular_dt2: 
-                                idx_activo = 1
-                            
-                            # Selector visual arriba
-                            seleccion_encargado = st.radio("Capitán encargado hoy:", ["DT Principal", "Capitán (Apoyo)"], index=idx_activo, horizontal=True)
-                            st.divider()
+                        tiene_dos = (len(n1) > 5 and len(n2) > 5)
 
-                        # ==========================================
-                        # 2. FORMULARIO DE EDICIÓN
-                        # ==========================================
                         with st.form("form_mi_equipo"):
                             
-                            # --- A. IDENTIDAD (Compacto) ---
-                            c_id1, c_id2, c_id3 = st.columns([2, 1, 1], vertical_alignment="bottom")
-                            with c_id1:
-                                new_nom = st.text_input("Nombre del Equipo", value=me.nombre)
-                            with c_id2:
-                                new_pin = st.text_input("PIN", value=me.pin_equipo, type="password")
-                            with c_id3:
-                                # Mini visualizador de escudo actual
-                                if me.escudo: st.image(me.escudo, width=40)
-                                else: st.write("🛡️")
+                            # ==========================================
+                            # 1. ZONA DE CAPITÁN ENCARGADO (Top Priority)
+                            # ==========================================
+                            if tiene_dos:
+                                st.markdown(f"#### ©️ Capitán encargado para: {t_nombre}")
+                                
+                                # Opciones directas: Prefijo + Número
+                                opt_1 = f"{p1} {n1}"
+                                opt_2 = f"{p2} {n2}"
+                                
+                                # Detectar activo
+                                idx_activo = 0
+                                if me.celular_capitan == n2: idx_activo = 1
+                                
+                                sel_capitan = st.radio("Selecciona el número visible para los rivales:", 
+                                                     [opt_1, opt_2], 
+                                                     index=idx_activo, 
+                                                     horizontal=True,
+                                                     label_visibility="collapsed")
+                                
+                                mostrar_bot("🤖 Los rivales verán el número seleccionado al pulsar 'Chat'. Cámbialo aquí cuando lo necesites.")
+                                st.write("") # Espacio
+                            else:
+                                sel_capitan = "Unico" # Valor dummy
 
-                            new_escudo = st.file_uploader("Actualizar Escudo", type=['png', 'jpg'], label_visibility="collapsed")
-                            
-                            st.markdown("---")
+                            # ==========================================
+                            # 2. ZONA DE EDICIÓN (Separada en Tarjetas)
+                            # ==========================================
+                            st.subheader("✏️ Editar información de club")
 
-                            # --- B. CUERPO TÉCNICO ---
-                            st.markdown("##### 📱 Contactos del Club")
-                            
-                            paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Argentina": "+54", "Ecuador": "+593", "Perú": "+51"}
+                            # --- TARJETA 1: IDENTIDAD ---
+                            with st.container(border=True):
+                                st.markdown("**🪪 Identidad del Club**")
+                                c_id1, c_id2 = st.columns([2, 1])
+                                with c_id1:
+                                    new_nom = st.text_input("Nombre del Equipo", value=me.nombre)
+                                with c_id2:
+                                    new_pin = st.text_input("PIN", value=me.pin_equipo, type="password")
+                                
+                                c_esc1, c_esc2 = st.columns([1, 4], vertical_alignment="center")
+                                with c_esc1:
+                                    if me.escudo: st.image(me.escudo, width=50)
+                                    else: st.write("🛡️")
+                                with c_esc2:
+                                    new_escudo = st.file_uploader("Actualizar Escudo", type=['png', 'jpg'], label_visibility="collapsed")
+
+                            # Lista de Países (Incluyendo Centroamérica)
+                            paises = {
+                                "Colombia": "+57", "México": "+52", "EEUU": "+1", "Argentina": "+54", 
+                                "Ecuador": "+593", "Perú": "+51", "Chile": "+56", "Venezuela": "+58", "Brasil": "+55",
+                                "Guatemala": "+502", "Costa Rica": "+506", "Panamá": "+507", 
+                                "Honduras": "+504", "El Salvador": "+503", "Nicaragua": "+505"
+                            }
                             l_paises = [f"{k} ({v})" for k, v in paises.items()]
 
-                            # CONTACTO 1: DT PRINCIPAL
-                            c_dt1_p, c_dt1_n = st.columns([1.5, 2])
-                            
-                            # Recuperación segura de datos
-                            prev_p1 = me.prefijo_dt1 if me.prefijo_dt1 else "+57"
-                            prev_n1 = me.celular_dt1 if me.celular_dt1 else ""
-                            try: idx_p1 = list(paises.values()).index(prev_p1)
-                            except: idx_p1 = 0
-                            
-                            sel_p1 = c_dt1_p.selectbox("País (DT)", l_paises, index=idx_p1, key="s_p1")
-                            val_p1 = sel_p1.split('(')[-1].replace(')', '')
-                            val_n1 = c_dt1_n.text_input("Celular DT Principal", value=prev_n1, key="i_n1", placeholder="Obligatorio")
+                            # --- TARJETA 2: DT PRINCIPAL ---
+                            with st.container(border=True):
+                                st.markdown("**👤 DT Principal** (Quien inscribió al club)")
+                                c_dt1_p, c_dt1_n = st.columns([1.5, 2])
+                                
+                                try: idx_p1 = list(paises.values()).index(p1)
+                                except: idx_p1 = 0
+                                
+                                sel_p1 = c_dt1_p.selectbox("País", l_paises, index=idx_p1, key="s_p1", label_visibility="collapsed")
+                                val_p1 = sel_p1.split('(')[-1].replace(')', '')
+                                val_n1 = c_dt1_n.text_input("Celular", value=n1, key="i_n1", label_visibility="collapsed", placeholder="Número Principal")
 
-                            # CONTACTO 2: CAPITÁN (ANTES CO-DT)
-                            c_dt2_p, c_dt2_n = st.columns([1.5, 2])
-                            
-                            prev_p2 = me.prefijo_dt2 if me.prefijo_dt2 else "+57"
-                            prev_n2 = me.celular_dt2 if me.celular_dt2 else ""
-                            try: idx_p2 = list(paises.values()).index(prev_p2)
-                            except: idx_p2 = 0
-                            
-                            sel_p2 = c_dt2_p.selectbox("País (Capitán)", l_paises, index=idx_p2, key="s_p2")
-                            val_p2 = sel_p2.split('(')[-1].replace(')', '')
-                            val_n2 = c_dt2_n.text_input("Celular Capitán (Opcional)", value=prev_n2, key="i_n2", placeholder="Respaldo")
+                            # --- TARJETA 3: CO-DT ---
+                            with st.container(border=True):
+                                st.markdown("**👥 Co-DT** (Segundo contacto)")
+                                c_dt2_p, c_dt2_n = st.columns([1.5, 2])
+                                
+                                try: idx_p2 = list(paises.values()).index(p2)
+                                except: idx_p2 = 0
+                                
+                                sel_p2 = c_dt2_p.selectbox("País", l_paises, index=idx_p2, key="s_p2", label_visibility="collapsed")
+                                val_p2 = sel_p2.split('(')[-1].replace(')', '')
+                                val_n2 = c_dt2_n.text_input("Celular", value=n2, key="i_n2", label_visibility="collapsed", placeholder="Número Opcional")
 
                             st.write("")
                             
-                            # Botón de Guardado
-                            if st.form_submit_button("💾 Actualizar Información", use_container_width=True):
+                            # BOTÓN DE GUARDADO
+                            if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                                 # 1. Procesar Escudo
                                 url_final = me.escudo
                                 if new_escudo:
                                     url_final = procesar_y_subir_escudo(new_escudo, new_nom, id_torneo)
                                 
-                                # 2. Lógica del "Encargado Activo"
-                                # Si el usuario seleccionó "Capitán" arriba Y el campo de texto tiene datos
-                                if "Capitán" in seleccion_encargado and val_n2:
+                                # 2. Lógica del "Capitán Activo"
+                                # Si el usuario eligió el segundo número en el radio button...
+                                # Y verificamos que el número 2 no esté vacío
+                                if tiene_dos and sel_capitan and (val_n2 in sel_capitan) and len(val_n2) > 5:
                                     pub_cel = val_n2
                                     pub_pref = val_p2
-                                    msg_rol = "Capitán (Apoyo)"
                                 else:
-                                    # Default: DT Principal
+                                    # Default: DT 1
                                     pub_cel = val_n1
                                     pub_pref = val_p1
-                                    msg_rol = "DT Principal"
 
                                 with conn.connect() as db:
                                     # Actualizamos Fijos + Público
@@ -948,8 +962,8 @@ def render_torneo(id_torneo):
                                         
                                     db.commit()
                                 
-                                st.success(f"✅ Datos guardados. El contacto activo es: {msg_rol} ({pub_pref} {pub_cel})")
-                                time.sleep(2); st.rerun()
+                                st.success(f"✅ Información actualizada. Contacto activo: {pub_pref} {pub_cel}")
+                                time.sleep(1.5); st.rerun()
 
                 except Exception as e:
                     st.error(f"Error cargando perfil: {e}")
@@ -1099,6 +1113,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
