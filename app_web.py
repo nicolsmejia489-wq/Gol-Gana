@@ -679,12 +679,12 @@ def render_torneo(id_torneo):
                                 with c_info:
                                     # 1. Construcción de la URL limpia para la API de WhatsApp
                                     pref_url = str(row['prefijo']).replace('+', '')
-                                    cel_url = str(row['celular']).replace(' ', '')
+                                    cel_url = str(row['celular_capitan']).replace(' ', '')
                                     link_wa = f"https://wa.me/{pref_url}{cel_url}"
                                     
                                     # 2. Renderizado: Nombre • [Número con Link]
                                     # Usamos sintaxis Markdown: [Texto Visible](URL)
-                                    st.markdown(f"**{row['nombre']}** • [`{row['prefijo']} {row['celular']}`]({link_wa})")
+                                    st.markdown(f"**{row['nombre']}** • [`{row['prefijo']} {row['celular_capitan']}`]({link_wa})")
                                 st.divider()
                 except Exception as e:
                     st.error(f"Error listando equipos: {e}")
@@ -745,6 +745,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
