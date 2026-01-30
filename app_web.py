@@ -663,7 +663,7 @@ def render_torneo(id_torneo):
                 st.subheader("Equipos Aprobados")
                 try:
                     with conn.connect() as db:
-                        q_aprob = text("SELECT nombre, celular, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC")
+                        q_aprob = text("SELECT nombre, celular_capitan, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC")
                         df_aprob = pd.read_sql_query(q_aprob, db, params={"id": id_torneo})
                     
                     if df_aprob.empty:
@@ -745,6 +745,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
