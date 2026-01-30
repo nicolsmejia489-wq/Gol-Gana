@@ -818,90 +818,159 @@ def render_torneo(id_torneo):
                 mostrar_bot("Estoy recopilando los datos de la temporada. Pronto verás aquí tu rendimiento, goles a favor y racha de victorias.")
                 st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=100)
 
-            # ==========================================
-            # TAB: MI EQUIPO (Edición + Co-DT)
+           # ==========================================
+            # TAB: MI EQUIPO (Gestión Inteligente de Contactos)
             # ==========================================
             with tabs_dt[idx_mi_equipo]:
                 try:
-                    # 1. Consultar datos actuales frescos
                     with conn.connect() as db:
+                        # Consultamos todos los campos nuevos
                         q_me = text("SELECT * FROM equipos_globales WHERE id = :id")
-                        me = db.execute(q_me, {"id": id_eq}).fetchone() # 'me' es el objeto Row
+                        me = db.execute(q_me, {"id": id_eq}).fetchone()
 
                     if me:
-                        st.subheader("✏️ Gestión del Club")
+                        st.subheader("✏️ Editar información de club")
                         
                         with st.form("form_mi_equipo"):
-                            # A. DATOS BÁSICOS
-                            c_nom, c_pin = st.columns([2, 1])
-                            new_nom = c_nom.text_input("Nombre del Equipo", value=me.nombre)
-                            new_pin = c_pin.text_input("PIN de Acceso", value=me.pin_equipo, type="password")
-                            
-                            # B. ESCUDO
+                            # ---------------------------------------------------------
+                            # SECCIÓN 1: IDENTIDAD DEL CLUB (Arriba)
+                            # ---------------------------------------------------------
+                            c_id1, c_id2 = st.columns([2, 1])
+                            with c_id1:
+                                new_nom = st.text_input("Nombre del Equipo", value=me.nombre)
+                            with c_id2:
+                                new_pin = st.text_input("PIN de Acceso", value=me.pin_equipo, type="password")
+
+                            # Gestión de Escudo
                             c_esc_img, c_esc_up = st.columns([1, 3], vertical_alignment="center")
                             with c_esc_img:
-                                if me.escudo: st.image(me.escudo, width=60)
+                                if me.escudo: st.image(me.escudo, width=70, caption="Actual")
                                 else: st.write("Sin Escudo")
                             with c_esc_up:
-                                new_escudo = st.file_uploader("Cambiar Escudo", type=['png', 'jpg'])
+                                new_escudo = st.file_uploader("Actualizar Escudo", type=['png', 'jpg'])
 
                             st.divider()
 
-                            # C. CONTACTO PRINCIPAL (DT)
-                            st.markdown("##### 📱 Contacto Principal (DT)")
-                            c_p1, c_c1 = st.columns([1, 2])
-                            # Reusamos el dict de paises definido antes o lo redefinimos
-                            paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Argentina": "+54"}
+                            # ---------------------------------------------------------
+                            # SECCIÓN 2: CUERPO TÉCNICO (Abajo)
+                            # ---------------------------------------------------------
+                            st.markdown("#### 🤝 Cuerpo Técnico")
+                            
+                            # Diccionario de Países
+                            paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Argentina": "+54", "Ecuador": "+593", "Perú": "+51"}
                             l_paises = [f"{k} ({v})" for k, v in paises.items()]
-                            # Intento de indexar prefijo actual
-                            try: idx_p = list(paises.values()).index(me.prefijo)
-                            except: idx_p = 0
-                            
-                            new_pref = c_p1.selectbox("Prefijo", l_paises, index=idx_p).split('(')[-1].replace(')', '')
-                            new_cel = c_c1.text_input("Celular DT", value=me.celular_capitan)
 
-                            # D. CO-DT (NUEVA SECCIÓN)
-                            st.markdown("##### 🤝 Cuerpo Técnico (Co-DT)")
-                            mostrar_bot("¿Tienes un asistente? Registra su número para que también pueda contactar a los rivales.")
+                            # --- A. DT PRINCIPAL (DT 1) ---
+                            st.markdown("**1. DT Principal**")
+                            c_dt1_p, c_dt1_n = st.columns([1.5, 2])
                             
-                            # Verificamos si existe dato previo (asumiendo que ya creaste la columna 'celular_codt')
-                            cel_codt_prev = me.celular_codt if hasattr(me, 'celular_codt') and me.celular_codt else ""
+                            # Recuperar valores previos o usar vacíos
+                            prev_p1 = me.prefijo_dt1 if me.prefijo_dt1 else "+57"
+                            prev_n1 = me.celular_dt1 if me.celular_dt1 else ""
                             
-                            new_codt = st.text_input("Celular Asistente / Co-DT (Opcional)", value=cel_codt_prev, placeholder="Ej: 3001234567")
+                            # Encontrar índice del prefijo
+                            try: idx_p1 = list(paises.values()).index(prev_p1)
+                            except: idx_p1 = 0
+                            
+                            sel_p1 = c_dt1_p.selectbox("País", l_paises, index=idx_p1, key="k_p1")
+                            val_p1 = sel_p1.split('(')[-1].replace(')', '')
+                            val_n1 = c_dt1_n.text_input("Celular", value=prev_n1, key="k_n1", placeholder="Ej: 3001234567")
+
+                            # --- B. CO-DT (DT 2) ---
+                            st.markdown("**2. Asistente / Co-DT** (Opcional)")
+                            c_dt2_p, c_dt2_n = st.columns([1.5, 2])
+                            
+                            prev_p2 = me.prefijo_dt2 if me.prefijo_dt2 else "+57"
+                            prev_n2 = me.celular_dt2 if me.celular_dt2 else ""
+                            
+                            try: idx_p2 = list(paises.values()).index(prev_p2)
+                            except: idx_p2 = 0
+                            
+                            sel_p2 = c_dt2_p.selectbox("País", l_paises, index=idx_p2, key="k_p2")
+                            val_p2 = sel_p2.split('(')[-1].replace(')', '')
+                            val_n2 = c_dt2_n.text_input("Celular", value=prev_n2, key="k_n2", placeholder="Opcional")
+
+                            st.write("")
+                            
+                            # ---------------------------------------------------------
+                            # SECCIÓN 3: SELECTOR DE ENCARGADO (Gol Bot)
+                            # ---------------------------------------------------------
+                            if val_n1 and val_n2:
+                                st.info("🤖 **Gol Bot:** Veo dos contactos registrados. ¿A quién deben llamar los rivales para programar los partidos de ESTE torneo?")
+                                
+                                # Opciones dinámicas
+                                opt_dt1 = f"DT 1: {val_n1}"
+                                opt_dt2 = f"DT 2: {val_n2}"
+                                
+                                # Detectar cuál es el actual (comparando con celular_capitan)
+                                idx_activo = 0
+                                if me.celular_capitan == val_n2: idx_activo = 1
+                                
+                                encargado_sel = st.radio("Selecciona el contacto activo:", [opt_dt1, opt_dt2], index=idx_activo, horizontal=True)
+                                
+                                st.caption("✅ Puedes cambiar esto en cualquier momento si el DT principal viaja o no está disponible.")
+                            else:
+                                encargado_sel = "DT 1" # Por defecto si solo hay uno
+                                st.caption("El contacto principal será el visible para los rivales.")
 
                             st.markdown("---")
                             
-                            if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                            # ---------------------------------------------------------
+                            # GUARDADO
+                            # ---------------------------------------------------------
+                            if st.form_submit_button("💾 Guardar Información", use_container_width=True):
+                                # 1. Procesar Escudo
                                 url_final = me.escudo
                                 if new_escudo:
-                                    # Usamos la IA de Cloudinary
                                     url_final = procesar_y_subir_escudo(new_escudo, new_nom, id_torneo)
                                 
+                                # 2. Definir quién es el ACTIVO (Público)
+                                if "DT 2" in str(encargado_sel) and val_n2:
+                                    # El activo es el 2
+                                    pub_cel = val_n2
+                                    pub_pref = val_p2
+                                else:
+                                    # El activo es el 1 (Default)
+                                    pub_cel = val_n1
+                                    pub_pref = val_p1
+
                                 with conn.connect() as db:
-                                    # Update Tabla Equipos
+                                    # Actualizamos TODO:
+                                    # - Datos de identidad (Nombre, Escudo, PIN)
+                                    # - Datos de almacenamiento (DT1 y DT2 fijos)
+                                    # - Datos Públicos (celular_capitan y prefijo copiados del activo)
+                                    
                                     db.execute(text("""
                                         UPDATE equipos_globales 
-                                        SET nombre=:n, pin_equipo=:p, escudo=:e, prefijo=:pr, celular_capitan=:c, celular_codt=:co
+                                        SET nombre=:n, pin_equipo=:p, escudo=:e, 
+                                            celular_dt1=:c1, prefijo_dt1=:p1,
+                                            celular_dt2=:c2, prefijo_dt2=:p2,
+                                            celular_capitan=:cp, prefijo=:pp
                                         WHERE id=:id
                                     """), {
-                                        "n": new_nom, "p": new_pin, "e": url_final, 
-                                        "pr": new_pref, "c": new_cel, "co": new_codt, "id": id_eq
+                                        "n": new_nom, "p": new_pin, "e": url_final,
+                                        "c1": val_n1, "p1": val_p1,
+                                        "c2": val_n2, "p2": val_p2,
+                                        "cp": pub_cel, "pp": pub_pref,
+                                        "id": id_eq
                                     })
                                     
-                                    # Update Tabla Partidos (Por consistencia de nombres)
+                                    # Update Partidos (Consistencia de Nombre)
                                     if new_nom != me.nombre:
                                         db.execute(text("UPDATE partidos SET local=:n WHERE local=:old AND id_torneo=:idt"), {"n": new_nom, "old": me.nombre, "idt": id_torneo})
                                         db.execute(text("UPDATE partidos SET visitante=:n WHERE visitante=:old AND id_torneo=:idt"), {"n": new_nom, "old": me.nombre, "idt": id_torneo})
-                                        # Actualizamos sesión
                                         st.session_state.nombre_equipo = new_nom
                                     
                                     db.commit()
-                                st.success("✅ Datos actualizados correctamente")
-                                time.sleep(1.5); st.rerun()
+                                
+                                st.balloons()
+                                st.success(f"✅ ¡Entendido! El contacto activo ahora es: {pub_pref} {pub_cel}")
+                                time.sleep(2); st.rerun()
 
                 except Exception as e:
                     st.error(f"Error cargando perfil: {e}")
 
+                    
         # ---------------------------------------------------------
         # C. VISTA DE ADMIN (Orquestador)
         # ---------------------------------------------------------
@@ -1047,6 +1116,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
