@@ -6,6 +6,19 @@ import cloudinary
 import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
 
+
+
+
+# --- CONFIGURACIÓN DE CLOUDINARY () ---
+# Debe ir antes de cualquier función
+cloudinary.config( 
+    cloud_name = st.secrets["CLOUDINARY_CLOUD_NAME"], 
+    api_key = st.secrets["CLOUDINARY_API_KEY"], 
+    api_secret = st.secrets["CLOUDINARY_API_SECRET"],
+    secure = True
+)
+
+
 # ==============================================================================
 # 1. CONFIGURACIÓN E IDENTIDAD
 # ==============================================================================
@@ -795,6 +808,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
