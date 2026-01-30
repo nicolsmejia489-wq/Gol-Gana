@@ -676,7 +676,7 @@ def render_torneo(id_torneo):
                                     if row['escudo']: st.image(row['escudo'], width=35)
                                     else: st.write("🛡️")
                                 with c_info:
-                                    st.markdown(f"**{row['nombre']}** • {row['prefijo']} {row['celular']}")
+                                    st.markdown(f"**{row['nombre']}** • {row['prefijo']} {row['celular_capitan']}")
                                 st.divider()
                 except Exception as e: st.error(f"Error: {e}")
 
@@ -736,6 +736,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
