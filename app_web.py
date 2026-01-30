@@ -443,16 +443,16 @@ def render_torneo(id_torneo):
     with tabs[0]:
         st.subheader("Clasificación General")
 
-# --- TAB 2: INSCRIPCIONES (Vía Rápida + Formulario con IA) ---
+# --- TAB 2: INSCRIPCIONES (Inteligente con Gol Bot) ---
     with tabs[1]:
         if t_fase == "inscripcion":
-            # 1. Mensaje inicial del Bot
+            # 1. Mensaje inicial del Bot (Persistente)
             if "msg_bot_ins" not in st.session_state:
-                st.session_state.msg_bot_ins = "Este registro es necesario una sola vez, si ya estás registrado recuérdame el PIN y presiona BUSCAR."
+                st.session_state.msg_bot_ins = "Este registro es necesario una sola vez. Si ya estás registrado, recuérdame el PIN y presiona BUSCAR."
 
             mostrar_bot(st.session_state.msg_bot_ins)
 
-            # --- A. BÚSQUEDA RÁPIDA ---
+            # --- A. BÚSQUEDA RÁPIDA (YA EXISTENTE) ---
             c_pin, c_btn = st.columns([3, 1])
             with c_pin:
                 pin_bus = st.text_input("Verificar mi PIN", max_chars=6, key="bus_pin", label_visibility="collapsed", placeholder="Ingresa PIN (alfanumérico)...")
@@ -461,15 +461,17 @@ def render_torneo(id_torneo):
                     if pin_bus:
                         try:
                             with conn.connect() as db:
-                                q_bus = text("SELECT nombre FROM equipos_globales WHERE id_torneo=:id AND pin_equipo=:p")
+                                q_bus = text("SELECT nombre, estado FROM equipos_globales WHERE id_torneo=:id AND pin_equipo=:p")
                                 res = db.execute(q_bus, {"id": int(id_torneo), "p": pin_bus}).fetchone()
                                 if res:
-                                    st.session_state.msg_bot_ins = f"El club <b>{res[0]}</b> ya está en lista de espera."
+                                    # Gol Bot reconoce el estado
+                                    estado_txt = "en lista de espera" if res[1] == 'pendiente' else "oficialmente inscrito"
+                                    st.session_state.msg_bot_ins = f"¡Te encontré! El club <b>{res[0]}</b> ya está <b>{estado_txt}</b>."
                                 else:
-                                    st.session_state.msg_bot_ins = "No te conozco aún, <b>no tengo ese PIN registrado</b> en este torneo."
+                                    st.session_state.msg_bot_ins = "Mmm... no me suena ese PIN en este torneo. ¿Seguro que ya te registraste?"
                             st.rerun()
                         except Exception as e:
-                            st.session_state.msg_bot_ins = "No te conozco aún, no tengo ese PIN registrado."
+                            st.session_state.msg_bot_ins = "Error técnico al buscar. Intenta de nuevo."
                             st.rerun()
 
             st.markdown("---")
@@ -482,16 +484,17 @@ def render_torneo(id_torneo):
 
             # ESTADO: ÉXITO
             if st.session_state.reg_estado == "exito":
-                st.success("⚽ ¡Inscripción enviada con éxito! Revisa el panel pronto.")
+                st.success("⚽ ¡Inscripción enviada! El Admin revisará tu solicitud.")
                 if st.button("Hacer otro registro"):
                     st.session_state.reg_estado = "formulario"
                     st.session_state.datos_temp = {"n": "", "wa": "", "pin": "", "pref": "+57", "escudo_obj": None}
+                    st.session_state.msg_bot_ins = "¡Listo para el siguiente! Lléname los datos."
                     st.rerun()
 
-            # ESTADO: CONFIRMACIÓN (Procesamiento IA y Guardado)
+            # ESTADO: CONFIRMACIÓN
             elif st.session_state.reg_estado == "confirmar":
                 d = st.session_state.datos_temp
-                st.warning("⚠️ **Confirma los datos del Club antes de enviar:**")
+                st.warning("⚠️ **Confirma los datos antes de enviar:**")
                 
                 col_t, col_i = st.columns([2, 1])
                 with col_t:
@@ -502,12 +505,11 @@ def render_torneo(id_torneo):
                     if d['escudo_obj']: st.image(d['escudo_obj'], width=100)
                 
                 c1, c2 = st.columns(2)
-                if c1.button("✅ Confirmar y Guardar", use_container_width=True):
-                    with st.spinner("Procesando escudo con IA y guardando..."):
+                if c1.button("✅ Confirmar", use_container_width=True):
+                    with st.spinner("Procesando registro..."):
                         url_escudo = None
                         if d['escudo_obj']:
                             url_escudo = procesar_y_subir_escudo(d['escudo_obj'], d['n'], id_torneo)
-                        
                         try:
                             with conn.connect() as db:
                                 query_insert = text("""
@@ -520,11 +522,12 @@ def render_torneo(id_torneo):
                                 })
                                 db.commit()
                             st.session_state.reg_estado = "exito"
+                            st.session_state.msg_bot_ins = f"¡Recibido! He guardado a <b>{d['n']}</b>. Dile al Admin que los apruebe."
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error al guardar: {e}")
 
-                if c2.button("✏️ Corregir datos", use_container_width=True):
+                if c2.button("✏️ Editar", use_container_width=True):
                     st.session_state.reg_estado = "formulario"; st.rerun()
 
             # ESTADO: FORMULARIO (Primera vez)
@@ -536,33 +539,61 @@ def render_torneo(id_torneo):
                     
                     paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54"}
                     opciones = [f"{p} ({pref})" for p, pref in paises.items()]
-                    # Intentar pre-seleccionar el país guardado
-                    try:
-                        idx_pref = [d['pref'] in opt for opt in opciones].index(True)
-                    except:
-                        idx_pref = 0
-
+                    try: idx_pref = [d['pref'] in opt for opt in opciones].index(True)
+                    except: idx_pref = 0
                     pais_sel = st.selectbox("País", opciones, index=idx_pref)
+                    
                     wa_f = st.text_input("WhatsApp (Sin prefijo)", value=d['wa']).strip()
                     pin_f = st.text_input("Crea un PIN (4-6 caracteres alfanuméricos)", value=d['pin'], max_chars=6).strip()
                     escudo_f = st.file_uploader("🛡️ Sube tu escudo", type=['png', 'jpg', 'jpeg'])
                     
                     if st.form_submit_button("Siguiente", use_container_width=True):
+                        # 1. Validación Básica
                         if not nom_f or not wa_f or len(pin_f) < 4:
-                            st.error("Datos incompletos o PIN muy corto (mínimo 4).")
+                            st.error("Faltan datos o el PIN es muy corto (mínimo 4).")
                         else:
-                            st.session_state.datos_temp = {
-                                "n": nom_f, "wa": wa_f, "pin": pin_f,
-                                "pref": pais_sel.split('(')[-1].replace(')', ''),
-                                "escudo_obj": escudo_f if escudo_f else d['escudo_obj']
-                            }
-                            st.session_state.reg_estado = "confirmar"
-                            st.rerun()
-        
+                            # ### VALIDACIÓN INTELIGENTE (GOL BOT) ###
+                            error_detectado = False
+                            try:
+                                with conn.connect() as db:
+                                    # A. Validar Nombre Duplicado en ESTE Torneo
+                                    # Usamos LOWER() para que 'Atlas' sea igual a 'atlas'
+                                    q_dup = text("SELECT estado FROM equipos_globales WHERE id_torneo=:id AND LOWER(nombre) = LOWER(:n)")
+                                    res_dup = db.execute(q_dup, {"id": int(id_torneo), "n": nom_f}).fetchone()
+                                    
+                                    # B. Validar PIN Único GLOBAL (Para seguridad en toda la app)
+                                    q_pin = text("SELECT 1 FROM equipos_globales WHERE pin_equipo = :p")
+                                    res_pin = db.execute(q_pin, {"p": pin_f}).fetchone()
+
+                                    if res_dup:
+                                        estado_actual = "en lista de espera" if res_dup[0] == 'pendiente' else "aprobado"
+                                        st.session_state.msg_bot_ins = f"¡Espera! El equipo <b>{nom_f}</b> ya está {estado_actual}. Si eres tú, usa el botón BUSCAR arriba."
+                                        error_detectado = True
+                                    
+                                    elif res_pin:
+                                        st.session_state.msg_bot_ins = "Mmm... <b>Mejor escoge otro PIN</b>. Ese código ya está ocupado en mi sistema."
+                                        error_detectado = True
+
+                            except Exception as e:
+                                st.error(f"Error de validación: {e}")
+                                error_detectado = True
+
+                            # Si hay error, recargamos para que hable el Bot
+                            if error_detectado:
+                                st.rerun()
+                            else:
+                                # Si pasa todas las validaciones, avanzamos
+                                st.session_state.datos_temp = {
+                                    "n": nom_f, "wa": wa_f, "pin": pin_f,
+                                    "pref": pais_sel.split('(')[-1].replace(')', ''),
+                                    "escudo_obj": escudo_f if escudo_f else d['escudo_obj']
+                                }
+                                st.session_state.reg_estado = "confirmar"
+                                st.session_state.msg_bot_ins = "¡Se ve bien! Confirma los datos abajo para terminar."
+                                st.rerun()
         else:
-            # Si fase != inscripcion, mostramos resultados
-            st.subheader("Resultados de la Jornada")
-            st.info("No hay partidos registrados aún.")
+            st.subheader("Resultados")
+            st.info("Inscripciones cerradas.")
 
             
 
@@ -745,6 +776,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
