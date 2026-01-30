@@ -9,15 +9,14 @@ from cloudinary.utils import cloudinary_url
 
 
 
-# --- CONFIGURACIÓN DE CLOUDINARY () ---
-# Debe ir antes de cualquier función
+# --- CONFIGURACIÓN DE CLOUDINARY CORREGIDA ---
 cloudinary.config( 
-    cloud_name = st.secrets[dlvczeqlp], 
-    api_key = st.secrets[276694391654197], 
-    api_secret = st.secrets[j-_6AaUam_Acwng0GGr8tmb8Zyk],
+    # Accedemos primero a la sección ["cloudinary"] y luego a la clave específica
+    cloud_name = st.secrets["cloudinary"]["cloud_name"], 
+    api_key = st.secrets["cloudinary"]["api_key"], 
+    api_secret = st.secrets["cloudinary"]["api_secret"],
     secure = True
 )
-
 
 # ==============================================================================
 # 1. CONFIGURACIÓN E IDENTIDAD
@@ -808,6 +807,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
