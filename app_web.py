@@ -566,7 +566,7 @@ def render_torneo(id_torneo):
 
             
 
- # --- TAB 3: PANEL DE GESTIÓN (LÓGICA UNIFICADA) ---
+# --- TAB 3: PANEL DE GESTIÓN (LÓGICA UNIFICADA) ---
     with tabs[2]:
         
         # ---------------------------------------------------------
@@ -582,67 +582,57 @@ def render_torneo(id_torneo):
                                         label_visibility="collapsed")
             with c_submit:
                 if st.button("Entrar", type="primary", use_container_width=True):
-                    # Usamos la función de validación que ya definimos arriba
-                    datos_acceso = validar_acceso(id_torneo, pin_input)
-                    
-                    if datos_acceso:
-                        st.session_state.update(datos_acceso)
-                        st.toast(f"Bienvenido: {datos_acceso.get('rol')}")
-                        time.sleep(1)
+                    acc = validar_acceso(id_torneo, pin_input)
+                    if acc:
+                        st.session_state.update(acc)
                         st.rerun()
                     else:
-                        st.error("PIN no reconocido en este torneo.")
+                        st.error("PIN no reconocido.")
 
         # ---------------------------------------------------------
         # B. VISTA DE DT (Capitán)
         # ---------------------------------------------------------
         elif st.session_state.rol == "DT":
             st.header(f"Hola, Profe de {st.session_state.nombre_equipo}")
-            st.info("🚧 El Panel de Autogestión del DT está en construcción. Aquí podrás editar tu escudo y ver tus estadísticas pronto.")
+            mostrar_bot("🚧 Estoy construyendo tu vestuario digital. Pronto podrás editar tu escudo y ver tus estadísticas aquí.")
             
             if st.button("Cerrar Sesión", type="secondary"):
-                for key in ["rol", "id_equipo", "nombre_equipo"]:
-                    del st.session_state[key]
+                for key in ["rol", "id_equipo", "nombre_equipo"]: del st.session_state[key]
                 st.rerun()
 
         # ---------------------------------------------------------
         # C. VISTA DE ADMIN (Orquestador)
         # ---------------------------------------------------------
         elif st.session_state.rol == "Admin":
-            st.markdown(f"### ⚙️ Panel de Control: {t_nombre}")
+            # 1. Título Ajustado (Más pequeño)
+            st.markdown(f"#### ⚙️ Administración de {t_nombre}")
             
             # --- CSS Exclusivo Admin ---
-            st.markdown(f"""
-            <style>
-                div[data-testid="stExpander"] {{ border: 1px solid {t_color}; border-radius: 5px; }}
-            </style>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<style>div[data-testid="stExpander"] {{ border: 1px solid {t_color}; border-radius: 5px; }}</style>""", unsafe_allow_html=True)
 
-            # Lógica de Pestañas Dinámicas según la Fase
-            # Si estamos en Inscripción, mostramos "Lista de Espera"
-            # Si estamos Jugando, mostramos "Partidos"
-            
+            # Lógica de Pestañas Dinámicas
             if t_fase == "inscripcion":
-                tabs_admin = st.tabs(["⏳ Lista de Espera", "📋 Directorio Equipos", "⚙️ Configuración"])
+                tabs_admin = st.tabs(["⏳ Lista de Espera", "📋 Directorio", "⚙️ Configuración"])
             else:
-                tabs_admin = st.tabs(["⚽ Gestión Partidos", "📋 Directorio Equipos", "⚙️ Configuración"])
+                tabs_admin = st.tabs(["⚽ Gestión Partidos", "📋 Directorio", "⚙️ Configuración"])
 
             # ==========================================
             # TAB 1: DINÁMICA (LISTA DE ESPERA / PARTIDOS)
             # ==========================================
             with tabs_admin[0]:
                 if t_fase == "inscripcion":
-                    st.subheader("Solicitudes Pendientes")
                     try:
                         with conn.connect() as db:
-                            # Solo equipos pendientes de ESTE torneo
                             q_pend = text("SELECT * FROM equipos_globales WHERE id_torneo = :id AND estado = 'pendiente'")
                             df_pend = pd.read_sql_query(q_pend, db, params={"id": id_torneo})
                         
                         if df_pend.empty:
-                            st.success("✅ No hay solicitudes pendientes. Todo al día.")
+                            # 2. Gol Bot avisa que todo está limpio
+                            mostrar_bot("Todo tranquilo por aquí, Presi. <b>No hay solicitudes pendientes</b> en la bandeja.")
                         else:
-                            st.info(f"🔔 Tienes {len(df_pend)} equipos esperando aprobación.")
+                            # 2. Gol Bot alerta de trabajo
+                            mostrar_bot(f"¡Atención! Tienes <b>{len(df_pend)} equipos</b> esperando tu visto bueno en la puerta.")
+                            
                             for _, r in df_pend.iterrows():
                                 with st.container(border=True):
                                     c1, c2, c3 = st.columns([0.5, 3, 1], vertical_alignment="center")
@@ -658,15 +648,13 @@ def render_torneo(id_torneo):
                                             with conn.connect() as db:
                                                 db.execute(text("UPDATE equipos_globales SET estado='aprobado' WHERE id=:id"), {"id": r['id']})
                                                 db.commit()
-                                            st.toast(f"{r['nombre']} Aprobado")
-                                            time.sleep(1); st.rerun()
+                                            st.toast(f"{r['nombre']} Aprobado"); time.sleep(1); st.rerun()
                     except Exception as e:
-                        st.error(f"Error cargando lista de espera: {e}")
+                        st.error(f"Error cargando lista: {e}")
 
                 else:
-                    # Lógica para cuando el torneo ya empezó (Fase != inscripcion)
-                    st.subheader("Cargar Resultados")
-                    st.info("🚧 Aquí aparecerá el fixture para cargar goles manuales. (Módulo en desarrollo)")
+                    # Lógica Fase Competencia
+                    mostrar_bot("El balón está rodando. Aquí podrás cargar los marcadores cuando configuremos el fixture.")
 
             # ==========================================
             # TAB 2: DIRECTORIO (Solo Lectura)
@@ -675,8 +663,7 @@ def render_torneo(id_torneo):
                 st.subheader("Equipos Aprobados")
                 try:
                     with conn.connect() as db:
-                        q_aprob = text("SELECT nombre, celular, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC")
-                        df_aprob = pd.read_sql_query(q_aprob, db, params={"id": id_torneo})
+                        df_aprob = pd.read_sql_query(text("SELECT nombre, celular, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC"), db, params={"id": id_torneo})
                     
                     if df_aprob.empty:
                         st.warning("Aún no has aprobado equipos.")
@@ -689,56 +676,67 @@ def render_torneo(id_torneo):
                                     if row['escudo']: st.image(row['escudo'], width=35)
                                     else: st.write("🛡️")
                                 with c_info:
-                                    cel_link = str(row['celular']).replace(' ', '')
-                                    pref_link = str(row['prefijo']).replace('+', '')
-                                    st.markdown(f"**{row['nombre']}** •  [WhatsApp](https://wa.me/{pref_link}{cel_link})")
+                                    st.markdown(f"**{row['nombre']}** • {row['prefijo']} {row['celular']}")
                                 st.divider()
-                except Exception as e:
-                    st.error(f"Error listando equipos: {e}")
+                except Exception as e: st.error(f"Error: {e}")
 
             # ==========================================
-            # TAB 3: CONFIGURACIÓN
+            # TAB 3: CONFIGURACIÓN (Con Confirmación de Gol Bot)
             # ==========================================
             with tabs_admin[2]:
                 st.subheader("Ajustes del Torneo")
                 
-                # 1. Color
-                st.markdown("##### 🎨 Personalización")
+                # Color
+                st.markdown("##### 🎨 Identidad")
                 c_col1, c_col2 = st.columns([1, 2])
                 new_color = c_col1.color_picker("Color Principal", value=t_color)
                 if c_col2.button("Aplicar Color"):
                     with conn.connect() as db:
                         db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), {"c": new_color, "id": id_torneo})
-                        db.commit()
-                    st.rerun()
+                        db.commit(); st.rerun()
                 
                 st.divider()
 
-                # 2. Control de Fases
+                # 3. CONTROL DE FASES CON CONFIRMACIÓN
                 st.markdown(f"##### 🚀 Fase Actual: `{t_fase.upper()}`")
-                st.caption("Cambiar la fase habilita o deshabilita pestañas para los usuarios.")
                 
-                c_f1, c_f2 = st.columns(2)
-                if c_f1.button("Modo Inscripción 📝", use_container_width=True, disabled=(t_fase=="inscripcion")):
-                    with conn.connect() as db:
-                        db.execute(text("UPDATE torneos SET fase='inscripcion' WHERE id=:id"), {"id": id_torneo})
-                        db.commit(); st.rerun()
+                if t_fase == "inscripcion":
+                    # Botón inicial
+                    if st.button("🔐 Cerrar Inscripciones e Iniciar Competencia", type="primary", use_container_width=True):
+                        st.session_state.confirmar_inicio = True
+                    
+                    # Bloque de Confirmación de Gol Bot
+                    if st.session_state.get("confirmar_inicio"):
+                        st.markdown("---")
+                        mostrar_bot("¿Estás seguro, Presi? Al iniciar la competencia **se cerrará el formulario de registro** y pasaremos al modo de grupos/partidos.")
+                        
+                        col_si, col_no = st.columns(2)
+                        if col_si.button("✅ Sí, ¡A rodar el balón!", use_container_width=True):
+                            with conn.connect() as db:
+                                db.execute(text("UPDATE torneos SET fase='competencia' WHERE id=:id"), {"id": id_torneo})
+                                db.commit()
+                            del st.session_state.confirmar_inicio
+                            st.balloons()
+                            time.sleep(1.5)
+                            st.rerun()
+                            
+                        if col_no.button("❌ Cancelar", use_container_width=True):
+                            del st.session_state.confirmar_inicio
+                            st.rerun()
                 
-                if c_f2.button("Modo Competencia ⚽", use_container_width=True, disabled=(t_fase=="competencia")):
-                    with conn.connect() as db:
-                        db.execute(text("UPDATE torneos SET fase='competencia' WHERE id=:id"), {"id": id_torneo})
-                        db.commit(); st.rerun()
+                else:
+                    st.info("El torneo está en curso. Para reiniciar o cambiar ajustes avanzados, contacta soporte técnico.")
 
             st.markdown("---")
             if st.button("Cerrar Sesión Admin", type="secondary"):
-                for key in ["rol", "id_equipo", "nombre_equipo"]:
-                    del st.session_state[key]
+                for key in ["rol", "id_equipo", "nombre_equipo"]: del st.session_state[key]
                 st.rerun()
                         
 # --- 4.3 EJECUCIÓN ---
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
