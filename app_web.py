@@ -566,27 +566,204 @@ def render_torneo(id_torneo):
 
             
 
-    # --- TAB 3: PANEL (GESTIÓN) ---
+    # --- TAB 3: PANEL DE GESTIÓN (ADMINISTRADOR) ---
     with tabs[2]:
-        if st.session_state.get("rol", "Espectador") == "Espectador":
-            mostrar_bot("Si eres DT o Admin, <b>recuérdame tu PIN</b> para gestionar.")
-            c_p, c_b = st.columns([3, 1])
-            with c_p: p_login = st.text_input("PIN Login", type="password", label_visibility="collapsed")
-            with c_b:
-                if st.button("Ingresar", use_container_width=True, type="primary"):
-                    acc = validar_acceso(id_torneo, p_login)
-                    if acc: st.session_state.update(acc); st.rerun()
-                    else: st.error("PIN Incorrecto")
-        else:
-            st.success(f"Sesión: **{st.session_state.nombre_equipo or 'Admin'}**")
-            if st.button("Cerrar Sesión", use_container_width=True):
-                for k in ["rol", "id_equipo", "nombre_equipo"]: del st.session_state[k]
-                st.rerun()
+        # Verificamos Rol
+        if st.session_state.get("rol") == "Admin":
+            st.header("⚙️ Panel de Control del Torneo")
 
+            # --- CSS INPUTS ESTILO PRO ---
+            st.markdown(f"""
+            <style>
+                div[data-testid="stTextInput"] input, div[data-testid="stSelectbox"] > div > div {{
+                    font-size: 16px !important; height: 45px !important;
+                }}
+                .st-key-gL_{{}} input, .st-key-gV_{{}} input {{
+                    text-align: center !important; font-weight: bold !important; font-size: 20px !important;
+                    background-color: rgba(255,255,255,0.05) !important;
+                    border: 2px solid {t_color} !important;
+                }}
+            </style>
+            """, unsafe_allow_html=True)
+
+            # ---------------------------------------------------------
+            # 1. SOLICITUDES DE INSCRIPCIÓN (PENDIENTES)
+            # ---------------------------------------------------------
+            try:
+                # Consultamos solo equipos de ESTE torneo
+                q_pend = text("SELECT * FROM equipos_globales WHERE id_torneo = :id AND estado = 'pendiente'")
+                with conn.connect() as db:
+                    df_pend = pd.read_sql_query(q_pend, db, params={"id": id_torneo})
+                
+                if not df_pend.empty:
+                    st.info(f"🔔 Tienes {len(df_pend)} solicitudes nuevas.")
+                    for _, r in df_pend.iterrows():
+                        with st.container(border=True):
+                            c1, c2, c3 = st.columns([0.5, 3, 1], vertical_alignment="center")
+                            with c1: 
+                                if r['escudo']: st.image(r['escudo'], width=40)
+                                else: st.write("🛡️")
+                            with c2:
+                                st.markdown(f"**{r['nombre']}**")
+                                cel_full = f"{r['prefijo']} {r['celular_capitan']}" if 'celular_capitan' in r else f"{r.get('prefijo','')} {r.get('celular','')}"
+                                url_wa = str(cel_full).replace(' ', '').replace('+', '')
+                                st.markdown(f"PIN: `{r['pin_equipo']}` | [WhatsApp](https://wa.me/{url_wa})")
+                            with c3:
+                                if st.button("Aprobar ✅", key=f"ok_{r['id']}"):
+                                    with conn.connect() as db:
+                                        db.execute(text("UPDATE equipos_globales SET estado='aprobado' WHERE id=:id"), {"id": r['id']})
+                                        db.commit()
+                                    st.toast(f"{r['nombre']} Aprobado"); time.sleep(1); st.rerun()
+            except Exception as e:
+                st.error(f"Error cargando pendientes: {e}")
+
+            st.divider()
+
+            # --- SUB-PESTAÑAS DEL PANEL ---
+            tab_res, tab_eq, tab_conf = st.tabs(["⚽ Partidos", "📋 Equipos", "⚙️ Configuración"])
+
+            # ==========================================
+            # A. GESTIÓN DE PARTIDOS
+            # ==========================================
+            with tab_res:
+                st.subheader("Marcadores")
+                # Aquí necesitaríamos lógica para CREAR el fixture primero.
+                # Por ahora mostramos lista si existe la tabla adecuada
+                try:
+                    q_part = text("SELECT * FROM partidos WHERE id_torneo = :id ORDER BY jornada ASC, id ASC")
+                    with conn.connect() as db:
+                        df_p = pd.read_sql_query(q_part, db, params={"id": id_torneo})
+                    
+                    if df_p.empty:
+                        st.info("No hay partidos creados. (La función de generar fixture vendrá pronto)")
+                    else:
+                        for _, row in df_p.iterrows():
+                            # Renderizado simple de marcador para Admin
+                            c1, c2, c3, c4 = st.columns([2, 1, 1, 2], vertical_alignment="center")
+                            with c1: st.write(f"{row['local']}")
+                            with c2: 
+                                gl = st.text_input("L", value=str(int(row['goles_l'])) if pd.notna(row['goles_l']) else "", key=f"gl_ad_{row['id']}")
+                            with c3:
+                                gv = st.text_input("V", value=str(int(row['goles_v'])) if pd.notna(row['goles_v']) else "", key=f"gv_ad_{row['id']}")
+                            with c4: 
+                                if st.button("💾", key=f"btn_ad_{row['id']}"):
+                                    with conn.connect() as db:
+                                        db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado' WHERE id=:id"),
+                                                   {"l": int(gl), "v": int(gv), "id": row['id']})
+                                        db.commit()
+                                    st.toast("Guardado")
+                except Exception as e:
+                    st.warning(f"Tabla de partidos no configurada o vacía: {e}")
+
+            # ==========================================
+            # B. GESTIÓN DE EQUIPOS (DIRECTORIO)
+            # ==========================================
+            with tab_eq:
+                st.subheader("Editar Equipos Aprobados")
+                try:
+                    q_eqs = text("SELECT * FROM equipos_globales WHERE id_torneo = :id AND estado='aprobado' ORDER BY nombre")
+                    with conn.connect() as db:
+                        df_eqs = pd.read_sql_query(q_eqs, db, params={"id": id_torneo})
+                    
+                    if not df_eqs.empty:
+                        equipo_sel = st.selectbox("Selecciona equipo:", df_eqs['nombre'].tolist())
+                        if equipo_sel:
+                            datos = df_eqs[df_eqs['nombre'] == equipo_sel].iloc[0]
+                            
+                            with st.form("form_edit_equipo"):
+                                c_e1, c_e2 = st.columns(2)
+                                new_nom = c_e1.text_input("Nombre", value=datos['nombre'])
+                                new_pin = c_e2.text_input("PIN", value=datos['pin_equipo'])
+                                
+                                # Edición de Escudo
+                                if datos['escudo']: st.image(datos['escudo'], width=50)
+                                new_file = st.file_uploader("Cambiar Escudo", type=['png', 'jpg'])
+                                
+                                if st.form_submit_button("Guardar Cambios"):
+                                    url_final = datos['escudo']
+                                    if new_file:
+                                        # Reutilizamos tu función de IA si suben uno nuevo
+                                        url_final = procesar_y_subir_escudo(new_file, new_nom, id_torneo)
+                                    
+                                    with conn.connect() as db:
+                                        db.execute(text("""
+                                            UPDATE equipos_globales 
+                                            SET nombre=:n, pin_equipo=:p, escudo=:e 
+                                            WHERE id=:id
+                                        """), {"n": new_nom, "p": new_pin, "e": url_final, "id": datos['id']})
+                                        db.commit()
+                                    st.success("Actualizado"); time.sleep(1); st.rerun()
+                                    
+                            if st.button("🗑️ Eliminar Equipo (Peligro)", type="primary"):
+                                with conn.connect() as db:
+                                    db.execute(text("DELETE FROM equipos_globales WHERE id=:id"), {"id": datos['id']})
+                                    db.commit()
+                                st.warning("Equipo eliminado"); time.sleep(1); st.rerun()
+                    else:
+                        st.info("No hay equipos aprobados aún.")
+                except Exception as e:
+                    st.error(f"Error cargando equipos: {e}")
+
+            # ==========================================
+            # C. CONFIGURACIÓN DEL TORNEO
+            # ==========================================
+            with tab_conf:
+                st.subheader("Ajustes Generales")
+                
+                # 1. CAMBIAR COLOR DE MARCA
+                st.markdown("##### 🎨 Identidad Visual")
+                c_col1, c_col2 = st.columns([1, 2])
+                new_color = c_col1.color_picker("Color Principal", value=t_color)
+                if c_col2.button("Aplicar Nuevo Color"):
+                    with conn.connect() as db:
+                        db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), 
+                                   {"c": new_color, "id": id_torneo})
+                        db.commit()
+                    st.rerun()
+
+                st.divider()
+
+                # 2. CONTROL DE FASE
+                st.markdown(f"##### 🚀 Estado: {t_fase.upper()}")
+                c_f1, c_f2, c_f3 = st.columns(3)
+                
+                if c_f1.button("Modo Inscripción"):
+                    with conn.connect() as db:
+                        db.execute(text("UPDATE torneos SET fase='inscripcion' WHERE id=:id"), {"id": id_torneo})
+                        db.commit(); st.rerun()
+                        
+                if c_f2.button("Modo Competencia"):
+                    with conn.connect() as db:
+                        db.execute(text("UPDATE torneos SET fase='competencia' WHERE id=:id"), {"id": id_torneo})
+                        db.commit(); st.rerun()
+                        
+                if c_f3.button("Finalizar"):
+                    st.toast("Aún en desarrollo")
+
+        # ---------------------------------------------------------
+        # LOGIN DE ADMIN / DT (Si no está logueado)
+        # ---------------------------------------------------------
+        else:
+            # Reutilizamos la lógica de Login que ya teníamos en el bloque anterior
+            mostrar_bot("Hola Admin. <b>Ingresa tu PIN maestro</b> para configurar el torneo.")
+            
+            c_log1, c_log2 = st.columns([3, 1])
+            with c_log1:
+                pin_try = st.text_input("PIN de Acceso", type="password", label_visibility="collapsed")
+            with c_log2:
+                if st.button("Entrar", type="primary", use_container_width=True):
+                    acc = validar_acceso(id_torneo, pin_try)
+                    if acc:
+                        st.session_state.update(acc)
+                        st.rerun()
+                    else:
+                        st.error("Acceso denegado")
+                        
 # --- 4.3 EJECUCIÓN ---
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
