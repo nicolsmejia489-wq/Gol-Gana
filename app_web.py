@@ -401,28 +401,45 @@ def render_lobby():
 # 4.1 LOGICA DE VALIDACIÓN DE ACCESO
 # ==============================================================================
 def validar_acceso(id_torneo, pin_ingresado):
-    """
-    4.1: Valida PIN alfanumérico (Admin o DT).
-    """
     try:
         with conn.connect() as db:
-            # 1. ¿Es Admin del torneo?
+            # 1. VERIFICAR ADMIN (Prioridad absoluta)
             q_admin = text("SELECT nombre FROM torneos WHERE id = :id AND pin_admin = :pin")
             res_admin = db.execute(q_admin, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
             if res_admin:
-                return {"rol": "Admin", "id_equipo": None, "nombre_equipo": None}
+                return {"rol": "Admin", "id_equipo": None, "nombre_equipo": "Organizador"}
             
-            # 2. ¿Es DT de un equipo en este torneo?
-            q_dt = text("""
-                SELECT id, nombre FROM equipos_globales 
-                WHERE id_torneo = :id AND pin_equipo = :pin
+            # 2. VERIFICAR DT APROBADO (Solo entran los 'aprobado')
+            # Nota: Agregamos explícitamente AND estado = 'aprobado' en el SQL
+            q_ok = text("""
+                SELECT id, nombre 
+                FROM equipos_globales 
+                WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'aprobado'
             """)
-            res_dt = db.execute(q_dt, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
-            if res_dt:
-                return {"rol": "DT", "id_equipo": res_dt[0], "nombre_equipo": res_dt[1]}
-        return None
-    except: return None
+            res_ok = db.execute(q_ok, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
+            
+            if res_ok:
+                return {"rol": "DT", "id_equipo": res_ok.id, "nombre_equipo": res_ok.nombre}
+            
+            # 3. VERIFICAR SI ESTÁ PENDIENTE (Para dar el aviso correcto)
+            q_pend = text("""
+                SELECT 1 
+                FROM equipos_globales 
+                WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'pendiente'
+            """)
+            # Si existe un pendiente, devolvemos la señal de alerta
+            if db.execute(q_pend, {"id": id_torneo, "pin": pin_ingresado}).fetchone():
+                return "PENDIENTE"
 
+        # Si llegamos aquí, es porque no es Admin, ni DT aprobado, ni pendiente.
+        # (Puede ser estado NULL, 'baja' o PIN incorrecto)
+        return None
+
+    except Exception as e:
+        print(f"Error login: {e}")
+        return None
+
+        
 
 
 ######DESARROLLO DE TORNEO
@@ -518,14 +535,14 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         height: 30px !important;            /* ALTURA FILA EQUIPOS (Aumentado para escudo grande) */
                         border-bottom: 1px solid #222;      /* Línea gris suave entre filas */
                         vertical-align: middle !important;  /* Centrado vertical */
-                        padding: 0px 0px !important;        /* Espacio lateral mínimo */
+                        padding: 2px 1px !important;        /* Espacio lateral mínimo */
                         text-align: center;                 /* Por defecto todo centrado */
                     }}
 
                     /* --- CONTENEDOR DEL ESCUDO (Caja invisible) --- */
                     .escudo-wrapper {{
                         display: inline-block;
-                        width: 40px;                        /* ANCHO RESERVADO PARA ESCUDO */
+                        width: 35px;                        /* ANCHO RESERVADO PARA ESCUDO */
                         text-align: center;
                         margin-right: 2px;                 /* ESPACIO ENTRE ESCUDO Y NOMBRE DEL EQUIPO */
                         vertical-align: middle;
@@ -533,8 +550,8 @@ def contenido_pestana_torneo(id_torneo, t_color):
                     
                     /* --- IMAGEN DEL ESCUDO --- */
                     .img-escudo {{
-                        height: 40px;                       /* ALTO DEL ESCUDO (Aumentado) */
-                        width: 40px;                        /* ANCHO DEL ESCUDO (Aumentado) */
+                        height: 35px;                       /* ALTO DEL ESCUDO (Aumentado) */
+                        width: 35px;                        /* ANCHO DEL ESCUDO (Aumentado) */
                         object-fit: contain;                /* Para que no se deforme */
                     }}
                 </style>
@@ -1081,6 +1098,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
