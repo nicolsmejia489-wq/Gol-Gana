@@ -856,7 +856,7 @@ def render_torneo(id_torneo):
         
         # 0. BOTÓN SALIR
         c_vacio, c_salir = st.columns([6, 1])
-        if c_salir.button("🔴 Salir", key="btn_salir_dt", use_container_width=True):
+        if c_salir.button("🔴 Cerrar sesión de Club", key="btn_salir_dt", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
@@ -870,8 +870,8 @@ def render_torneo(id_torneo):
         # 2. CALENDARIO (Solo sus partidos)
         with tabs[1]:
             if t_fase == "inscripcion":
-                mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu fixture.")
-                st.image("https://cdn-icons-png.flaticon.com/512/3363/3363697.png", width=100)
+                mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu calendario.")
+              
             else:
                 st.subheader(f"📅 Calendario de {st.session_state.nombre_equipo}")
                 
@@ -1373,6 +1373,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
