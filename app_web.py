@@ -895,7 +895,7 @@ def render_torneo(id_torneo):
 
                             # --- TARJETA 2: DT PRINCIPAL ---
                             with st.container(border=True):
-                                st.markdown("**👤 DT Principal** (Quien inscribió al club)")
+                                st.markdown("**👤 DT Principal** ")
                                 c_dt1_p, c_dt1_n = st.columns([1.5, 2])
                                 
                                 try: idx_p1 = list(paises.values()).index(p1)
@@ -907,7 +907,7 @@ def render_torneo(id_torneo):
 
                             # --- TARJETA 3: CO-DT ---
                             with st.container(border=True):
-                                st.markdown("**👥 Co-DT** (Segundo contacto)")
+                                st.markdown("**👥 Co-DT** (Segundo contacto OPCIONAL)")
                                 c_dt2_p, c_dt2_n = st.columns([1.5, 2])
                                 
                                 try: idx_p2 = list(paises.values()).index(p2)
@@ -1113,5 +1113,6 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
