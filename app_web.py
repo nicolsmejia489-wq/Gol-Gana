@@ -596,14 +596,18 @@ def render_torneo(id_torneo):
                 if st.session_state.reg_estado == "confirmar":
                     d = st.session_state.datos_temp
                     with st.container(border=True):
-                        c_img, c_txt = st.columns([1, 3])
+                        c_img, c_txt = st.columns([1, 3], vertical_alignment="center")
                         with c_img:
                              if d['escudo_obj']: 
                                  d['escudo_obj'].seek(0)
                                  st.image(d['escudo_obj'])
+                             else:
+                                 st.write("🛡️")
                         with c_txt:
-                            st.write(f"**{d['n']}**")
-                            st.write(f"PIN: `{d['pin']}`")
+                            st.markdown(f"**{d['n']}**")
+                            # AJUSTE 2: Confirmación visual del número
+                            st.markdown(f"📞 {d['pref']} {d['wa']}")
+                            st.markdown(f"🔐 PIN: `{d['pin']}`")
                     
                     c1, c2 = st.columns(2)
                     if c1.button("✅ Confirmar Inscripción", use_container_width=True):
@@ -641,18 +645,21 @@ def render_torneo(id_torneo):
                         nom_f = st.text_input("Nombre del Equipo", value=d.get('n', '')).strip()
                         
                         c_p, c_w = st.columns([1, 2])
-                       
-
-                        paises = {
-                            "Colombia": "+57", "EEUU/CANADA": "+1", "México": "+52",
-                            "Costa Rica": "+506", "Venezuela": "+58", "Nicaragua": "+505",
-                            "Argentina": "+54", "Belice": "+501", "Bolivia": "+591",
-                            "Chile": "+56", "Honduras": "+504", "Ecuador": "+593",
-                            "El Salvador": "+503", "Guatemala": "+502", "Guayana Fran": "+594",
-                            "Panamá": "+507", "Paraguay": "+595", "Perú": "+51",
-                            "Surinam": "+597", "Uruguay": "+598", "Guyana": "+592", "Brasil": "+55"                        }
                         
-                        l_paises = [f"{k} ({v})" for k, v in paises.items()]
+                        # AJUSTE 1: Lista ordenada alfabéticamente
+                        paises = {
+                            "Argentina": "+54", "Belice": "+501", "Bolivia": "+591", "Brasil": "+55",
+                            "Chile": "+56", "Colombia": "+57", "Costa Rica": "+506", "Ecuador": "+593",
+                            "EEUU/CANADA": "+1", "El Salvador": "+503", "Guatemala": "+502", 
+                            "Guayana Fran": "+594", "Guyana": "+592", "Honduras": "+504", "México": "+52",
+                            "Nicaragua": "+505", "Panamá": "+507", "Paraguay": "+595", "Perú": "+51",
+                            "Surinam": "+597", "Uruguay": "+598", "Venezuela": "+58"
+                        }
+                        
+                        # Creamos lista ordenada por nombre de país (clave)
+                        claves_ordenadas = sorted(paises.keys())
+                        l_paises = [f"{k} ({paises[k]})" for k in claves_ordenadas]
+                        
                         pais_sel = c_p.selectbox("País", l_paises)
                         wa_f = c_w.text_input("WhatsApp DT", value=d.get('wa', ''))
                         
@@ -667,7 +674,7 @@ def render_torneo(id_torneo):
                                 if db.execute(text("SELECT 1 FROM equipos_globales WHERE id_torneo=:i AND nombre=:n"), {"i": id_torneo, "n": nom_f}).fetchone():
                                     st.error("Ese nombre ya existe en este torneo."); err = True
                                 
-                                # 2. VALIDACIÓN GLOBAL PIN (Lo que pediste)
+                                # 2. VALIDACIÓN GLOBAL PIN
                                 res_global = db.execute(text("SELECT nombre FROM equipos_globales WHERE pin_equipo=:p LIMIT 1"), {"p": pin_f}).fetchone()
                                 if res_global:
                                     # MENSAJE GOL BOT: Equipo ya registrado en la plataforma
@@ -702,12 +709,12 @@ def render_torneo(id_torneo):
                         st.rerun()
                     else:
                         st.error("PIN no válido en este torneo.")
-
             
 # --- 4.3 EJECUCIÓN ---
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
