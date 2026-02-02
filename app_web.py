@@ -465,8 +465,148 @@ def render_torneo(id_torneo):
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
 
         # 1. TORNEO (Tabla de Posiciones)
+        # ==========================================
+        # 2. TORNEO (TABLA DE POSICIONES / CRUCES)
+        # ==========================================
         with tabs[0]:
-            st.info("🚧 [PENDIENTE] Aquí irá la Tabla de Posiciones General (Admin View).")
+            # 1. Validar el formato del torneo
+            try:
+                with conn.connect() as db:
+                    res_fmt = db.execute(text("SELECT formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+                    t_formato = res_fmt[0] if res_fmt else "Liga"
+            except:
+                t_formato = "Liga" # Fallback
+
+            # ------------------------------------------
+            # CASO A: FORMATOS CON TABLA (Liga / Grupos)
+            # ------------------------------------------
+            if t_formato in ["Liga", "Grupos y Cruces"]:
+                try:
+                    # A. VALIDACIÓN DE SEGURIDAD
+                    # Usamos t_color que ya viene de la configuración inicial
+                    color_maestro = t_color 
+
+                    # 1. Obtener datos FILTRADOS POR TORNEO
+                    with conn.connect() as db:
+                        # Equipos APROBADOS de este torneo
+                        df_eq = pd.read_sql_query(
+                            text("SELECT nombre, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado'"), 
+                            db, 
+                            params={"id": id_torneo}
+                        )
+                    
+                    if df_eq.empty:
+                        mostrar_bot("Aún no hay equipos oficiales en la tabla. El balón está detenido.")
+                        st.image("https://cdn-icons-png.flaticon.com/512/743/743403.png", width=100)
+                    else:
+                        mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
+                        stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
+                        
+                        # Partidos FINALIZADOS de este torneo
+                        with conn.connect() as db:
+                            df_p = pd.read_sql_query(
+                                text("SELECT * FROM partidos WHERE id_torneo = :id AND estado = 'Finalizado'"), 
+                                db, 
+                                params={"id": id_torneo}
+                            )
+                        
+                        # Cálculo de Estadísticas
+                        for _, f in df_p.iterrows():
+                            l, v = f['local'], f['visitante']
+                            
+                            # Solo procesamos si ambos equipos existen en la lista de aprobados (Integridad)
+                            if l in stats and v in stats:
+                                gl, gv = int(f['goles_l']), int(f['goles_v'])
+                                
+                                stats[l]['PJ'] += 1; stats[v]['PJ'] += 1
+                                stats[l]['GF'] += gl; stats[l]['GC'] += gv
+                                stats[v]['GF'] += gv; stats[v]['GC'] += gl
+                                
+                                if gl > gv: 
+                                    stats[l]['PTS'] += 3
+                                elif gv > gl: 
+                                    stats[v]['PTS'] += 3
+                                else: 
+                                    stats[l]['PTS'] += 1; stats[v]['PTS'] += 1
+                        
+                        # Convertir a DataFrame y Ordenar
+                        df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
+                        df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
+                        df_f['DG'] = df_f['GF'] - df_f['GC']
+                        
+                        # Criterio de desempate: Puntos > Dif. Gol > Goles Favor
+                        df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
+                        df_f.insert(0, 'POS', range(1, len(df_f) + 1))
+
+                        # 2. DISEÑO DE TABLA (Tu Estética Probada)
+                        plantilla_tabla = """
+                        <style>
+                            .tabla-pro { 
+                                width: 100%; border-collapse: collapse; table-layout: fixed; 
+                                background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; 
+                                border: 1px solid COLOR_MAESTRO !important;
+                            }
+                            .tabla-pro th { 
+                                background-color: #111; color: #ffffff !important; 
+                                padding: 4px 1px; font-size: 11px; 
+                                border-bottom: 2px solid COLOR_MAESTRO !important; 
+                                text-align: center; height: 32px !important; 
+                            }
+                            .tabla-pro td { 
+                                padding: 0px 1px !important; text-align: center; 
+                                vertical-align: middle !important; border-bottom: 1px solid #222; 
+                                font-size: 13px; color: white; height: 30px !important; 
+                            }
+                            .escudo-wrapper {
+                                display: inline-block; width: 25px; text-align: center;
+                                margin-right: 8px; vertical-align: middle;
+                            }
+                        </style>
+                        """
+                        
+                        estilo_tabla_final = plantilla_tabla.replace("COLOR_MAESTRO", color_maestro)
+
+                        tabla_html = '<table class="tabla-pro"><thead><tr>'
+                        tabla_html += '<th style="width:10%">POS</th>'
+                        tabla_html += '<th style="width:45%; text-align:left; padding-left:5px">EQUIPO</th>'
+                        tabla_html += '<th style="width:10%">PTS</th>'
+                        tabla_html += '<th style="width:9%">PJ</th>'
+                        tabla_html += '<th style="width:9%">GF</th>'
+                        tabla_html += '<th style="width:9%">GC</th>'
+                        tabla_html += '<th style="width:8%">DG</th>'
+                        tabla_html += '</tr></thead><tbody>'
+
+                        for _, r in df_f.iterrows():
+                            url = mapa_escudos.get(r['EQ'])
+                            img_html = f'<img src="{url}" style="height:22px; width:22px; object-fit:contain;">' if url else ''
+                            escudo_final = f'<div class="escudo-wrapper">{img_html}</div>'
+                            
+                            tabla_html += "<tr>"
+                            tabla_html += f"<td>{r['POS']}</td>"
+                            tabla_html += f"<td style='text-align:left; padding-left:5px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>"
+                            tabla_html += f"{escudo_final}{r['EQ']}</td>"
+                            tabla_html += f"<td style='color:{color_maestro}; font-weight:bold;'>{r['PTS']}</td>"
+                            tabla_html += f"<td>{r['PJ']}</td>"
+                            tabla_html += f"<td>{r['GF']}</td>"
+                            tabla_html += f"<td>{r['GC']}</td>"
+                            tabla_html += f"<td style='font-size:11px; color:#888;'>{r['DG']}</td>"
+                            tabla_html += "</tr>"
+
+                        tabla_html += "</tbody></table>"
+                        st.markdown(estilo_tabla_final + tabla_html, unsafe_allow_html=True)
+
+                except Exception as e:
+                    st.error(f"Error al cargar la clasificación: {e}")
+            
+            # ------------------------------------------
+            # CASO B: OTROS FORMATOS (Cruces)
+            # ------------------------------------------
+            else:
+                mostrar_bot("Este torneo se juega por llaves de eliminación directa.")
+                st.info("🚧 Visualizador de Cuadro de Honor / Bracket en construcción.")
+
+
+                
 
         # 2. CONTROL (Panel de Gestión)
         with tabs[1]:
@@ -882,6 +1022,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
