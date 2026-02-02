@@ -867,9 +867,96 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-        # 2. CALENDARIO
+        # 2. CALENDARIO (Solo sus partidos)
         with tabs[1]:
-            st.info(f"🚧 [PENDIENTE] Calendario de juegos para: {st.session_state.get('nombre_equipo')}")
+            if t_fase == "inscripcion":
+                mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu fixture.")
+                st.image("https://cdn-icons-png.flaticon.com/512/3363/3363697.png", width=100)
+            else:
+                st.subheader(f"📅 Calendario de {st.session_state.nombre_equipo}")
+                
+                try:
+                    with conn.connect() as db:
+                        # Buscamos partidos donde el equipo sea Local O Visitante
+                        q_cal = text("""
+                            SELECT * FROM partidos 
+                            WHERE id_torneo = :id 
+                            AND (local = :n OR visitante = :n)
+                            ORDER BY jornada ASC, id ASC
+                        """)
+                        df_cal = pd.read_sql_query(q_cal, db, params={"id": id_torneo, "n": st.session_state.nombre_equipo})
+                    
+                    if df_cal.empty:
+                        st.info("Aún no se han programado tus partidos.")
+                    else:
+                        # Agrupamos por Jornada para que se vea ordenado
+                        jornadas = df_cal['jornada'].unique()
+                        
+                        for j in jornadas:
+                            # Título de la Jornada o Fase
+                            lbl_jornada = f"Jornada {j}" if str(j).isdigit() else j
+                            st.markdown(f"##### 📍 {lbl_jornada}")
+                            
+                            # Filtramos los partidos de esta jornada
+                            df_j = df_cal[df_cal['jornada'] == j]
+                            
+                            for _, p in df_j.iterrows():
+                                with st.container(border=True):
+                                    # Diseño de Tarjeta de Partido
+                                    c_loc, c_vs, c_vis = st.columns([2, 0.5, 2], vertical_alignment="center")
+                                    
+                                    # Equipo Local
+                                    with c_loc:
+                                        st.markdown(f"<div style='text-align:right; font-weight:bold;'>{p['local']}</div>", unsafe_allow_html=True)
+                                        if p['goles_l'] is not None:
+                                            st.markdown(f"<div style='text-align:right; font-size:20px; color:{t_color};'>{int(p['goles_l'])}</div>", unsafe_allow_html=True)
+                                    
+                                    # VS
+                                    with c_vs:
+                                        st.markdown("<div style='text-align:center; color:#888;'>vs</div>", unsafe_allow_html=True)
+                                    
+                                    # Equipo Visitante
+                                    with c_vis:
+                                        st.markdown(f"<div style='text-align:left; font-weight:bold;'>{p['visitante']}</div>", unsafe_allow_html=True)
+                                        if p['goles_v'] is not None:
+                                            st.markdown(f"<div style='text-align:left; font-size:20px; color:{t_color};'>{int(p['goles_v'])}</div>", unsafe_allow_html=True)
+                                    
+                                    st.divider()
+                                    
+                                    # ESTADO Y ACCIONES
+                                    c_status, c_action = st.columns([2, 1], vertical_alignment="center")
+                                    
+                                    with c_status:
+                                        if p['estado'] == 'Finalizado':
+                                            st.caption("✅ Finalizado")
+                                        else:
+                                            st.caption("⏳ Pendiente / En Juego")
+                                    
+                                    with c_action:
+                                        # Solo permitimos subir foto si NO está finalizado aún (o para corregir)
+                                        # Usamos un key único por partido
+                                        key_up = f"evidencia_{p['id']}"
+                                        
+                                        # Popover para subir la evidencia sin salir de la pantalla
+                                        with st.popover("📸 Reportar"):
+                                            st.markdown("Subir foto del marcador final:")
+                                            foto_ev = st.file_uploader("Evidencia", type=['jpg', 'png'], key=f"u_{p['id']}", label_visibility="collapsed")
+                                            
+                                            if foto_ev:
+                                                if st.button("Enviar Resultado", key=f"b_{p['id']}"):
+                                                    # Aquí iría la lógica de OCR o guardado de la imagen para revisión del Admin
+                                                    # Por ahora, simulamos el envío al admin
+                                                    st.success("Evidencia enviada al Admin.")
+                                                    time.sleep(1)
+                                                    # (Opcional) Aquí podrías actualizar un campo 'evidencia_url' en la tabla partidos
+                            
+                            st.write("") # Espacio entre jornadas
+
+                except Exception as e:
+                    st.error(f"Error cargando calendario: {e}")
+
+
+                    
 
         # 3. MI EQUIPO
         with tabs[2]:
@@ -1286,6 +1373,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
