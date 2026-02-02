@@ -49,7 +49,7 @@ st.markdown(f"""
         /* Forzado universal de la fuente con ajuste de espaciado (Impacto) */
         .stApp, h1, h2, h3, h4, h5, h6, p, div, button, input, label, span, textarea, a {{
             font-family: 'Oswald', sans-serif !important;
-            letter-spacing: -0.02em !important; /* Letras más juntas como antes */
+            letter-spacing: -0.02em !important;
         }}
 
         /* 1. FONDO GENERAL */
@@ -69,21 +69,37 @@ st.markdown(f"""
             text-transform: uppercase;
         }}
 
-        /* 2. AJUSTE DE PESTAÑAS (TABS) - DISTRIBUCIÓN UNIFORME */
+        /* ============================================================ */
+        /* 2. AJUSTE DE PESTAÑAS (TABS) - VERSIÓN COMPACTA (MÓVIL)      */
+        /* ============================================================ */
+        
         button[data-baseweb="tab"] {{
             flex-grow: 1 !important;
             justify-content: center !important;
-            min-width: 150px;
+            /* min-width: 150px;  <-- ELIMINADO para evitar scroll en móviles */
+            min-width: 50px !important; /* Mínimo pequeño para permitir encogerse */
+            
             background-color: rgba(255,255,255,0.05);
             border-radius: 8px 8px 0 0;
             color: #aaa;
-            font-weight: 600 !important; /* Más gruesa la letra */
-            letter-spacing: 0px !important; /* Sin separación extra */
+            font-weight: 600 !important;
+            letter-spacing: 0px !important;
             transition: all 0.3s ease;
             text-transform: uppercase;
+            
+            /* --- AJUSTES DE REDUCCIÓN DE TAMAÑO (~20%) --- */
+            padding-left: 8px !important;   /* Antes era mayor */
+            padding-right: 8px !important;  /* Antes era mayor */
+            gap: 5px !important;            /* Menos espacio entre icono y texto */
+            height: 45px !important;        /* Altura controlada */
+        }}
+
+        /* Reducción específica del tamaño de letra dentro de la pestaña */
+        .stTabs [data-baseweb="tab"] p {{
+            font-size: 14px !important; /* Reducido para que quepa todo */
         }}
         
-        .stTabs [data-baseweb="tab-list"] {{ gap: 10px; }}
+        .stTabs [data-baseweb="tab-list"] {{ gap: 5px; }} /* Menos hueco entre pestañas */
         
         .stTabs [aria-selected="true"] {{
             background-color: rgba(255, 215, 0, 0.1) !important;
@@ -112,7 +128,7 @@ st.markdown(f"""
         button[kind="primary"] {{
             background-color: {COLOR_MARCA} !important;
             color: black !important;
-            font-weight: 700 !important; /* Negrilla máxima en botones */
+            font-weight: 700 !important;
             border: none !important;
             height: 50px !important;
             font-size: 18px !important;
@@ -183,6 +199,9 @@ def mostrar_bot(mensaje):
         </div>
     """, unsafe_allow_html=True)
 
+
+
+    
 # ==============================================================================
 # 2. LIMPIEZA DE ESCUDO CLUDINARY
 # ==============================================================================
@@ -1104,6 +1123,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
