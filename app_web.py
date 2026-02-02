@@ -209,18 +209,31 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo, id_torneo):
         )
         return resultado_fallback['secure_url']
 
+
+
+
 def validar_acceso(id_torneo, pin_ingresado):
     try:
         with conn.connect() as db:
+            # 1. VERIFICAR ADMIN
             q_admin = text("SELECT nombre FROM torneos WHERE id = :id AND pin_admin = :pin")
             res_admin = db.execute(q_admin, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
             if res_admin:
-                return {"rol": "Admin", "id_equipo": None, "nombre_equipo": None}
+                return {"rol": "Admin", "id_equipo": None, "nombre_equipo": "Organizador"}
             
-            q_dt = text("SELECT id, nombre FROM equipos_globales WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'aprobado'")
+            # 2. VERIFICAR DT (Con Estado)
+            q_dt = text("SELECT id, nombre, estado FROM equipos_globales WHERE id_torneo = :id AND pin_equipo = :pin")
             res_dt = db.execute(q_dt, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
+            
             if res_dt:
-                return {"rol": "DT", "id_equipo": res_dt[0], "nombre_equipo": res_dt[1]}
+                # El PIN existe, ahora miramos el estado
+                if res_dt.estado == 'aprobado':
+                    return {"rol": "DT", "id_equipo": res_dt.id, "nombre_equipo": res_dt.nombre}
+                elif res_dt.estado == 'pendiente':
+                    return "PENDIENTE" # Señal especial para la UI
+                else:
+                    return None # Baja u otro estado (No entra)
+
         return None
     except: return None
 
