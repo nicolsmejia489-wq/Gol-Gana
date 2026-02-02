@@ -516,7 +516,7 @@ def render_torneo(id_torneo):
                 
                 # CEREBRO GOL BOT
                 if "msg_bot_ins" not in st.session_state:
-                    st.session_state.msg_bot_ins = "👋 ¡Hola! Tienes dos opciones para inscribirte:"
+                    st.session_state.msg_bot_ins = "👋 ¡Hola! Si tu club ya esta registrado, recuerdame el PIN para inscribirte. Si eres nuevo, registra tu club en el formulario de abajo.:"
                 mostrar_bot(st.session_state.msg_bot_ins)
 
                 # --- OPCIÓN A: VÍA RÁPIDA (YA TENGO PIN) ---
@@ -587,7 +587,7 @@ def render_torneo(id_torneo):
                 st.markdown("---")
 
                 # --- OPCIÓN B: REGISTRO NUEVO ---
-                st.markdown("#### 🌱 ¿Club Nuevo? Crea tu registro")
+                st.markdown("#### 🌱 ¿Club Nuevo? Registra tu club")
                 
                 if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
                 if "datos_temp" not in st.session_state: st.session_state.datos_temp = {}
@@ -646,8 +646,8 @@ def render_torneo(id_torneo):
                         pais_sel = c_p.selectbox("País", l_paises)
                         wa_f = c_w.text_input("WhatsApp DT", value=d.get('wa', ''))
                         
-                        pin_f = st.text_input("Crea un PIN (Para usar en futuros torneos)", value=d.get('pin', ''), max_chars=6).strip()
-                        escudo_f = st.file_uploader("Escudo", type=['png', 'jpg'])
+                        pin_f = st.text_input("Crea un PIN (Evita una contraseña generica. Sera la contraseña de tu Club)", value=d.get('pin', ''), max_chars=6).strip()
+                        escudo_f = st.file_uploader("Escudo (Opcional)", type=['png', 'jpg'])
 
                         if st.form_submit_button("Siguiente", use_container_width=True):
                             # Validaciones
@@ -698,6 +698,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
