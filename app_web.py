@@ -413,53 +413,67 @@ def validar_acceso(id_torneo, pin_ingresado):
         
 def render_torneo(id_torneo):
     # ---------------------------------------------------------
-    # 1. CONFIGURACIÓN INICIAL (Base de Datos)
+    # 1. DATOS MAESTROS Y CONFIGURACIÓN VISUAL
     # ---------------------------------------------------------
     try:
+        query = text("SELECT nombre, organizador, color_primario, url_portada, fase FROM torneos WHERE id = :id")
         with conn.connect() as db:
-            # Traemos datos básicos para el título y colores
-            t_data = db.execute(text("SELECT nombre, color_primario, fase FROM torneos WHERE id = :id"), {"id": id_torneo}).fetchone()
-            
-            if not t_data:
-                st.error("Torneo no encontrado.")
-                return
-            
-            t_nombre = t_data[0]
-            t_color = t_data[1]
-            t_fase = t_data[2]
-            
+            t = db.execute(query, {"id": id_torneo}).fetchone()
+        
+        if not t:
+            st.error("Torneo no encontrado."); return
+        
+        t_nombre, t_org, t_color, t_portada, t_fase = t
+    
     except Exception as e:
-        st.error(f"Error de conexión: {e}")
-        return
+        st.error(f"Error DB: {e}"); return
 
-    # Título y Estilos Globales
-    st.title(f"{t_nombre}")
+    # --- CSS Personalizado (Oswald Impact) ---
     st.markdown(f"""
         <style>
+            button[kind="primary"] {{ background-color: {t_color} !important; color: black !important; font-weight: 700 !important; }}
+            .stTabs [aria-selected="true"] p {{ color: {t_color} !important; font-weight: 700 !important; }}
+            [data-baseweb="tab-highlight-renderer"] {{ background-color: {t_color} !important; }}
+            .tournament-title {{ color: white; font-size: 32px; font-weight: 700; text-transform: uppercase; margin-top: 10px; margin-bottom: 0px; letter-spacing: -0.02em; }}
+            .tournament-subtitle {{ color: {t_color}; font-size: 16px; opacity: 0.9; margin-bottom: 25px; font-weight: 400; }}
             div[data-testid="stExpander"] {{ border: 1px solid {t_color}; }}
-            button[kind="primary"] {{ background-color: {t_color} !important; border: none; }}
         </style>
     """, unsafe_allow_html=True)
 
-    # ---------------------------------------------------------
-    # 2. GESTOR DE ROLES Y PESTAÑAS
-    # ---------------------------------------------------------
-    rol_actual = st.session_state.get("rol") # Puede ser: None (Espectador), "DT", "Admin"
+    # --- Cabecera y Navegación ---
+    st.image(t_portada if t_portada else URL_PORTADA, use_container_width=True)
+    
+    # Botón Salir al Lobby (Limpia sesión)
+    if st.button("⬅ LOBBY", use_container_width=False):
+        for k in ["rol", "id_equipo", "nombre_equipo", "login_error", "datos_temp", "reg_estado", "msg_bot_ins"]:
+            if k in st.session_state: del st.session_state[k]
+        st.query_params.clear(); st.rerun()
 
+    # Títulos
+    st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
+    
+    rol_actual = st.session_state.get("rol", "Espectador")
+    label_modo = f"DT: {st.session_state.get('nombre_equipo')}" if rol_actual == "DT" else rol_actual
+    st.markdown(f'<p class="tournament-subtitle">Organiza: {t_org} | Modo: {label_modo}</p>', unsafe_allow_html=True)
+
+    # ---------------------------------------------------------
+    # 2. GESTOR DE PESTAÑAS POR ROL (Esqueleto)
+    # ---------------------------------------------------------
+    
     # --- ESCENARIO A: ADMINISTRADOR ---
     if rol_actual == "Admin":
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
 
         # 1. TORNEO (Tabla de Posiciones)
         with tabs[0]:
-            st.info("🚧 [PENDIENTE] Aquí irá la Tabla de Posiciones General.")
+            st.info("🚧 [PENDIENTE] Aquí irá la Tabla de Posiciones General (Admin View).")
 
         # 2. CONTROL (Panel de Gestión)
         with tabs[1]:
-            st.info("🚧 [PENDIENTE] Aquí irá el Panel de Control del Admin.")
-            if st.button("🔴 Salir Admin"):
-                st.session_state.clear()
-                st.rerun()
+            st.info("🚧 [PENDIENTE] Aquí irá el Panel de Control del Admin (Partidos, Aprobaciones, Config).")
+            st.markdown("---")
+            if st.button("🔴 Cerrar Sesión Admin", use_container_width=True):
+                st.session_state.clear(); st.rerun()
 
     # --- ESCENARIO B: DT (Director Técnico) ---
     elif rol_actual == "DT":
@@ -471,32 +485,33 @@ def render_torneo(id_torneo):
 
         # 2. CALENDARIO (Solo sus partidos)
         with tabs[1]:
-            st.info(f"🚧 [PENDIENTE] Aquí irán los partidos de: {st.session_state.get('nombre_equipo')}")
+            st.info(f"🚧 [PENDIENTE] Calendario de juegos para: {st.session_state.get('nombre_equipo')}")
 
         # 3. MI EQUIPO (Sub-pestañas)
         with tabs[2]:
-            # Sub-navegación interna
             sub_tabs = st.tabs(["✏️ Editar Equipo", "📊 Estadísticas"])
             
             with sub_tabs[0]:
-                st.info("🚧 [PENDIENTE] Formulario de edición y gestión de capitán.")
+                st.info("🚧 [PENDIENTE] Gestión de escudo, nombre y Capitán encargado.")
             
             with sub_tabs[1]:
                 st.info("🚧 [PENDIENTE] Gráficas de rendimiento.")
             
             st.markdown("---")
-            if st.button("🔴 Salir del Club"):
-                st.session_state.clear()
-                st.rerun()
+            if st.button("🔴 Cerrar Sesión Club", use_container_width=True):
+                st.session_state.clear(); st.rerun()
 
     # --- ESCENARIO C: ESPECTADOR (Por defecto) ---
     else:
+        # El orden solicitado: 1. Inscripciones, 2. Torneo, 3. Ingreso
         tabs = st.tabs(["📝 Inscripciones", "🏆 Torneo", "🔐 Ingreso"])
 
         # 1. INSCRIPCIONES (Registro nuevo o validar PIN)
         with tabs[0]:
-            st.info("🚧 [PENDIENTE] Formulario de inscripción y validación de PIN.")
-            # Aquí pondremos la lógica que cambia st.session_state['rol'] = 'DT'
+            if t_fase == "inscripcion":
+                st.info("🚧 [PENDIENTE] Formulario de inscripción y validación de PIN.")
+            else:
+                st.warning("🚫 Las inscripciones están cerradas.")
 
         # 2. TORNEO (Tabla de Posiciones)
         with tabs[1]:
@@ -505,12 +520,14 @@ def render_torneo(id_torneo):
         # 3. INGRESO (Login DT/Admin ya registrados)
         with tabs[2]:
             st.info("🚧 [PENDIENTE] Input para ingresar PIN de DT o Admin.")
-            # Aquí pondremos la lógica que cambia st.session_state['rol'] = 'DT' o 'Admin'
-                        
+
+
+            
 # --- 4.3 EJECUCIÓN ---
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
