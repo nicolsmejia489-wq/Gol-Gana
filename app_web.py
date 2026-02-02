@@ -512,7 +512,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
                     /* --- CONTENEDOR DEL ESCUDO (Caja invisible) --- */
                     .escudo-wrapper {{
                         display: inline-block;
-                        width: 60px;                        /* ANCHO RESERVADO PARA ESCUDO */
+                        width: 40px;                        /* ANCHO RESERVADO PARA ESCUDO */
                         text-align: center;
                         margin-right: 2px;                 /* ESPACIO ENTRE ESCUDO Y NOMBRE DEL EQUIPO */
                         vertical-align: middle;
@@ -520,8 +520,8 @@ def contenido_pestana_torneo(id_torneo, t_color):
                     
                     /* --- IMAGEN DEL ESCUDO --- */
                     .img-escudo {{
-                        height: 32px;                       /* ALTO DEL ESCUDO (Aumentado) */
-                        width: 32px;                        /* ANCHO DEL ESCUDO (Aumentado) */
+                        height: 40px;                       /* ALTO DEL ESCUDO (Aumentado) */
+                        width: 40px;                        /* ANCHO DEL ESCUDO (Aumentado) */
                         object-fit: contain;                /* Para que no se deforme */
                     }}
                 </style>
@@ -1056,6 +1056,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
