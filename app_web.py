@@ -832,13 +832,13 @@ def render_torneo(id_torneo):
 
                 
 
-    # --- ESCENARIO B: DT (Director Técnico) ---
+   # --- ESCENARIO B: DT (Director Técnico) ---
     elif rol_actual == "DT":
         tabs = st.tabs(["🏆 Torneo", "📅 Calendario", "👤 Mi Equipo"])
 
         # 1. TORNEO
         with tabs[0]:
-             # LLAMADA A LA FUNCIÓN
+             # LLAMADA A LA FUNCIÓN COMPARTIDA
              contenido_pestana_torneo(id_torneo, t_color)
 
         # 2. CALENDARIO (Solo sus partidos)
@@ -847,17 +847,23 @@ def render_torneo(id_torneo):
 
         # 3. MI EQUIPO (Sub-pestañas)
         with tabs[2]:
-            sub_tabs = st.tabs(["✏️ Editar Equipo", "📊 Estadísticas"])
+            # AJUSTE: Orden invertido (Primero Estadísticas, luego Edición)
+            sub_tabs = st.tabs(["📊 Estadísticas", "✏️ Editar Equipo"])
             
+            # 3.1 ESTADÍSTICAS
             with sub_tabs[0]:
-                st.info("🚧 [PENDIENTE] Gestión de escudo, nombre y Capitán encargado.")
-            
-            with sub_tabs[1]:
                 st.info("🚧 [PENDIENTE] Gráficas de rendimiento.")
+            
+            # 3.2 EDITAR EQUIPO
+            with sub_tabs[1]:
+                st.info("🚧 [PENDIENTE] Gestión de escudo, nombre y Capitán encargado.")
             
             st.markdown("---")
             if st.button("🔴 Cerrar Sesión Club", use_container_width=True):
                 st.session_state.clear(); st.rerun()
+
+
+                
 
 
 # --- ESCENARIO C: ESPECTADOR (Por defecto) ---
@@ -1098,6 +1104,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
