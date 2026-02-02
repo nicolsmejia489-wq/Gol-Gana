@@ -464,6 +464,11 @@ def render_torneo(id_torneo):
     if rol_actual == "Admin":
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
 
+            st.markdown("---")
+            if st.button("🔴 Cerrar Sesión Admin", use_container_width=True):
+                st.session_state.clear(); st.rerun()
+
+
         # 1. TORNEO (Tabla de Posiciones)
         with tabs[0]:
             st.info("🚧 [PENDIENTE] Aquí irá la Tabla de Posiciones General (Admin View).")
@@ -622,9 +627,6 @@ def render_torneo(id_torneo):
                 else:
                     st.info("El torneo está en curso. Para reiniciar o cambiar ajustes avanzados, contacta soporte técnico.")
 
-            st.markdown("---")
-            if st.button("🔴 Cerrar Sesión Admin", use_container_width=True):
-                st.session_state.clear(); st.rerun()
 
 
 
@@ -878,6 +880,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
