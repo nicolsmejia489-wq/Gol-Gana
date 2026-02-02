@@ -893,6 +893,9 @@ def render_torneo(id_torneo):
         # ==========================================
         # 1. INSCRIPCIONES (Lógica Doble Vía con Flujo de Estados Correcto)
         # ==========================================
+       # ==========================================
+        # 1. INSCRIPCIONES (Con Auto-Mayúsculas)
+        # ==========================================
         with tabs[0]:
             if t_fase == "inscripcion":
                 
@@ -907,45 +910,38 @@ def render_torneo(id_torneo):
                     st.caption("Usa tu PIN existente para inscribirte o reactivar tu solicitud.")
                     
                     c_pin_fast, c_btn_fast = st.columns([3, 1])
-                    pin_fast = c_pin_fast.text_input("Tu PIN", max_chars=6, key="pin_fast", label_visibility="collapsed", placeholder="Ej: A1B2")
+                    # AJUSTE: .upper() aquí también para facilitar la búsqueda
+                    pin_fast = c_pin_fast.text_input("Tu PIN", max_chars=6, key="pin_fast", label_visibility="collapsed", placeholder="Ej: A1B2").strip().upper()
                     
                     if c_btn_fast.button("Inscribirme", use_container_width=True):
                         if not pin_fast:
                             st.warning("Escribe un PIN.")
                         else:
                             with conn.connect() as db:
-                                # PASO 1: BÚSQUEDA LOCAL (En este torneo)
+                                # PASO 1: BÚSQUEDA LOCAL
                                 q_local = text("SELECT id, nombre, estado FROM equipos_globales WHERE id_torneo=:idt AND pin_equipo=:p")
                                 local = db.execute(q_local, {"idt": id_torneo, "p": pin_fast}).fetchone()
                                 
                                 if local:
-                                    # --- CASO 1.1: ESTADO PENDIENTE ---
                                     if local.estado == 'pendiente':
-                                        st.info(f"🤖 **Gol Bot:** Tranquilo, tu solicitud con **{local.nombre}** ya está enviada. Dile al Admin que te apruebe pronto.")
-                                    
-                                    # --- CASO 1.2: ESTADO APROBADO ---
+                                        st.info(f"🤖 **Gol Bot:** Tranquilo, tu solicitud con **{local.nombre}** ya está enviada.")
                                     elif local.estado == 'aprobado':
-                                        st.success(f"🤖 **Gol Bot:** ¡Pero si ya estás adentro! **{local.nombre}** es oficial. Pasando a tu camerino...")
-                                        # Auto-Login
+                                        st.success(f"🤖 **Gol Bot:** ¡Pero si ya estás adentro! **{local.nombre}** es oficial.")
                                         st.session_state.rol = "DT"
                                         st.session_state.id_equipo = local.id
                                         st.session_state.nombre_equipo = local.nombre
                                         time.sleep(1.5); st.rerun()
-                                    
-                                    # --- CASO 1.3: ESTADO NULL (Dado de baja -> Reactivar) ---
-                                    else: # (local.estado is None)
+                                    else: # Reactivar baja
                                         db.execute(text("UPDATE equipos_globales SET estado='pendiente' WHERE id=:id"), {"id": local.id})
                                         db.commit()
                                         st.balloons()
                                         st.success(f"✅ ¡Solicitud Reactivada! He vuelto a poner a **{local.nombre}** en la lista de espera.")
-
                                 else:
-                                    # PASO 2: BÚSQUEDA GLOBAL (En otros torneos)
+                                    # PASO 2: BÚSQUEDA GLOBAL
                                     q_global = text("SELECT * FROM equipos_globales WHERE pin_equipo=:p ORDER BY id DESC LIMIT 1")
                                     origen = db.execute(q_global, {"p": pin_fast}).fetchone()
                                     
                                     if origen:
-                                        # --- CASO 2.1: EXISTE AFUERA -> CLONAR ---
                                         try:
                                             db.execute(text("""
                                                 INSERT INTO equipos_globales 
@@ -960,21 +956,13 @@ def render_torneo(id_torneo):
                                                 "c2": origen.celular_dt2, "p2": origen.prefijo_dt2
                                             })
                                             db.commit()
-                                            
-                                            # Recuperar ID para Login futuro (o solo avisar)
-                                            nuevo = db.execute(text("SELECT id, nombre FROM equipos_globales WHERE id_torneo=:idt AND pin_equipo=:p"),
+                                            nuevo = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:idt AND pin_equipo=:p"),
                                                              {"idt": id_torneo, "p": pin_fast}).fetchone()
-
                                             st.balloons()
-                                            st.success(f"✅ ¡Listo! El equipo **{origen.nombre}** esta en lista de espera para ser aprobado")
-                                            # Opcional: Auto-login inmediato al estado pendiente para que vea su status
-                                            # st.session_state.rol = "DT"; st.session_state.id_equipo = nuevo.id; st.session_state.nombre_equipo = nuevo.nombre; st.rerun()
-
+                                            st.success(f"✅ ¡Te encontré! He traído los datos de **{origen.nombre}**.")
                                         except Exception as e:
-                                            st.error(f"Error técnico al importar: {e}")
-                                    
+                                            st.error(f"Error técnico: {e}")
                                     else:
-                                        # --- CASO 2.2: NO EXISTE ---
                                         st.error("❌ No reconozco ese PIN. Regístrate como club nuevo abajo.")
 
                 st.markdown("---")
@@ -996,7 +984,7 @@ def render_torneo(id_torneo):
                                  st.image(d['escudo_obj'])
                              else: st.write("🛡️")
                         with c_txt:
-                            st.markdown(f"**{d['n']}**")
+                            st.markdown(f"**{d['n']}**") # Aquí ya se verá en MAYÚSCULAS
                             st.markdown(f"📞 {d['pref']} {d['wa']}")
                             st.markdown(f"🔐 PIN: `{d['pin']}`")
                     
@@ -1017,8 +1005,6 @@ def render_torneo(id_torneo):
                                     "p": d['pref'], "pi": d['pin'], "e": url_escudo
                                 })
                                 db.commit()
-                                
-                                # AUTO LOGIN
                                 new_id = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:idt AND pin_equipo=:p AND estado='pendiente'"), 
                                                   {"idt": id_torneo, "p": d['pin']}).fetchone()
                                 
@@ -1034,10 +1020,13 @@ def render_torneo(id_torneo):
                 else:
                     with st.form("registro_nuevo"):
                         d = st.session_state.get("datos_temp", {})
-                        nom_f = st.text_input("Nombre del Equipo", value=d.get('n', '')).strip()
+                        
+                        # =========================================================
+                        # AJUSTE CLAVE: .upper() AL FINAL DEL INPUT DE NOMBRE
+                        # =========================================================
+                        nom_f = st.text_input("Nombre del Equipo", value=d.get('n', '')).strip().upper()
                         
                         c_p, c_w = st.columns([1, 2])
-                        
                         paises = {
                             "Argentina": "+54", "Belice": "+501", "Bolivia": "+591", "Brasil": "+55",
                             "Chile": "+56", "Colombia": "+57", "Costa Rica": "+506", "Ecuador": "+593",
@@ -1052,23 +1041,24 @@ def render_torneo(id_torneo):
                         pais_sel = c_p.selectbox("País", l_paises)
                         wa_f = c_w.text_input("WhatsApp DT", value=d.get('wa', ''))
                         
-                        pin_f = st.text_input("Crea un PIN (Evita una contraseña generica. Sera la contraseña de tu Club)", value=d.get('pin', ''), max_chars=6).strip()
+                        # =========================================================
+                        # AJUSTE CLAVE: .upper() AL FINAL DEL INPUT DE PIN
+                        # =========================================================
+                        pin_f = st.text_input("Crea un PIN (Evita una contraseña generica)", value=d.get('pin', ''), max_chars=6).strip().upper()
                         escudo_f = st.file_uploader("Escudo (Opcional)", type=['png', 'jpg'])
 
                         if st.form_submit_button("Siguiente", use_container_width=True):
-                            # Validaciones
                             err = False
                             with conn.connect() as db:
-                                # 1. Validar Nombre Local (Activo o Pendiente)
-                                q_nom = text("SELECT 1 FROM equipos_globales WHERE id_torneo=:i AND LOWER(nombre)=LOWER(:n) AND (estado='aprobado' OR estado='pendiente')")
+                                # Validación Nombre (Ya llega en Mayúsculas, la comparación funciona igual)
+                                q_nom = text("SELECT 1 FROM equipos_globales WHERE id_torneo=:i AND nombre=:n AND (estado='aprobado' OR estado='pendiente')")
                                 if db.execute(q_nom, {"i": id_torneo, "n": nom_f}).fetchone():
                                     st.error("Ese nombre ya existe activo en este torneo."); err = True
                                 
-                                # 2. Validar PIN Global (Si existe global, debe usar Vía Rápida)
                                 q_pin = text("SELECT nombre FROM equipos_globales WHERE pin_equipo=:p LIMIT 1")
                                 res_global = db.execute(q_pin, {"p": pin_f}).fetchone()
                                 if res_global:
-                                    st.warning(f"🤖 **Gol Bot:** El PIN **{pin_f}** ya existe (Club: {res_global.nombre}). Usa la opción de arriba 'Ya tengo un Club'.")
+                                    st.warning(f"🤖 **Gol Bot:** El PIN **{pin_f}** ya existe (Club: {res_global.nombre}). Usa la opción de arriba.")
                                     err = True
                             
                             if not err and nom_f and wa_f and len(pin_f) > 3:
@@ -1078,9 +1068,11 @@ def render_torneo(id_torneo):
                                 }
                                 st.session_state.reg_estado = "confirmar"
                                 st.rerun()
-
             else:
                 st.warning("🚫 Inscripciones Cerradas.")
+
+
+                
 
         # 2. TORNEO
         with tabs[1]:
@@ -1123,6 +1115,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
