@@ -516,7 +516,7 @@ def render_torneo(id_torneo):
                 
                 # CEREBRO GOL BOT
                 if "msg_bot_ins" not in st.session_state:
-                    st.session_state.msg_bot_ins = "👋 ¡Hola! Si tu club ya esta registrado, recuerdame el PIN para inscribirte. Si eres nuevo, registra tu club en el formulario de abajo.:"
+                    st.session_state.msg_bot_ins = "👋 ¡Hola! Si tu club ya esta registrado, recuerdame el PIN para inscribirte. Si eres nuevo, registra tu club en el formulario de abajo."
                 mostrar_bot(st.session_state.msg_bot_ins)
 
                 # --- OPCIÓN A: VÍA RÁPIDA (YA TENGO PIN) ---
@@ -641,7 +641,17 @@ def render_torneo(id_torneo):
                         nom_f = st.text_input("Nombre del Equipo", value=d.get('n', '')).strip()
                         
                         c_p, c_w = st.columns([1, 2])
-                        paises = {"Colombia": "+57", "México": "+52", "EEUU": "+1", "Argentina": "+54", "Ecuador": "+593"}
+                       
+
+                        paises = {
+                            "Colombia": "+57", "EEUU/CANADA": "+1", "México": "+52",
+                            "Costa Rica": "+506", "Venezuela": "+58", "Nicaragua": "+505",
+                            "Argentina": "+54", "Belice": "+501", "Bolivia": "+591",
+                            "Chile": "+56", "Honduras": "+504", "Ecuador": "+593",
+                            "El Salvador": "+503", "Guatemala": "+502", "Guayana Fran": "+594",
+                            "Panamá": "+507", "Paraguay": "+595", "Perú": "+51",
+                            "Surinam": "+597", "Uruguay": "+598", "Guyana": "+592", "Brasil": "+55"                        }
+                        
                         l_paises = [f"{k} ({v})" for k, v in paises.items()]
                         pais_sel = c_p.selectbox("País", l_paises)
                         wa_f = c_w.text_input("WhatsApp DT", value=d.get('wa', ''))
@@ -698,6 +708,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
