@@ -505,7 +505,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         height: 30px !important;            /* ALTURA FILA EQUIPOS (Aumentado para escudo grande) */
                         border-bottom: 1px solid #222;      /* Línea gris suave entre filas */
                         vertical-align: middle !important;  /* Centrado vertical */
-                        padding: 0px 1px !important;        /* Espacio lateral mínimo */
+                        padding: 0px 0px !important;        /* Espacio lateral mínimo */
                         text-align: center;                 /* Por defecto todo centrado */
                     }}
 
@@ -1056,6 +1056,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
