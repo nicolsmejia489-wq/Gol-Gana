@@ -504,8 +504,8 @@ def render_torneo(id_torneo):
                                         else: st.write("🛡️")
                                     with c2:
                                         st.markdown(f"**{r['nombre']}**")
-                                        # AJUSTE 1: Eliminado el PIN por privacidad
                                         cel_clean = str(r['celular_capitan']).replace(' ', '')
+                                        # Privacidad: Sin PIN
                                         st.markdown(f"📞 [{r['prefijo']} {r['celular_capitan']}](https://wa.me/{r['prefijo'].replace('+','')}{cel_clean})")
                                     with c3:
                                         if st.button("Aprobar ✅", key=f"apr_{r['id']}", use_container_width=True):
@@ -520,7 +520,7 @@ def render_torneo(id_torneo):
                     mostrar_bot("El balón está rodando. Aquí podrás cargar los marcadores cuando configuremos el fixture.")
 
             # ==========================================
-            # SUB-TAB 2: DIRECTORIO (Con Baja de Equipos)
+            # SUB-TAB 2: DIRECTORIO (Con Baja Lógica)
             # ==========================================
             with sub_tabs[1]:
                 st.subheader("Equipos Aprobados")
@@ -530,16 +530,17 @@ def render_torneo(id_torneo):
                     with st.container(border=True):
                         st.warning(f"⚠️ **CONFIRMACIÓN REQUERIDA**")
                         st.write(f"¿Seguro que quieres dar de baja al equipo **{st.session_state.baja_equipo_nombre}** del torneo **{t_nombre}**?")
-                        st.caption("Esta acción eliminará su registro de este torneo.")
+                        st.caption("El equipo saldrá del torneo pero sus datos permanecerán guardados.")
                         
                         col_si, col_no = st.columns(2)
-                        if col_si.button("✅ Sí, eliminar", type="primary", use_container_width=True):
+                        if col_si.button("✅ Sí, dar de baja", type="primary", use_container_width=True):
                             with conn.connect() as db:
-                                db.execute(text("DELETE FROM equipos_globales WHERE id=:id"), {"id": st.session_state.baja_equipo_id})
+                                # CAMBIO CLAVE: UPDATE en vez de DELETE
+                                db.execute(text("UPDATE equipos_globales SET estado='baja' WHERE id=:id"), {"id": st.session_state.baja_equipo_id})
                                 db.commit()
                             del st.session_state.baja_equipo_id
                             del st.session_state.baja_equipo_nombre
-                            st.success("Equipo eliminado."); time.sleep(1); st.rerun()
+                            st.success("Equipo dado de baja del torneo."); time.sleep(1); st.rerun()
                             
                         if col_no.button("❌ Cancelar", use_container_width=True):
                             del st.session_state.baja_equipo_id
@@ -559,7 +560,6 @@ def render_torneo(id_torneo):
                         st.markdown(f"**Total:** {len(df_aprob)} equipos listos.")
                         for _, row in df_aprob.iterrows():
                             with st.container():
-                                # AJUSTE 2: Columna extra para el botón de borrar
                                 c_img, c_info, c_del = st.columns([0.5, 3.5, 1], vertical_alignment="center")
                                 with c_img:
                                     if row['escudo']: st.image(row['escudo'], width=35)
@@ -869,6 +869,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
