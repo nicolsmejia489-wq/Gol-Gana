@@ -1045,19 +1045,31 @@ def render_torneo(id_torneo):
              # LLAMADA A LA FUNCIÓN
              contenido_pestana_torneo(id_torneo, t_color)
              
-        # 3. INGRESO (Login Clásico)
+        # 3. INGRESO (Login Clásico Actualizado)
         with tabs[2]:
             st.subheader("🔐 Acceso DT / Admin")
-            with st.container(border=True):def validar_acceso
+            with st.container(border=True):
                 c_in, c_btn = st.columns([3, 1])
                 pin_log = c_in.text_input("PIN", type="password", label_visibility="collapsed", placeholder="Ingresa PIN")
+                
                 if c_btn.button("Entrar", type="primary", use_container_width=True):
                     acc = validar_acceso(id_torneo, pin_log)
-                    if acc:
+                    
+                    # CASO 1: Login Exitoso (Devuelve Diccionario)
+                    if isinstance(acc, dict):
                         st.session_state.update(acc)
                         st.rerun()
+                    
+                    # CASO 2: En Lista de Espera (Devuelve String "PENDIENTE")
+                    elif acc == "PENDIENTE":
+                        st.warning("⏳ Tu equipo está en **Lista de Espera**. El Admin debe aprobarte antes de que puedas gestionar tu plantilla.")
+                    
+                    # CASO 3: PIN Incorrecto o Baja
                     else:
                         st.error("PIN no válido en este torneo.")
+
+
+                        
 
             st.markdown("---")
             if st.button("🔴 Cerrar Sesión Admin", use_container_width=True):
@@ -1069,6 +1081,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
