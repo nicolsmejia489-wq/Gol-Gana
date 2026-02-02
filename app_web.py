@@ -502,7 +502,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
                     .tabla-pro td {{ 
                         color: white;                       /* Color texto general */
                         font-size: 13px;                    /* TAMAÑO FUENTE DATOS */
-                        height: 45px !important;            /* ALTURA FILA EQUIPOS (Aumentado para escudo grande) */
+                        height: 30px !important;            /* ALTURA FILA EQUIPOS (Aumentado para escudo grande) */
                         border-bottom: 1px solid #222;      /* Línea gris suave entre filas */
                         vertical-align: middle !important;  /* Centrado vertical */
                         padding: 0px 1px !important;        /* Espacio lateral mínimo */
@@ -1056,6 +1056,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
