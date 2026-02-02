@@ -207,11 +207,11 @@ def mostrar_bot(mensaje):
 # ==============================================================================
 def procesar_y_subir_escudo(archivo_imagen, nombre_equipo, id_torneo):
     """
-    Sube la imagen a Cloudinary, aplica eliminación de fondo por IA
-    y retorna la URL del PNG transparente.
+    Sube la imagen a Cloudinary con eliminación de fondo.
+    Si falla por complejidad, retorna None para ser manejado por la UI.
     """
     try:
-        # 'background_removal': 'cloudinary_ai' requiere el add-on activo en Cloudinary
+        # Intentamos subir con IA de Cloudinary
         resultado = cloudinary.uploader.upload(
             archivo_imagen,
             folder=f"gol_gana/torneo_{id_torneo}/escudos",
@@ -221,13 +221,10 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo, id_torneo):
         )
         return resultado['secure_url']
     except Exception as e:
-        # Fallback: Si la IA falla o el plan no la incluye, sube la imagen normal
-        resultado_fallback = cloudinary.uploader.upload(
-            archivo_imagen,
-            folder=f"gol_gana/torneo_{id_torneo}/escudos"
-        )
-        return resultado_fallback['secure_url']
-
+        # LOG interno para el desarrollador
+        print(f"Error Cloudinary IA: {e}")
+        # Retornamos None explícitamente para indicar que la imagen no fue válida
+        return None
 
 
 
@@ -1248,28 +1245,40 @@ def render_torneo(id_torneo):
                     
                     c1, c2 = st.columns(2)
                     if c1.button("✅ Confirmar Inscripción", use_container_width=True):
-                         with st.spinner("Creando ficha..."):
+                         with st.spinner("Procesando club..."):
                             url_escudo = None
                             if d['escudo_obj']:
                                 d['escudo_obj'].seek(0)
                                 url_escudo = procesar_y_subir_escudo(d['escudo_obj'], d['n'], id_torneo)
                             
-                            with conn.connect() as db:
-                                db.execute(text("""
-                                    INSERT INTO equipos_globales (id_torneo, nombre, celular_capitan, prefijo, pin_equipo, escudo, estado, celular_dt1, prefijo_dt1)
-                                    VALUES (:id_t, :n, :c, :p, :pi, :e, 'pendiente', :c, :p)
-                                """), {
-                                    "id_t": int(id_torneo), "n": d['n'], "c": d['wa'], 
-                                    "p": d['pref'], "pi": d['pin'], "e": url_escudo
-                                })
-                                db.commit()
-                                new_id = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:idt AND pin_equipo=:p AND estado='pendiente'"), 
-                                                  {"idt": id_torneo, "p": d['pin']}).fetchone()
-                                
-                                st.session_state.rol = "DT"
-                                st.session_state.id_equipo = new_id.id
-                                st.session_state.nombre_equipo = d['n']
-                                st.rerun()
+                            # --- VALIDACIÓN GOL BOT PARA ESCUDO COMPLEJO ---
+                            if d['escudo_obj'] and url_escudo is None:
+                                mostrar_bot("⚠️ <b>¡Ojo con esa imagen, Presi!</b> La foto es muy compleja para procesarla como escudo. He registrado el club con un escudo genérico, podrás intentar subir uno más claro luego en tu panel.")
+                                # No detenemos el registro, usamos None para que la DB guarde el default
+                            
+                            try:
+                                with conn.connect() as db:
+                                    db.execute(text("""
+                                        INSERT INTO equipos_globales (id_torneo, nombre, celular_capitan, prefijo, pin_equipo, escudo, estado, celular_dt1, prefijo_dt1)
+                                        VALUES (:id_t, :n, :c, :p, :pi, :e, 'pendiente', :c, :p)
+                                    """), {
+                                        "id_t": int(id_torneo), "n": d['n'], "c": d['wa'], 
+                                        "p": d['pref'], "pi": d['pin'], "e": url_escudo # Aquí irá la URL o None
+                                    })
+                                    db.commit()
+                                    
+                                    # Recuperar ID para Auto Login
+                                    new_id = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:idt AND pin_equipo=:p AND estado='pendiente'"), 
+                                                      {"idt": id_torneo, "p": d['pin']}).fetchone()
+                                    
+                                    st.session_state.rol = "DT"
+                                    st.session_state.id_equipo = new_id.id
+                                    st.session_state.nombre_equipo = d['n']
+                                    st.success("¡Club Registrado!")
+                                    time.sleep(2)
+                                    st.rerun()
+                            except Exception as e_sql:
+                                st.error(f"Error crítico en base de datos: {e_sql}")
 
                     if c2.button("✏️ Editar", use_container_width=True):
                         st.session_state.reg_estado = "formulario"; st.rerun()
@@ -1373,6 +1382,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
