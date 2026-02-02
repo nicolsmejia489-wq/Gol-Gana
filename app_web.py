@@ -460,7 +460,7 @@ def render_torneo(id_torneo):
     # 2. GESTOR DE PESTAÑAS POR ROL (Esqueleto)
     # ---------------------------------------------------------
     
-    # --- ESCENARIO A: ADMINISTRADOR ---
+ # --- ESCENARIO A: ADMINISTRADOR ---
     if rol_actual == "Admin":
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
 
@@ -470,10 +470,145 @@ def render_torneo(id_torneo):
 
         # 2. CONTROL (Panel de Gestión)
         with tabs[1]:
-            st.info("🚧 [PENDIENTE] Aquí irá el Panel de Control del Admin (Partidos, Aprobaciones, Config).")
+            st.markdown(f"#### ⚙️ Administración de {t_nombre}")
+            
+            # --- CSS Exclusivo Admin ---
+            st.markdown(f"""<style>div[data-testid="stExpander"] {{ border: 1px solid {t_color}; border-radius: 5px; }}</style>""", unsafe_allow_html=True)
+
+            # Lógica de Sub-Pestañas Dinámicas
+            if t_fase == "inscripcion":
+                sub_tabs = st.tabs(["⏳ Lista de Espera", "📋 Directorio", "⚙️ Configuración"])
+            else:
+                sub_tabs = st.tabs(["⚽ Gestión Partidos", "📋 Directorio", "⚙️ Configuración"])
+
+            # ==========================================
+            # SUB-TAB 1: DINÁMICA (LISTA DE ESPERA / PARTIDOS)
+            # ==========================================
+            with sub_tabs[0]:
+                if t_fase == "inscripcion":
+                    try:
+                        with conn.connect() as db:
+                            q_pend = text("SELECT * FROM equipos_globales WHERE id_torneo = :id AND estado = 'pendiente'")
+                            df_pend = pd.read_sql_query(q_pend, db, params={"id": id_torneo})
+                        
+                        if df_pend.empty:
+                            # Gol Bot avisa que todo está limpio
+                            mostrar_bot("Todo tranquilo por aquí, Presi. <b>No hay solicitudes pendientes</b> en la bandeja.")
+                        else:
+                            # Gol Bot alerta de trabajo
+                            mostrar_bot(f"¡Atención! Tienes <b>{len(df_pend)} equipos</b> esperando tu visto bueno en la puerta.")
+                            
+                            for _, r in df_pend.iterrows():
+                                with st.container(border=True):
+                                    c1, c2, c3 = st.columns([0.5, 3, 1], vertical_alignment="center")
+                                    with c1:
+                                        if r['escudo']: st.image(r['escudo'], width=50)
+                                        else: st.write("🛡️")
+                                    with c2:
+                                        st.markdown(f"**{r['nombre']}**")
+                                        cel_clean = str(r['celular_capitan']).replace(' ', '')
+                                        st.markdown(f"📞 [{r['prefijo']} {r['celular_capitan']}](https://wa.me/{r['prefijo'].replace('+','')}{cel_clean}) | PIN: `{r['pin_equipo']}`")
+                                    with c3:
+                                        if st.button("Aprobar ✅", key=f"apr_{r['id']}", use_container_width=True):
+                                            with conn.connect() as db:
+                                                db.execute(text("UPDATE equipos_globales SET estado='aprobado' WHERE id=:id"), {"id": r['id']})
+                                                db.commit()
+                                            st.toast(f"{r['nombre']} Aprobado"); time.sleep(1); st.rerun()
+                    except Exception as e:
+                        st.error(f"Error cargando lista: {e}")
+
+                else:
+                    # Lógica Fase Competencia
+                    mostrar_bot("El balón está rodando. Aquí podrás cargar los marcadores cuando configuremos el fixture.")
+
+            # ==========================================
+            # SUB-TAB 2: DIRECTORIO (Solo Lectura)
+            # ==========================================
+            with sub_tabs[1]:
+                st.subheader("Equipos Aprobados")
+                try:
+                    with conn.connect() as db:
+                        q_aprob = text("SELECT nombre, celular_capitan, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC")
+                        df_aprob = pd.read_sql_query(q_aprob, db, params={"id": id_torneo})
+                    
+                    if df_aprob.empty:
+                        st.warning("Aún no has aprobado equipos.")
+                    else:
+                        st.markdown(f"**Total:** {len(df_aprob)} equipos listos.")
+                        for _, row in df_aprob.iterrows():
+                            with st.container():
+                                c_img, c_info = st.columns([0.5, 4], vertical_alignment="center")
+                                with c_img:
+                                    if row['escudo']: st.image(row['escudo'], width=35)
+                                    else: st.write("🛡️")
+                                with c_info:
+                                    # Construcción de la URL limpia para la API de WhatsApp
+                                    pref_url = str(row['prefijo']).replace('+', '')
+                                    cel_url = str(row['celular_capitan']).replace(' ', '')
+                                    link_wa = f"https://wa.me/{pref_url}{cel_url}"
+                                    
+                                    # Renderizado: Nombre • [Número con Link]
+                                    st.markdown(f"**{row['nombre']}** • [`{row['prefijo']} {row['celular_capitan']}`]({link_wa})")
+                            st.divider()
+                except Exception as e:
+                    st.error(f"Error listando equipos: {e}")
+
+            # ==========================================
+            # SUB-TAB 3: CONFIGURACIÓN (Con Confirmación de Gol Bot)
+            # ==========================================
+            with sub_tabs[2]:
+                st.subheader("Ajustes del Torneo")
+                
+                # Color
+                st.markdown("##### 🎨 Identidad")
+                c_col1, c_col2 = st.columns([1, 2])
+                new_color = c_col1.color_picker("Color Principal", value=t_color)
+                if c_col2.button("Aplicar Color"):
+                    with conn.connect() as db:
+                        db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), {"c": new_color, "id": id_torneo})
+                        db.commit(); st.rerun()
+                
+                st.divider()
+
+                # Control de Fases
+                st.markdown(f"##### 🚀 Fase Actual: `{t_fase.upper()}`")
+                
+                if t_fase == "inscripcion":
+                    # Botón inicial
+                    if st.button("🔐 Cerrar Inscripciones e Iniciar Competencia", type="primary", use_container_width=True):
+                        st.session_state.confirmar_inicio = True
+                    
+                    # Bloque de Confirmación de Gol Bot
+                    if st.session_state.get("confirmar_inicio"):
+                        st.markdown("---")
+                        mostrar_bot("¿Estás seguro, Presi? Al iniciar la competencia **se cerrará el formulario de registro** y pasaremos al modo de grupos/partidos.")
+                        
+                        col_si, col_no = st.columns(2)
+                        if col_si.button("✅ Sí, ¡A rodar el balón!", use_container_width=True):
+                            with conn.connect() as db:
+                                db.execute(text("UPDATE torneos SET fase='competencia' WHERE id=:id"), {"id": id_torneo})
+                                db.commit()
+                            del st.session_state.confirmar_inicio
+                            st.balloons()
+                            time.sleep(1.5)
+                            st.rerun()
+                            
+                        if col_no.button("❌ Cancelar", use_container_width=True):
+                            del st.session_state.confirmar_inicio
+                            st.rerun()
+                
+                else:
+                    st.info("El torneo está en curso. Para reiniciar o cambiar ajustes avanzados, contacta soporte técnico.")
+
             st.markdown("---")
             if st.button("🔴 Cerrar Sesión Admin", use_container_width=True):
                 st.session_state.clear(); st.rerun()
+
+
+
+
+
+                
 
     # --- ESCENARIO B: DT (Director Técnico) ---
     elif rol_actual == "DT":
@@ -714,6 +849,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
