@@ -495,7 +495,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         height: 35px !important;            /* ALTURA de la fila de encabezado */
                         text-align: center;                 /* Alineación texto (centrado) */
                         border-bottom: 2px solid {color_maestro} !important; /* Línea separadora de color */
-                        padding: 4px 1px;                   /* Relleno interno */
+                        padding: 1px 1px;                   /* Relleno interno */
                     }}
 
                     /* --- CELDAS DEL CUERPO (DATOS) --- */
@@ -512,9 +512,9 @@ def contenido_pestana_torneo(id_torneo, t_color):
                     /* --- CONTENEDOR DEL ESCUDO (Caja invisible) --- */
                     .escudo-wrapper {{
                         display: inline-block;
-                        width: 40px;                        /* ANCHO RESERVADO PARA ESCUDO */
+                        width: 60px;                        /* ANCHO RESERVADO PARA ESCUDO */
                         text-align: center;
-                        margin-right: 5px;                 /* ESPACIO ENTRE ESCUDO Y NOMBRE DEL EQUIPO */
+                        margin-right: 2px;                 /* ESPACIO ENTRE ESCUDO Y NOMBRE DEL EQUIPO */
                         vertical-align: middle;
                     }}
                     
@@ -1056,6 +1056,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
