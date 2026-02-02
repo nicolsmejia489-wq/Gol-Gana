@@ -1030,7 +1030,7 @@ def render_torneo(id_torneo):
                                 c_esc1, c_esc2 = st.columns([1, 4], vertical_alignment="center")
                                 with c_esc1:
                                     if me.escudo: st.image(me.escudo, width=50)
-                                    else: st.write("Subir escudo (Opcional)")
+                                    else: st.write("🛡️ Subir escudo (Opcional)")
                                 with c_esc2:
                                     new_escudo = st.file_uploader("Nuevo Escudo", type=['png', 'jpg'], label_visibility="collapsed")
 
@@ -1373,6 +1373,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
