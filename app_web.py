@@ -412,707 +412,106 @@ def validar_acceso(id_torneo, pin_ingresado):
 
         
 def render_torneo(id_torneo):
-    # --- 4.2.1 Datos Maestros ---
+    # ---------------------------------------------------------
+    # 1. CONFIGURACIÓN INICIAL (Base de Datos)
+    # ---------------------------------------------------------
     try:
-        query = text("SELECT nombre, organizador, color_primario, url_portada, fase FROM torneos WHERE id = :id")
         with conn.connect() as db:
-            t = db.execute(query, {"id": id_torneo}).fetchone()
-        if not t:
-            st.error("Torneo no encontrado."); return
-        t_nombre, t_org, t_color, t_portada, t_fase = t
+            # Traemos datos básicos para el título y colores
+            t_data = db.execute(text("SELECT nombre, color_primario, fase FROM torneos WHERE id = :id"), {"id": id_torneo}).fetchone()
+            
+            if not t_data:
+                st.error("Torneo no encontrado.")
+                return
+            
+            t_nombre = t_data[0]
+            t_color = t_data[1]
+            t_fase = t_data[2]
+            
     except Exception as e:
-        st.error(f"Error DB: {e}"); return
+        st.error(f"Error de conexión: {e}")
+        return
 
-    # --- 4.2.2 CSS Oswald Impact ---
+    # Título y Estilos Globales
+    st.title(f"{t_nombre}")
     st.markdown(f"""
         <style>
-            button[kind="primary"] {{ background-color: {t_color} !important; color: black !important; font-weight: 700 !important; }}
-            .stTabs [aria-selected="true"] p {{ color: {t_color} !important; font-weight: 700 !important; }}
-            [data-baseweb="tab-highlight-renderer"] {{ background-color: {t_color} !important; }}
-            .tournament-title {{ color: white; font-size: 32px; font-weight: 700; text-transform: uppercase; margin-top: 10px; margin-bottom: 0px; letter-spacing: -0.02em; }}
-            .tournament-subtitle {{ color: {t_color}; font-size: 16px; opacity: 0.9; margin-bottom: 25px; font-weight: 400; }}
+            div[data-testid="stExpander"] {{ border: 1px solid {t_color}; }}
+            button[kind="primary"] {{ background-color: {t_color} !important; border: none; }}
         </style>
     """, unsafe_allow_html=True)
 
-    # --- 4.2.3 Cabecera ---
-    st.image(t_portada if t_portada else URL_PORTADA, use_container_width=True)
-    if st.button("⬅ LOBBY", use_container_width=False):
-        for k in ["rol", "id_equipo", "nombre_equipo", "login_error", "datos_temp", "reg_estado", "msg_bot_ins"]:
-            if k in st.session_state: del st.session_state[k]
-        st.query_params.clear(); st.rerun()
+    # ---------------------------------------------------------
+    # 2. GESTOR DE ROLES Y PESTAÑAS
+    # ---------------------------------------------------------
+    rol_actual = st.session_state.get("rol") # Puede ser: None (Espectador), "DT", "Admin"
 
-    st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
-    
-    rol_actual = st.session_state.get("rol", "Espectador")
-    label_modo = f"DT: {st.session_state.get('nombre_equipo')}" if rol_actual == "DT" else rol_actual
-    st.markdown(f'<p class="tournament-subtitle">Organiza: {t_org} | Modo: {label_modo}</p>', unsafe_allow_html=True)
+    # --- ESCENARIO A: ADMINISTRADOR ---
+    if rol_actual == "Admin":
+        tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
 
-    # --- 4.2.4 Pestañas Dinámicas ---
-    tabs_nombres = ["📊 POSICIONES", "⚽ RESULTADOS", "⚙️ PANEL"]
-    if t_fase == "inscripcion": tabs_nombres[1] = "📝 INSCRIPCIONES"
-    tabs = st.tabs(tabs_nombres)
+        # 1. TORNEO (Tabla de Posiciones)
+        with tabs[0]:
+            st.info("🚧 [PENDIENTE] Aquí irá la Tabla de Posiciones General.")
 
-    with tabs[0]:
-        st.subheader("Clasificación General")
-
-# --- TAB 2: INSCRIPCIONES (Narrativa Gol Bot) ---
-    with tabs[1]:
-        if t_fase == "inscripcion":
-            
-            # 1. CEREBRO DE GOL BOT (Gestión de Mensajes)
-            # Inicializamos el mensaje por defecto si no existe
-            if "msg_bot_ins" not in st.session_state:
-                st.session_state.msg_bot_ins = "👋 Este registro es único. Si ya tienes equipo, recuérdame tu PIN y presiona BUSCAR."
-
-            # Mostramos al Bot SIEMPRE arriba
-            mostrar_bot(st.session_state.msg_bot_ins)
-
-            # --- A. BÚSQUEDA RÁPIDA ---
-            c_pin, c_btn = st.columns([3, 1])
-            with c_pin:
-                pin_bus = st.text_input("Verificar mi PIN", max_chars=6, key="bus_pin", label_visibility="collapsed", placeholder="Ingresa PIN existente...")
-            with c_btn:
-                if st.button("BUSCAR", use_container_width=True):
-                    if pin_bus:
-                        try:
-                            with conn.connect() as db:
-                                res = db.execute(text("SELECT nombre, estado FROM equipos_globales WHERE id_torneo=:id AND pin_equipo=:p"), 
-                                               {"id": int(id_torneo), "p": pin_bus}).fetchone()
-                                if res:
-                                    estado_txt = "en lista de espera ⏳" if res[1] == 'pendiente' else "oficialmente inscrito ✅"
-                                    st.session_state.msg_bot_ins = f"¡Te encontré! <b>{res[0]}</b> ya está <b>{estado_txt}</b>."
-                                else:
-                                    st.session_state.msg_bot_ins = "Mmm... ese PIN no me suena en este torneo. ¿Seguro que ya te registraste?"
-                            st.rerun()
-                        except:
-                            st.session_state.msg_bot_ins = "Tuve un mareo técnico. Intenta buscar de nuevo."; st.rerun()
-
-            st.markdown("---")
-
-            # --- B. MÁQUINA DE ESTADOS DEL REGISTRO ---
-            if "reg_estado" not in st.session_state: st.session_state.reg_estado = "formulario"
-            if "datos_temp" not in st.session_state: st.session_state.datos_temp = {}
-
-            # ==========================================
-            # ESTADO 3: ÉXITO (Final del camino)
-            # ==========================================
-            if st.session_state.reg_estado == "exito":
-                # Nota: El mensaje de éxito ya lo seteó el estado anterior en 'msg_bot_ins'
-                if st.button("📝 Inscribir otro equipo", use_container_width=True):
-                    st.session_state.reg_estado = "formulario"
-                    st.session_state.datos_temp = {"n": "", "wa": "", "pin": "", "pref": "+57", "escudo_obj": None}
-                    st.session_state.msg_bot_ins = "¡Venga el siguiente! Lléname los datos del nuevo equipo."
-                    st.rerun()
-
-            # ==========================================
-            # ESTADO 2: CONFIRMACIÓN (Resumen)
-            # ==========================================
-            elif st.session_state.reg_estado == "confirmar":
-                d = st.session_state.datos_temp
-                
-                # Aquí mostramos el resumen visual
-                with st.container(border=True):
-                    col_t, col_i = st.columns([2, 1], vertical_alignment="center")
-                    with col_t:
-                        st.markdown(f"**Club:** {d['n']}")
-                        st.markdown(f"**Contacto:** {d['pref']} {d['wa']}")
-                        st.markdown(f"**PIN:** `{d['pin']}`")
-                    with col_i:
-                        if d['escudo_obj']: 
-                            d['escudo_obj'].seek(0) # CORRECCIÓN TÉCNICA: Rebobinar archivo
-                            st.image(d['escudo_obj'], width=80)
-                        else:
-                            st.markdown("Sin Escudo")
-
-                c1, c2 = st.columns(2)
-                
-                # Botón Confirmar
-                if c1.button("✅ Enviar Solicitud", use_container_width=True):
-                    with st.spinner("Subiendo escudo y guardando en la nube..."):
-                        url_escudo = None
-                        try:
-                            if d['escudo_obj']:
-                                d['escudo_obj'].seek(0) # CORRECCIÓN TÉCNICA: Rebobinar antes de subir
-                                url_escudo = procesar_y_subir_escudo(d['escudo_obj'], d['n'], id_torneo)
-                            
-                            with conn.connect() as db:
-                                db.execute(text("""
-                                    INSERT INTO equipos_globales (id_torneo, nombre, celular_capitan, prefijo, pin_equipo, escudo, estado)
-                                    VALUES (:id_t, :n, :c, :p, :pi, :e, 'pendiente')
-                                """), {
-                                    "id_t": int(id_torneo), "n": d['n'], "c": d['wa'], 
-                                    "p": d['pref'], "pi": d['pin'], "e": url_escudo
-                                })
-                                db.commit()
-                            
-                            st.session_state.reg_estado = "exito"
-                            st.session_state.msg_bot_ins = f"¡Anotado! He guardado a <b>{d['n']}</b>. Dile al Admin que revise sus pendientes."
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error técnico: {e}")
-
-                # Botón Corregir
-                if c2.button("✏️ Corregir", use_container_width=True):
-                    st.session_state.reg_estado = "formulario"
-                    st.session_state.msg_bot_ins = "Ok, volvamos al formulario. Ajusta lo que necesites."
-                    st.rerun()
-
-            # ==========================================
-            # ESTADO 1: FORMULARIO (Inicio)
-            # ==========================================
-            else:
-                st.markdown("#### Registro de Nuevo Club")
-                with st.form("registro_club"):
-                    # Recuperamos datos previos si existen
-                    d = st.session_state.get("datos_temp", {"n": "", "wa": "", "pin": "", "pref": "+57", "escudo_obj": None})
-                    
-                    nom_f = st.text_input("Nombre del Equipo", value=d.get('n', '')).strip()
-                    
-                    paises = {"Colombia": "+57", "EEUU": "+1", "México": "+52", "Ecuador": "+593", "Panamá": "+507", "Perú": "+51", "Argentina": "+54", "Chile": "+56", "Venezuela": "+58"}
-                    opciones = [f"{p} ({pref})" for p, pref in paises.items()]
-                    
-                    # Lógica para mantener la selección del país
-                    idx_pref = 0
-                    if d.get('pref'):
-                        try: idx_pref = [d['pref'] in opt for opt in opciones].index(True)
-                        except: pass
-                    
-                    pais_sel = st.selectbox("País", opciones, index=idx_pref)
-                    wa_f = st.text_input("WhatsApp (Sin prefijo)", value=d.get('wa', '')).strip()
-                    pin_f = st.text_input("Crea un PIN (4-6 alfanuméricos)", value=d.get('pin', ''), max_chars=6).strip()
-                    escudo_f = st.file_uploader("🛡️ Escudo (Opcional)", type=['png', 'jpg', 'jpeg'])
-                    
-                    if st.form_submit_button("Siguiente ➡️", use_container_width=True):
-                        # 1. Validación Básica
-                        if not nom_f or not wa_f or len(pin_f) < 4:
-                            st.error("Faltan datos obligatorios o el PIN es muy corto.")
-                        else:
-                            # 2. VALIDACIÓN INTELIGENTE (GOL BOT)
-                            error_detectado = False
-                            try:
-                                with conn.connect() as db:
-                                    # Nombre duplicado en este torneo
-                                    res_dup = db.execute(text("SELECT estado FROM equipos_globales WHERE id_torneo=:id AND LOWER(nombre) = LOWER(:n)"), 
-                                                       {"id": int(id_torneo), "n": nom_f}).fetchone()
-                                    # PIN duplicado globalmente
-                                    res_pin = db.execute(text("SELECT 1 FROM equipos_globales WHERE pin_equipo = :p"), 
-                                                       {"p": pin_f}).fetchone()
-
-                                    if res_dup:
-                                        st.session_state.msg_bot_ins = f"¡Alto ahí! El nombre <b>{nom_f}</b> ya existe en este torneo. Si eres tú, usa BUSCAR."
-                                        error_detectado = True
-                                    elif res_pin:
-                                        st.session_state.msg_bot_ins = "Ese <b>PIN ya está ocupado</b>. Por seguridad, inventa uno diferente."
-                                        error_detectado = True
-
-                            except: pass # Si falla la validación db, dejamos pasar (fallback)
-
-                            if error_detectado:
-                                st.rerun() # Recargamos para que el Bot hable
-                            else:
-                                # Guardamos en Memoria Temporal
-                                st.session_state.datos_temp = {
-                                    "n": nom_f, "wa": wa_f, "pin": pin_f,
-                                    "pref": pais_sel.split('(')[-1].replace(')', ''),
-                                    "escudo_obj": escudo_f if escudo_f else d.get('escudo_obj')
-                                }
-                                st.session_state.reg_estado = "confirmar"
-                                # EL BOT CAMBIA SU MENSAJE PARA LA SIGUIENTE FASE
-                                st.session_state.msg_bot_ins = "🧐 Casi listo. Revisa los datos aquí abajo y confirma si todo está en orden."
-                                st.rerun()
-        else:
-            st.subheader("Resultados")
-            st.info("Inscripciones cerradas. El torneo ha comenzado.")
-
-
-            
-            
-
-# --- TAB 3: PANEL DE GESTIÓN (LÓGICA UNIFICADA) ---
-    with tabs[2]:
-        
-        # ---------------------------------------------------------
-        # A. LOGIN (Si no hay sesión iniciada)
-        # ---------------------------------------------------------
-        if "rol" not in st.session_state:
-            mostrar_bot("Zona restringida. Identifícate para gestionar.")
-            
-            c_login, c_submit = st.columns([3, 1])
-            with c_login:
-                pin_input = st.text_input("PIN de Acceso", type="password", 
-                                        placeholder="Ingresa tu PIN...", 
-                                        label_visibility="collapsed")
-            with c_submit:
-                if st.button("Entrar", type="primary", use_container_width=True):
-                    acc = validar_acceso(id_torneo, pin_input)
-                    if acc:
-                        st.session_state.update(acc)
-                        st.rerun()
-                    else:
-                        st.error("PIN no reconocido.")
-
-        # ---------------------------------------------------------
-        # B. VISTA DE DT (Capitán)
-        # ---------------------------------------------------------
-       # ---------------------------------------------------------
-        # B. VISTA DE DT (Capitán / Cuerpo Técnico)
-        # ---------------------------------------------------------
-        elif st.session_state.rol == "DT":
-            # Datos de la sesión
-            id_eq = st.session_state.id_equipo
-            nom_eq = st.session_state.nombre_equipo
-            
-            st.markdown(f"#### 🧢 Panel Técnico: {nom_eq}")
-            
-            # Pestañas del DT
-            if t_fase == "inscripcion":
-                # Si estamos en inscripción, no mostramos partidos aún
-                tabs_dt = st.tabs(["📋 Mi Equipo", "📊 Estadísticas"])
-                idx_partidos = -1 # No existe tab partidos
-                idx_mi_equipo = 0
-                idx_stats = 1
-            else:
-                tabs_dt = st.tabs(["⚽ Mis Partidos", "📊 Estadísticas", "📋 Mi Equipo"])
-                idx_partidos = 0
-                idx_stats = 1
-                idx_mi_equipo = 2
-
-            # ==========================================
-            # TAB: MIS PARTIDOS (Solo fase Competencia)
-            # ==========================================
-            if idx_partidos != -1:
-                with tabs_dt[idx_partidos]:
-                    st.subheader("Calendario y Resultados")
-                    
-                    try:
-                        # Buscamos partidos donde el equipo sea Local O Visitante en ESTE torneo
-                        q_mis = text("""
-                            SELECT * FROM partidos 
-                            WHERE id_torneo = :id_t AND (local = :n OR visitante = :n) 
-                            ORDER BY jornada ASC
-                        """)
-                        with conn.connect() as db:
-                            mis = pd.read_sql_query(q_mis, db, params={"id_t": int(id_torneo), "n": nom_eq})
-                        
-                        if mis.empty:
-                            mostrar_bot("Aún no tienes partidos programados. ¡A entrenar mientras tanto!")
-                        
-                        ultima_jornada = -1
-                        for _, p in mis.iterrows():
-                            # Separador de Jornada
-                            if p['jornada'] != ultima_jornada:
-                                st.markdown(f"##### 🗓️ Jornada {p['jornada']}")
-                                st.divider()
-                                ultima_jornada = p['jornada']
-
-                            # Identificar Rival
-                            es_local = (p['local'] == nom_eq)
-                            rival = p['visitante'] if es_local else p['local']
-                            
-                            with st.container(border=True):
-                                # 1. ENCABEZADO DEL PARTIDO
-                                c_info, c_chat = st.columns([3, 1], vertical_alignment="center")
-                                with c_info:
-                                    st.caption("Tu Rival")
-                                    st.markdown(f"### 🆚 {rival}")
-                                with c_chat:
-                                    # Lógica para buscar el WhatsApp del Rival
-                                    link_wa = None
-                                    try:
-                                        with conn.connect() as db:
-                                            # Buscamos en equipos_globales por nombre y torneo
-                                            r = db.execute(text("SELECT prefijo, celular_capitan FROM equipos_globales WHERE id_torneo=:idt AND nombre=:n"), 
-                                                         {"idt": id_torneo, "n": rival}).fetchone()
-                                            if r and r[1]:
-                                                # Limpieza del número
-                                                num_clean = str(r[1]).replace(' ', '').replace('+', '')
-                                                pref_clean = str(r[0]).replace('+', '')
-                                                link_wa = f"https://wa.me/{pref_clean}{num_clean}"
-                                    except: pass
-                                    
-                                    if link_wa: st.link_button("💬 Chat", link_wa, type="secondary", use_container_width=True)
-                                    else: st.caption("📵 Sin contacto")
-
-                                # 2. ESTADOS DEL PARTIDO
-                                metodo = p['metodo_registro'] if pd.notna(p['metodo_registro']) else "Algoritmo"
-
-                                # CASO A: FINALIZADO
-                                if p['estado'] == 'Finalizado':
-                                    g_l = int(p['goles_l'])
-                                    g_v = int(p['goles_v'])
-                                    st.success(f"✅ Finalizado: {p['local']} ({g_l}) - ({g_v}) {p['visitante']}")
-                                    
-                                    if st.button("❌ Reportar Error", key=f"rep_{p['id']}"):
-                                        with conn.connect() as db:
-                                            # Pasamos a revisión (Conflicto = 1)
-                                            db.execute(text("UPDATE partidos SET estado='Revision', conflicto=1 WHERE id=:id"), {"id": p['id']})
-                                            db.commit()
-                                        mostrar_bot("Entendido, Profe. He avisado al Admin para que revise el VAR (la foto).")
-                                        time.sleep(2); st.rerun()
-
-                                # CASO B: EN REVISIÓN
-                                elif p['estado'] == 'Revision':
-                                    st.warning("⚠️ Resultado en revisión por el Admin.")
-                                
-                                # CASO C: PENDIENTE (Subir Foto)
-                                else:
-                                    st.info("📸 Carga la foto del marcador para actualizar la tabla.")
-                                    tipo_carga = st.radio("Método:", ["Cámara", "Galería"], horizontal=True, label_visibility="collapsed", key=f"rad_{p['id']}")
-                                    
-                                    foto = None
-                                    if tipo_carga == "Cámara": foto = st.camera_input("Foto", key=f"cam_{p['id']}")
-                                    else: foto = st.file_uploader("Imagen", type=['jpg','png','jpeg'], key=f"up_{p['id']}")
-                                    
-                                    if foto:
-                                        if st.button("Enviar Resultado", key=f"env_{p['id']}", type="primary"):
-                                            with st.spinner("🤖 Gol Bot analizando marcador..."):
-                                                # 1. Análisis IA (Tu función existente)
-                                                res_ia, msg_ia = leer_marcador_ia(foto, p['local'], p['visitante'])
-                                                
-                                                # 2. Subir Evidencia
-                                                foto.seek(0)
-                                                url_evidencia = None
-                                                try:
-                                                    c_res = cloudinary.uploader.upload(foto, folder=f"gol_gana/torneo_{id_torneo}/evidencias")
-                                                    url_evidencia = c_res['secure_url']
-                                                except: pass
-
-                                                col_bd = "url_foto_l" if es_local else "url_foto_v"
-                                                
-                                                # 3. Lógica de Guardado
-                                                with conn.connect() as db:
-                                                    if res_ia:
-                                                        gl, gv = res_ia
-                                                        # Verificar si ya había datos del otro equipo
-                                                        g_ex_l = p['goles_l']
-                                                        
-                                                        # Si es el primero en subir o coincide => Finalizar
-                                                        # (Simplificamos: Si la IA lee, guardamos como Finalizado directo por ahora)
-                                                        db.execute(text(f"""
-                                                            UPDATE partidos SET 
-                                                                goles_l=:gl, goles_v=:gv, {col_bd}=:u, 
-                                                                estado='Finalizado', metodo_registro='IA-Bot' 
-                                                            WHERE id=:id
-                                                        """), {"gl": gl, "gv": gv, "u": url_evidencia, "id": p['id']})
-                                                        st.balloons()
-                                                        mostrar_bot(f"¡Leído! {gl} - {gv}. Tabla actualizada.")
-                                                    else:
-                                                        # Si la IA falla, marcamos Revisión
-                                                        db.execute(text(f"""
-                                                            UPDATE partidos SET 
-                                                                {col_bd}=:u, estado='Revision', conflicto=1 
-                                                            WHERE id=:id
-                                                        """), {"u": url_evidencia, "id": p['id']})
-                                                        st.warning("No pude leer los números claros, pero guardé la foto para el Admin.")
-                                                    db.commit()
-                                                time.sleep(2); st.rerun()
-
-                    except Exception as e:
-                        st.error(f"Error cargando partidos: {e}")
-
-            # ==========================================
-            # TAB: ESTADÍSTICAS
-            # ==========================================
-            with tabs_dt[idx_stats]:
-                st.subheader("📊 Historia del Club")
-                mostrar_bot("Estoy recopilando los datos de la temporada. Pronto verás aquí tu rendimiento, goles a favor y racha de victorias.")
-                st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=100)
-
-           # ==========================================
-            # TAB: MI EQUIPO (Diseño Modular y Limpio)
-            # ==========================================
-            with tabs_dt[idx_mi_equipo]:
-                try:
-                    with conn.connect() as db:
-                        q_me = text("SELECT * FROM equipos_globales WHERE id = :id")
-                        me = db.execute(q_me, {"id": id_eq}).fetchone()
-
-                    if me:
-                        # Recuperamos datos de DTs para validaciones previas
-                        p1 = me.prefijo_dt1 if me.prefijo_dt1 else "+57"
-                        n1 = me.celular_dt1 if me.celular_dt1 else ""
-                        p2 = me.prefijo_dt2 if me.prefijo_dt2 else "+57"
-                        n2 = me.celular_dt2 if me.celular_dt2 else ""
-                        
-                        tiene_dos = (len(n1) > 5 and len(n2) > 5)
-
-                        with st.form("form_mi_equipo"):
-                            
-                            # ==========================================
-                            # 1. ZONA DE CAPITÁN ENCARGADO (Top Priority)
-                            # ==========================================
-                            if tiene_dos:
-                                st.markdown(f"#### ©️ Capitán encargado para: {t_nombre}")
-                                
-                                # Opciones directas: Prefijo + Número
-                                opt_1 = f"{p1} {n1}"
-                                opt_2 = f"{p2} {n2}"
-                                
-                                # Detectar activo
-                                idx_activo = 0
-                                if me.celular_capitan == n2: idx_activo = 1
-                                
-                                sel_capitan = st.radio("Selecciona el número visible para los rivales:", 
-                                                     [opt_1, opt_2], 
-                                                     index=idx_activo, 
-                                                     horizontal=True,
-                                                     label_visibility="collapsed")
-                                
-                                mostrar_bot("🤖 Los rivales verán el número seleccionado al pulsar 'Chat'. Cámbialo aquí cuando lo necesites.")
-                                st.write("") # Espacio
-                            else:
-                                sel_capitan = "Unico" # Valor dummy
-
-                            # ==========================================
-                            # 2. ZONA DE EDICIÓN (Separada en Tarjetas)
-                            # ==========================================
-                            st.subheader("✏️ Editar información de club")
-
-                            # --- TARJETA 1: IDENTIDAD ---
-                            with st.container(border=True):
-                                st.markdown("**🪪 Identidad del Club**")
-                                c_id1, c_id2 = st.columns([2, 1])
-                                with c_id1:
-                                    new_nom = st.text_input("Nombre del Equipo", value=me.nombre)
-                                with c_id2:
-                                    new_pin = st.text_input("PIN", value=me.pin_equipo, type="password")
-                                
-                                c_esc1, c_esc2 = st.columns([1, 4], vertical_alignment="center")
-                                with c_esc1:
-                                    if me.escudo: st.image(me.escudo, width=50)
-                                    else: st.write("🛡️")
-                                with c_esc2:
-                                    new_escudo = st.file_uploader("Actualizar Escudo", type=['png', 'jpg'], label_visibility="collapsed")
-
-                            # Lista de Países (Incluyendo Centroamérica)
-                            paises = {
-                                "Colombia": "+57", "México": "+52", "EEUU": "+1", "Argentina": "+54", 
-                                "Ecuador": "+593", "Perú": "+51", "Chile": "+56", "Venezuela": "+58", "Brasil": "+55",
-                                "Guatemala": "+502", "Costa Rica": "+506", "Panamá": "+507", 
-                                "Honduras": "+504", "El Salvador": "+503", "Nicaragua": "+505"
-                            }
-                            l_paises = [f"{k} ({v})" for k, v in paises.items()]
-
-                            # --- TARJETA 2: DT PRINCIPAL ---
-                            with st.container(border=True):
-                                st.markdown("**👤 DT Principal** ")
-                                c_dt1_p, c_dt1_n = st.columns([1.5, 2])
-                                
-                                try: idx_p1 = list(paises.values()).index(p1)
-                                except: idx_p1 = 0
-                                
-                                sel_p1 = c_dt1_p.selectbox("País", l_paises, index=idx_p1, key="s_p1", label_visibility="collapsed")
-                                val_p1 = sel_p1.split('(')[-1].replace(')', '')
-                                val_n1 = c_dt1_n.text_input("Celular", value=n1, key="i_n1", label_visibility="collapsed", placeholder="Número Principal")
-
-                            # --- TARJETA 3: CO-DT ---
-                            with st.container(border=True):
-                                st.markdown("**👥 Co-DT** (Segundo contacto OPCIONAL)")
-                                c_dt2_p, c_dt2_n = st.columns([1.5, 2])
-                                
-                                try: idx_p2 = list(paises.values()).index(p2)
-                                except: idx_p2 = 0
-                                
-                                sel_p2 = c_dt2_p.selectbox("País", l_paises, index=idx_p2, key="s_p2", label_visibility="collapsed")
-                                val_p2 = sel_p2.split('(')[-1].replace(')', '')
-                                val_n2 = c_dt2_n.text_input("Celular", value=n2, key="i_n2", label_visibility="collapsed", placeholder="Número Opcional")
-
-                            st.write("")
-                            
-                            # BOTÓN DE GUARDADO
-                            if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-                                # 1. Procesar Escudo
-                                url_final = me.escudo
-                                if new_escudo:
-                                    url_final = procesar_y_subir_escudo(new_escudo, new_nom, id_torneo)
-                                
-                                # 2. Lógica del "Capitán Activo"
-                                # Si el usuario eligió el segundo número en el radio button...
-                                # Y verificamos que el número 2 no esté vacío
-                                if tiene_dos and sel_capitan and (val_n2 in sel_capitan) and len(val_n2) > 5:
-                                    pub_cel = val_n2
-                                    pub_pref = val_p2
-                                else:
-                                    # Default: DT 1
-                                    pub_cel = val_n1
-                                    pub_pref = val_p1
-
-                                with conn.connect() as db:
-                                    # Actualizamos Fijos + Público
-                                    db.execute(text("""
-                                        UPDATE equipos_globales 
-                                        SET nombre=:n, pin_equipo=:p, escudo=:e, 
-                                            celular_dt1=:c1, prefijo_dt1=:p1,
-                                            celular_dt2=:c2, prefijo_dt2=:p2,
-                                            celular_capitan=:cp, prefijo=:pp
-                                        WHERE id=:id
-                                    """), {
-                                        "n": new_nom, "p": new_pin, "e": url_final,
-                                        "c1": val_n1, "p1": val_p1,
-                                        "c2": val_n2, "p2": val_p2,
-                                        "cp": pub_cel, "pp": pub_pref,
-                                        "id": id_eq
-                                    })
-                                    
-                                    # Sincronizar nombre en Partidos
-                                    if new_nom != me.nombre:
-                                        db.execute(text("UPDATE partidos SET local=:n WHERE local=:old AND id_torneo=:idt"), {"n": new_nom, "old": me.nombre, "idt": id_torneo})
-                                        db.execute(text("UPDATE partidos SET visitante=:n WHERE visitante=:old AND id_torneo=:idt"), {"n": new_nom, "old": me.nombre, "idt": id_torneo})
-                                        st.session_state.nombre_equipo = new_nom
-                                        
-                                    db.commit()
-                                
-                                st.success(f"✅ Información actualizada. Contacto activo: {pub_pref} {pub_cel}")
-                                time.sleep(1.5); st.rerun()
-
-                except Exception as e:
-                    st.error(f"Error cargando perfil: {e}")
-                    
-        # ---------------------------------------------------------
-        # C. VISTA DE ADMIN (Orquestador)
-        # ---------------------------------------------------------
-        elif st.session_state.rol == "Admin":
-            # 1. Título Ajustado (Más pequeño)
-            st.markdown(f"#### ⚙️ Administración de {t_nombre}")
-            
-            # --- CSS Exclusivo Admin ---
-            st.markdown(f"""<style>div[data-testid="stExpander"] {{ border: 1px solid {t_color}; border-radius: 5px; }}</style>""", unsafe_allow_html=True)
-
-            # Lógica de Pestañas Dinámicas
-            if t_fase == "inscripcion":
-                tabs_admin = st.tabs(["⏳ Lista de Espera", "📋 Directorio", "⚙️ Configuración"])
-            else:
-                tabs_admin = st.tabs(["⚽ Gestión Partidos", "📋 Directorio", "⚙️ Configuración"])
-
-            # ==========================================
-            # TAB 1: DINÁMICA (LISTA DE ESPERA / PARTIDOS)
-            # ==========================================
-            with tabs_admin[0]:
-                if t_fase == "inscripcion":
-                    try:
-                        with conn.connect() as db:
-                            q_pend = text("SELECT * FROM equipos_globales WHERE id_torneo = :id AND estado = 'pendiente'")
-                            df_pend = pd.read_sql_query(q_pend, db, params={"id": id_torneo})
-                        
-                        if df_pend.empty:
-                            # 2. Gol Bot avisa que todo está limpio
-                            mostrar_bot("Todo tranquilo por aquí, Presi. <b>No hay solicitudes pendientes</b> en la bandeja.")
-                        else:
-                            # 2. Gol Bot alerta de trabajo
-                            mostrar_bot(f"¡Atención! Tienes <b>{len(df_pend)} equipos</b> esperando tu visto bueno en la puerta.")
-                            
-                            for _, r in df_pend.iterrows():
-                                with st.container(border=True):
-                                    c1, c2, c3 = st.columns([0.5, 3, 1], vertical_alignment="center")
-                                    with c1:
-                                        if r['escudo']: st.image(r['escudo'], width=50)
-                                        else: st.write("🛡️")
-                                    with c2:
-                                        st.markdown(f"**{r['nombre']}**")
-                                        cel_clean = str(r['celular_capitan']).replace(' ', '')
-                                        st.markdown(f"📞 [{r['prefijo']} {r['celular_capitan']}](https://wa.me/{r['prefijo'].replace('+','')}{cel_clean}) | PIN: `{r['pin_equipo']}`")
-                                    with c3:
-                                        if st.button("Aprobar ✅", key=f"apr_{r['id']}", use_container_width=True):
-                                            with conn.connect() as db:
-                                                db.execute(text("UPDATE equipos_globales SET estado='aprobado' WHERE id=:id"), {"id": r['id']})
-                                                db.commit()
-                                            st.toast(f"{r['nombre']} Aprobado"); time.sleep(1); st.rerun()
-                    except Exception as e:
-                        st.error(f"Error cargando lista: {e}")
-
-                else:
-                    # Lógica Fase Competencia
-                    mostrar_bot("El balón está rodando. Aquí podrás cargar los marcadores cuando configuremos el fixture.")
-
-            # ==========================================
-            # TAB 2: DIRECTORIO (Solo Lectura)
-            # ==========================================
-            with tabs_admin[1]:
-                st.subheader("Equipos Aprobados")
-                try:
-                    with conn.connect() as db:
-                        q_aprob = text("SELECT nombre, celular_capitan, prefijo, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado' ORDER BY nombre ASC")
-                        df_aprob = pd.read_sql_query(q_aprob, db, params={"id": id_torneo})
-                    
-                    if df_aprob.empty:
-                        st.warning("Aún no has aprobado equipos.")
-                    else:
-                        st.markdown(f"**Total:** {len(df_aprob)} equipos listos.")
-                        for _, row in df_aprob.iterrows():
-                            with st.container():
-                                c_img, c_info = st.columns([0.5, 4], vertical_alignment="center")
-                                with c_img:
-                                    if row['escudo']: st.image(row['escudo'], width=35)
-                                    else: st.write("🛡️")
-                                with c_info:
-                                    # 1. Construcción de la URL limpia para la API de WhatsApp
-                                    pref_url = str(row['prefijo']).replace('+', '')
-                                    cel_url = str(row['celular_capitan']).replace(' ', '')
-                                    link_wa = f"https://wa.me/{pref_url}{cel_url}"
-                                    
-                                    # 2. Renderizado: Nombre • [Número con Link]
-                                    # Usamos sintaxis Markdown: [Texto Visible](URL)
-                                    st.markdown(f"**{row['nombre']}** • [`{row['prefijo']} {row['celular_capitan']}`]({link_wa})")
-                                st.divider()
-                except Exception as e:
-                    st.error(f"Error listando equipos: {e}")
-
-            # ==========================================
-            # TAB 3: CONFIGURACIÓN (Con Confirmación de Gol Bot)
-            # ==========================================
-            with tabs_admin[2]:
-                st.subheader("Ajustes del Torneo")
-                
-                # Color
-                st.markdown("##### 🎨 Identidad")
-                c_col1, c_col2 = st.columns([1, 2])
-                new_color = c_col1.color_picker("Color Principal", value=t_color)
-                if c_col2.button("Aplicar Color"):
-                    with conn.connect() as db:
-                        db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), {"c": new_color, "id": id_torneo})
-                        db.commit(); st.rerun()
-                
-                st.divider()
-
-                # 3. CONTROL DE FASES CON CONFIRMACIÓN
-                st.markdown(f"##### 🚀 Fase Actual: `{t_fase.upper()}`")
-                
-                if t_fase == "inscripcion":
-                    # Botón inicial
-                    if st.button("🔐 Cerrar Inscripciones e Iniciar Competencia", type="primary", use_container_width=True):
-                        st.session_state.confirmar_inicio = True
-                    
-                    # Bloque de Confirmación de Gol Bot
-                    if st.session_state.get("confirmar_inicio"):
-                        st.markdown("---")
-                        mostrar_bot("¿Estás seguro, Presi? Al iniciar la competencia **se cerrará el formulario de registro** y pasaremos al modo de grupos/partidos.")
-                        
-                        col_si, col_no = st.columns(2)
-                        if col_si.button("✅ Sí, ¡A rodar el balón!", use_container_width=True):
-                            with conn.connect() as db:
-                                db.execute(text("UPDATE torneos SET fase='competencia' WHERE id=:id"), {"id": id_torneo})
-                                db.commit()
-                            del st.session_state.confirmar_inicio
-                            st.balloons()
-                            time.sleep(1.5)
-                            st.rerun()
-                            
-                        if col_no.button("❌ Cancelar", use_container_width=True):
-                            del st.session_state.confirmar_inicio
-                            st.rerun()
-                
-                else:
-                    st.info("El torneo está en curso. Para reiniciar o cambiar ajustes avanzados, contacta soporte técnico.")
-
-            st.markdown("---")
-            if st.button("Cerrar Sesión Admin", type="secondary"):
-                for key in ["rol", "id_equipo", "nombre_equipo"]: del st.session_state[key]
+        # 2. CONTROL (Panel de Gestión)
+        with tabs[1]:
+            st.info("🚧 [PENDIENTE] Aquí irá el Panel de Control del Admin.")
+            if st.button("🔴 Salir Admin"):
+                st.session_state.clear()
                 st.rerun()
+
+    # --- ESCENARIO B: DT (Director Técnico) ---
+    elif rol_actual == "DT":
+        tabs = st.tabs(["🏆 Torneo", "📅 Calendario", "👤 Mi Equipo"])
+
+        # 1. TORNEO (Tabla de Posiciones)
+        with tabs[0]:
+            st.info("🚧 [PENDIENTE] Aquí irá la Tabla de Posiciones General.")
+
+        # 2. CALENDARIO (Solo sus partidos)
+        with tabs[1]:
+            st.info(f"🚧 [PENDIENTE] Aquí irán los partidos de: {st.session_state.get('nombre_equipo')}")
+
+        # 3. MI EQUIPO (Sub-pestañas)
+        with tabs[2]:
+            # Sub-navegación interna
+            sub_tabs = st.tabs(["✏️ Editar Equipo", "📊 Estadísticas"])
+            
+            with sub_tabs[0]:
+                st.info("🚧 [PENDIENTE] Formulario de edición y gestión de capitán.")
+            
+            with sub_tabs[1]:
+                st.info("🚧 [PENDIENTE] Gráficas de rendimiento.")
+            
+            st.markdown("---")
+            if st.button("🔴 Salir del Club"):
+                st.session_state.clear()
+                st.rerun()
+
+    # --- ESCENARIO C: ESPECTADOR (Por defecto) ---
+    else:
+        tabs = st.tabs(["📝 Inscripciones", "🏆 Torneo", "🔐 Ingreso"])
+
+        # 1. INSCRIPCIONES (Registro nuevo o validar PIN)
+        with tabs[0]:
+            st.info("🚧 [PENDIENTE] Formulario de inscripción y validación de PIN.")
+            # Aquí pondremos la lógica que cambia st.session_state['rol'] = 'DT'
+
+        # 2. TORNEO (Tabla de Posiciones)
+        with tabs[1]:
+            st.info("🚧 [PENDIENTE] Aquí irá la Tabla de Posiciones General.")
+
+        # 3. INGRESO (Login DT/Admin ya registrados)
+        with tabs[2]:
+            st.info("🚧 [PENDIENTE] Input para ingresar PIN de DT o Admin.")
+            # Aquí pondremos la lógica que cambia st.session_state['rol'] = 'DT' o 'Admin'
                         
 # --- 4.3 EJECUCIÓN ---
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
