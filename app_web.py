@@ -217,7 +217,7 @@ def validar_acceso(id_torneo, pin_ingresado):
             if res_admin:
                 return {"rol": "Admin", "id_equipo": None, "nombre_equipo": None}
             
-            q_dt = text("SELECT id, nombre FROM equipos_globales WHERE id_torneo = :id AND pin_equipo = :pin")
+            q_dt = text("SELECT id, nombre FROM equipos_globales WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'aprobado'")
             res_dt = db.execute(q_dt, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
             if res_dt:
                 return {"rol": "DT", "id_equipo": res_dt[0], "nombre_equipo": res_dt[1]}
@@ -630,7 +630,7 @@ def render_torneo(id_torneo):
     # 2. GESTOR DE PESTAÑAS POR ROL (Esqueleto)
     # ---------------------------------------------------------
     
-    # --- ESCENARIO A: ADMINISTRADOR ---
+
    # --- ESCENARIO A: ADMINISTRADOR ---
     if rol_actual == "Admin":
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
@@ -911,7 +911,7 @@ def render_torneo(id_torneo):
                                                              {"idt": id_torneo, "p": pin_fast}).fetchone()
 
                                             st.balloons()
-                                            st.success(f"✅ ¡Te encontré! He traído los datos de **{origen.nombre}** y envié tu solicitud al Admin.")
+                                            st.success(f"✅ ¡Listo! El equipo **{origen.nombre}** esta en lista de espera para ser aprobado")
                                             # Opcional: Auto-login inmediato al estado pendiente para que vea su status
                                             # st.session_state.rol = "DT"; st.session_state.id_equipo = nuevo.id; st.session_state.nombre_equipo = nuevo.nombre; st.rerun()
 
@@ -1035,7 +1035,7 @@ def render_torneo(id_torneo):
         # 3. INGRESO (Login Clásico)
         with tabs[2]:
             st.subheader("🔐 Acceso DT / Admin")
-            with st.container(border=True):
+            with st.container(border=True):def validar_acceso
                 c_in, c_btn = st.columns([3, 1])
                 pin_log = c_in.text_input("PIN", type="password", label_visibility="collapsed", placeholder="Ingresa PIN")
                 if c_btn.button("Entrar", type="primary", use_container_width=True):
@@ -1056,6 +1056,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
