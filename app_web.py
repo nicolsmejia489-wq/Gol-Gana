@@ -1325,7 +1325,7 @@ def render_torneo(id_torneo):
                                 q_pin = text("SELECT nombre FROM equipos_globales WHERE pin_equipo=:p LIMIT 1")
                                 res_global = db.execute(q_pin, {"p": pin_f}).fetchone()
                                 if res_global:
-                                    st.warning(f"🤖 **Gol Bot:** El PIN **{pin_f}** ya existe (Club: {res_global.nombre}). Usa la opción de arriba.")
+                                    st.warning(f"🤖 **Gol Bot:** El PIN NO ES VALIDO O YA ESTA REGISTRADO")
                                     err = True
                             
                             if not err and nom_f and wa_f and len(pin_f) > 3:
@@ -1382,6 +1382,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
