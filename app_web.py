@@ -1372,9 +1372,7 @@ def render_torneo(id_torneo):
 
                         
 
-            st.markdown("---")
-            if st.button("🔴 Cerrar Sesión Admin", use_container_width=True):
-                st.session_state.clear(); st.rerun()
+            
 
 
                         
@@ -1382,35 +1380,6 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
