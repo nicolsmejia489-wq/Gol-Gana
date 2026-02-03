@@ -621,7 +621,120 @@ def contenido_pestana_torneo(id_torneo, t_color):
         mostrar_bot("Este torneo se juega por llaves de eliminación directa.")
         st.info("🚧 Visualizador de Cuadro de Honor / Bracket en construcción.")
 
-        
+
+
+
+
+
+
+def generar_calendario(id_torneo):
+    """
+    Genera el fixture automáticamente al iniciar el torneo.
+    - Grupos y Cruces: 3 Jornadas (Sistema Suizo/Berger recortado).
+    - Liga: Todos contra todos (Ida).
+    - Eliminación Directa: Llaves iniciales.
+    """
+    import random
+    
+    try:
+        with conn.connect() as db:
+            # 1. OBTENER INFORMACIÓN DEL TORNEO
+            res_t = db.execute(text("SELECT formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+            if not res_t: return False
+            formato = res_t.formato
+
+            # 2. OBTENER EQUIPOS APROBADOS
+            # Ordenamos aleatoriamente desde el principio
+            res_eq = db.execute(text("SELECT nombre FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo})
+            equipos = [row[0] for row in res_eq.fetchall()]
+            random.shuffle(equipos) # ¡Barajar las balotas!
+            
+            n_reales = len(equipos)
+
+            if n_reales < 2:
+                st.error("❌ Se necesitan al menos 2 equipos para iniciar.")
+                return False
+
+            # ---------------------------------------------------------
+            # LÓGICA A: GRUPOS / LIGA (Sistema Berger - Round Robin)
+            # ---------------------------------------------------------
+            if formato in ["Grupos y Cruces", "Liga", "Liga y Playoff"]:
+                
+                # Definir cuántas jornadas jugaremos
+                if formato == "Grupos y Cruces":
+                    total_jornadas = 3  # Regla específica: solo 3 partidos
+                    nueva_fase = 'clasificacion'
+                else:
+                    # En Liga es N-1 (si es par) o N (si es impar)
+                    total_jornadas = n_reales - 1 if n_reales % 2 == 0 else n_reales
+                    nueva_fase = 'competencia'
+
+                # Ajuste para impares (Equipo Fantasma)
+                equipos_sorteo = equipos.copy()
+                if n_reales % 2 != 0:
+                    equipos_sorteo.append(None) # None significa "Descansa"
+
+                n = len(equipos_sorteo)
+                indices = list(range(n)) # [0, 1, 2, 3...]
+
+                # GENERACIÓN DE JORNADAS
+                for jor in range(1, total_jornadas + 1):
+                    # Emparejamiento: El primero con el último, el segundo con el penúltimo...
+                    for i in range(n // 2):
+                        idx_l = indices[i]
+                        idx_v = indices[n - 1 - i]
+                        
+                        local = equipos_sorteo[idx_l]
+                        visitante = equipos_sorteo[idx_v]
+
+                        # Si ambos existen (ninguno es 'Descansa'), se crea el partido
+                        if local and visitante:
+                            db.execute(text("""
+                                INSERT INTO partidos (id_torneo, local, visitante, jornada, estado) 
+                                VALUES (:idt, :l, :v, :j, 'Programado')
+                            """), {"idt": id_torneo, "l": local, "v": visitante, "j": jor})
+                    
+                    # ROTACIÓN DE ÍNDICES (Algoritmo de Berger)
+                    # El índice 0 se queda fijo, el resto rota una posición
+                    indices = [indices[0]] + [indices[-1]] + indices[1:-1]
+
+            # ---------------------------------------------------------
+            # LÓGICA B: ELIMINACIÓN DIRECTA (Bracket)
+            # ---------------------------------------------------------
+            elif formato == "Eliminación Directa":
+                nueva_fase = 'cruces'
+                # Emparejamos 1vs2, 3vs4, etc.
+                for i in range(0, n_reales, 2):
+                    if i + 1 < n_reales:
+                        local = equipos[i]
+                        visitante = equipos[i+1]
+                        
+                        # Determinamos nombre de la fase según cantidad (Final, Semi, Octavos...)
+                        parejas_restantes = (n_reales // 2) - (i // 2)
+                        if n_reales <= 2: nom_fase = "Gran Final"
+                        elif n_reales <= 4: nom_fase = "Semifinal"
+                        elif n_reales <= 8: nom_fase = "Cuartos"
+                        elif n_reales <= 16: nom_fase = "Octavos"
+                        else: nom_fase = "Ronda 1"
+
+                        db.execute(text("""
+                            INSERT INTO partidos (id_torneo, local, visitante, jornada, estado) 
+                            VALUES (:idt, :l, :v, :j, 'Programado')
+                        """), {"idt": id_torneo, "l": local, "v": visitante, "j": nom_fase})
+
+            # 3. ACTUALIZAR FASE DEL TORNEO
+            db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": nueva_fase, "id": id_torneo})
+            db.commit()
+            return True
+
+    except Exception as e:
+        print(f"Error generando calendario: {e}")
+        st.error(f"Error crítico generando calendario: {e}")
+        return False
+
+
+
+
 
 
 
@@ -822,17 +935,27 @@ def render_torneo(id_torneo):
                     
                     if st.session_state.get("confirmar_inicio"):
                         st.markdown("---")
-                        mostrar_bot("¿Estás seguro, Presi? Al iniciar la competencia **se cerrará el formulario de registro** y pasaremos al modo de grupos/partidos.")
+                        
+                        # Contamos equipos antes de asustar al presi
+                        with conn.connect() as db:
+                            cant = db.execute(text("SELECT COUNT(*) FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).scalar()
+                        
+                        mostrar_bot(f"¿Estás seguro, Presi? Tienes **{cant} equipos aprobados**. Al confirmar, generaré el calendario automáticamente.")
                         
                         col_si, col_no = st.columns(2)
+                        
+                        # --- BOTÓN DE ACCIÓN ---
                         if col_si.button("✅ Sí, ¡A rodar el balón!", use_container_width=True):
-                            with conn.connect() as db:
-                                db.execute(text("UPDATE torneos SET fase='competencia' WHERE id=:id"), {"id": id_torneo})
-                                db.commit()
-                            del st.session_state.confirmar_inicio
-                            st.balloons()
-                            time.sleep(1.5)
-                            st.rerun()
+                            with st.spinner("Sorteando partidos y generando cruces..."):
+                                # LLAMADA A LA FUNCIÓN GENERADORA
+                                exito = generar_calendario(id_torneo)
+                                
+                                if exito:
+                                    del st.session_state.confirmar_inicio
+                                    st.balloons()
+                                    st.toast("¡Torneo Iniciado con éxito!")
+                                    time.sleep(2)
+                                    st.rerun()
                             
                         if col_no.button("❌ Cancelar", use_container_width=True):
                             del st.session_state.confirmar_inicio
@@ -1380,6 +1503,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
