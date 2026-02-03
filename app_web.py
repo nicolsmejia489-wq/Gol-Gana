@@ -629,49 +629,58 @@ def contenido_pestana_torneo(id_torneo, t_color):
 
 def generar_calendario(id_torneo):
     """
-    Genera el fixture usando IDs (Relacional).
-    Adapta 'Grupos y Cruces' (3 Jornadas) y formatos de Liga.
+    Genera el fixture automáticamente usando IDs de equipos_globales.
+    Soporta: 'Grupos y Cruces' (3 Fechas), 'Liga' y 'Eliminación Directa'.
     """
     import random
     
     try:
         with conn.connect() as db:
-            # 1. Validar formato
+            # 1. Validar formato del torneo
             res_t = db.execute(text("SELECT formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
             if not res_t: return False
             formato = res_t.formato
 
-            # 2. OBTENER IDs DE EQUIPOS (NO NOMBRES)
-            # Traemos solo los IDs de los equipos aprobados
+            # 2. OBTENER IDs DE EQUIPOS APROBADOS
+            # Sacamos los IDs directamente de equipos_globales
             res_eq = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo})
-            equipos_ids = [row[0] for row in res_eq.fetchall()] # Lista de números: [10, 4, 15, ...]
+            equipos_ids = [row[0] for row in res_eq.fetchall()] 
+            
+            # Mezclamos los IDs para que el sorteo sea aleatorio
             random.shuffle(equipos_ids) 
             
             n_reales = len(equipos_ids)
             if n_reales < 2:
-                st.error("❌ Se necesitan al menos 2 equipos para iniciar.")
+                st.error("❌ Se necesitan al menos 2 equipos para iniciar el torneo.")
                 return False
 
-            # ---------------------------------------------------------
-            # LÓGICA A: GRUPOS / LIGA (Round Robin con IDs)
-            # ---------------------------------------------------------
+            # =========================================================
+            # LÓGICA A: GRUPOS / LIGA (Round Robin o Sistema Suizo)
+            # =========================================================
             if formato in ["Grupos y Cruces", "Liga", "Liga y Playoff"]:
                 
+                # Definir cuántas jornadas jugaremos
                 if formato == "Grupos y Cruces":
-                    total_jornadas = 3 
+                    total_jornadas = 3  # Regla de negocio: Solo 3 partidos clasificatorios
                     nueva_fase = 'clasificacion'
                 else:
+                    # En Liga es todos contra todos
                     total_jornadas = n_reales - 1 if n_reales % 2 == 0 else n_reales
                     nueva_fase = 'competencia'
 
+                # Copia para manipular en el algoritmo Berger
                 equipos_sorteo = equipos_ids.copy()
+                
+                # Si es impar, agregamos un 'None' (Descansa)
                 if n_reales % 2 != 0:
-                    equipos_sorteo.append(None) # Descansa (None)
+                    equipos_sorteo.append(None) 
 
                 n = len(equipos_sorteo)
-                indices = list(range(n))
+                indices = list(range(n)) # Índices [0, 1, 2, 3...]
 
+                # Bucle de Jornadas
                 for jor in range(1, total_jornadas + 1):
+                    # Emparejamiento (Primero con Último, Segundo con Penúltimo...)
                     for i in range(n // 2):
                         idx_l = indices[i]
                         idx_v = indices[n - 1 - i]
@@ -679,37 +688,35 @@ def generar_calendario(id_torneo):
                         id_local = equipos_sorteo[idx_l]
                         id_visitante = equipos_sorteo[idx_v]
 
+                        # Solo insertamos si ambos son equipos reales (ninguno es None)
                         if id_local is not None and id_visitante is not None:
-                            # INSERTAMOS IDs EN LAS COLUMNAS CORRECTAS
                             db.execute(text("""
                                 INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado) 
                                 VALUES (:idt, :l, :v, :j, 'Programado')
                             """), {"idt": id_torneo, "l": id_local, "v": id_visitante, "j": jor})
                     
+                    # Rotación de índices (Algoritmo Berger para que no repitan rival)
                     indices = [indices[0]] + [indices[-1]] + indices[1:-1]
 
-            # ---------------------------------------------------------
-            # LÓGICA B: ELIMINACIÓN DIRECTA (Con IDs)
-            # ---------------------------------------------------------
+            # =========================================================
+            # LÓGICA B: ELIMINACIÓN DIRECTA (Bracket Inicial)
+            # =========================================================
             elif formato == "Eliminación Directa":
                 nueva_fase = 'cruces'
+                
+                # Emparejamos 1 vs 2, 3 vs 4, etc.
                 for i in range(0, n_reales, 2):
                     if i + 1 < n_reales:
                         id_local = equipos_ids[i]
                         id_visitante = equipos_ids[i+1]
                         
-                        # Definir nombre de fase (puede guardarse en columna 'jornada' si es integer o string, cuidado aquí)
-                        # Como tu columna jornada es INTEGER, usaremos números negativos o códigos para fases finales
-                        # OJO: Si jornada es INTEGER, no podemos guardar "Octavos".
-                        # Sugerencia: Usar 99 para Final, 98 Semis, etc. O cambiar jornada a VARCHAR.
-                        # Por ahora usaremos J1 para simplificar el bracket inicial.
-                        
+                        # Usamos 1 como jornada inicial por defecto
                         db.execute(text("""
                             INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado) 
                             VALUES (:idt, :l, :v, 1, 'Programado')
                         """), {"idt": id_torneo, "l": id_local, "v": id_visitante})
 
-            # 3. ACTUALIZAR FASE
+            # 3. ACTUALIZAR FASE DEL TORNEO
             db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": nueva_fase, "id": id_torneo})
             db.commit()
             return True
@@ -717,7 +724,6 @@ def generar_calendario(id_torneo):
     except Exception as e:
         st.error(f"Error crítico generando calendario: {e}")
         return False
-
 
 
 
@@ -1489,6 +1495,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
