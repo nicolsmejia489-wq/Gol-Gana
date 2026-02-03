@@ -781,21 +781,25 @@ def render_torneo(id_torneo):
     # 2. GESTOR DE PESTAÑAS POR ROL (Esqueleto)
     # ---------------------------------------------------------
     
-
-   # --- ESCENARIO A: ADMINISTRADOR ---
+# --- ESCENARIO A: ADMINISTRADOR ---
     if rol_actual == "Admin":
+        
+        # BOTÓN SALIR (Arriba a la derecha para consistencia)
+        c_vacio, c_salir = st.columns([6, 1])
+        if c_salir.button("🔴 Salir", key="btn_salir_admin", use_container_width=True):
+            st.session_state.clear(); st.rerun()
+
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
 
         # 1. TORNEO
         with tabs[0]:
-            # ¡AQUÍ ESTÁ LA MAGIA! LLAMAMOS A LA FUNCIÓN
             contenido_pestana_torneo(id_torneo, t_color)
 
         # 2. CONTROL (Panel de Gestión)
         with tabs[1]:
             st.markdown(f"#### ⚙️ Administración de {t_nombre}")
             
-            # --- CSS Exclusivo Admin ---
+            # Estilos Admin
             st.markdown(f"""<style>div[data-testid="stExpander"] {{ border: 1px solid {t_color}; border-radius: 5px; }}</style>""", unsafe_allow_html=True)
 
             # Lógica de Sub-Pestañas Dinámicas
@@ -804,10 +808,12 @@ def render_torneo(id_torneo):
             else:
                 sub_tabs = st.tabs(["⚽ Gestión Partidos", "📋 Directorio", "⚙️ Configuración"])
 
-            # ==========================================
+            # =========================================================
             # SUB-TAB 1: DINÁMICA (LISTA DE ESPERA / PARTIDOS)
-            # ==========================================
+            # =========================================================
             with sub_tabs[0]:
+                
+                # --- CASO A: INSCRIPCIONES (Lista de Espera) ---
                 if t_fase == "inscripcion":
                     try:
                         with conn.connect() as db:
@@ -822,14 +828,12 @@ def render_torneo(id_torneo):
                             for _, r in df_pend.iterrows():
                                 with st.container(border=True):
                                     c1, c2, c3 = st.columns([0.5, 3, 1], vertical_alignment="center")
-                                    with c1:
+                                    with c1: 
                                         if r['escudo']: st.image(r['escudo'], width=50)
                                         else: st.write("🛡️")
                                     with c2:
                                         st.markdown(f"**{r['nombre']}**")
-                                        cel_clean = str(r['celular_capitan']).replace(' ', '')
-                                        # Privacidad: Sin PIN
-                                        st.markdown(f"📞 [{r['prefijo']} {r['celular_capitan']}](https://wa.me/{r['prefijo'].replace('+','')}{cel_clean})")
+                                        st.markdown(f"📞 {r['prefijo']} {r['celular_capitan']}")
                                     with c3:
                                         if st.button("Aprobar ✅", key=f"apr_{r['id']}", use_container_width=True):
                                             with conn.connect() as db:
@@ -839,12 +843,108 @@ def render_torneo(id_torneo):
                     except Exception as e:
                         st.error(f"Error cargando lista: {e}")
 
+                # --- CASO B: COMPETENCIA (Gestión de Partidos) ---
                 else:
-                    mostrar_bot("El balón está rodando. Aquí podrás cargar los marcadores cuando configuremos el fixture.")
+                    mostrar_bot("🏆 **Torneo en curso.** Los equipos están jugando por la gloria. Tú tienes el control del silbato.")
+                    
+                    # Filtros de Control
+                    filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True, label_visibility="collapsed")
+                    
+                    # Query con JOIN para traer nombres (usando IDs)
+                    try:
+                        with conn.connect() as db:
+                            q_gest = text("""
+                                SELECT 
+                                    p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.conflicto, 
+                                    p.url_foto_l, p.url_foto_v,
+                                    el.nombre as local, el.escudo as escudo_l,
+                                    ev.nombre as visitante, ev.escudo as escudo_v
+                                FROM partidos p
+                                JOIN equipos_globales el ON p.local_id = el.id
+                                JOIN equipos_globales ev ON p.visitante_id = ev.id
+                                WHERE p.id_torneo = :id
+                                ORDER BY p.jornada ASC, p.id ASC
+                            """)
+                            df_p = pd.read_sql_query(q_gest, db, params={"id": id_torneo})
+                    except Exception as e:
+                        df_p = pd.DataFrame(); st.error(f"Error SQL: {e}")
 
-            # ==========================================
-            # SUB-TAB 2: DIRECTORIO (Con Baja Lógica)
-            # ==========================================
+                    # Aplicar Filtros DataFrame
+                    if not df_p.empty:
+                        if filtro_partidos == "Conflictos": 
+                            df_p = df_p[(df_p['conflicto'] == True) | (df_p['estado'] == 'Revision')]
+                        elif filtro_partidos == "Pendientes": 
+                            df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
+
+                    if df_p.empty:
+                        st.info(f"No hay partidos bajo el criterio: {filtro_partidos}")
+                    else:
+                        # Pestañas por Jornada
+                        jornadas = sorted(df_p['jornada'].unique())
+                        # Manejo seguro de nombres de jornada (Si es número "J1", si es texto se deja igual)
+                        tabs_j = st.tabs([f"Jornada {j}" if str(j).isdigit() else str(j) for j in jornadas])
+                        
+                        for i, tab in enumerate(tabs_j):
+                            with tab:
+                                df_j = df_p[df_p['jornada'] == jornadas[i]]
+                                
+                                for _, row in df_j.iterrows():
+                                    # Tarjeta de Partido
+                                    st.markdown(f"""
+                                        <div style='background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%); 
+                                        border-left: 4px solid {t_color}; border-radius: 8px; padding: 10px; margin-bottom: 15px;'>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    c_p1 = st.columns([0.5, 2, 0.8, 0.2, 0.8, 2, 0.5], vertical_alignment="center")
+                                    
+                                    # Local
+                                    with c_p1[0]: 
+                                        if row['escudo_l']: st.image(row['escudo_l'], width=35)
+                                    with c_p1[1]: st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:14px; line-height:1.2'>{row['local']}</div>", unsafe_allow_html=True)
+                                    
+                                    # Goles Local
+                                    with c_p1[2]:
+                                        vl = str(int(row['goles_l'])) if pd.notna(row['goles_l']) else ""
+                                        gl = st.text_input("L", value=vl, max_chars=2, label_visibility="collapsed", key=f"gL_{row['id']}")
+                                    
+                                    # Separador
+                                    with c_p1[3]: st.markdown("<div style='text-align:center; font-weight:bold; opacity:0.7'>-</div>", unsafe_allow_html=True)
+                                    
+                                    # Goles Visitante
+                                    with c_p1[4]:
+                                        vv = str(int(row['goles_v'])) if pd.notna(row['goles_v']) else ""
+                                        gv = st.text_input("V", value=vv, max_chars=2, label_visibility="collapsed", key=f"gV_{row['id']}")
+                                    
+                                    # Visitante
+                                    with c_p1[5]: st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:14px; line-height:1.2'>{row['visitante']}</div>", unsafe_allow_html=True)
+                                    with c_p1[6]: 
+                                        if row['escudo_v']: st.image(row['escudo_v'], width=35)
+
+                                    st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+                                    
+                                    # Acciones
+                                    c_act = st.columns([1, 1])
+                                    with c_act[0]:
+                                        if st.button("💾 Guardar", key=f"btn_s_{row['id']}", use_container_width=True):
+                                            if gl == "" or gv == "": st.toast("⚠️ Faltan goles")
+                                            elif not (gl.isdigit() and gv.isdigit()): st.toast("⚠️ Solo números")
+                                            else:
+                                                with conn.connect() as db:
+                                                    db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=False, metodo_registro='Manual Admin' WHERE id=:id"),
+                                                             {"l":int(gl), "v":int(gv), "id":row['id']})
+                                                    db.commit()
+                                                st.toast("Partido Actualizado"); time.sleep(0.5); st.rerun()
+                                    with c_act[1]:
+                                        url_ev = row['url_foto_l'] if row['url_foto_l'] else row['url_foto_v']
+                                        if url_ev: 
+                                            with st.popover("📷 Evidencia"):
+                                                st.image(url_ev)
+                                        else: st.caption("🚫 Sin foto")
+                                    st.markdown("</div>", unsafe_allow_html=True)
+
+            # =========================================================
+            # SUB-TAB 2: DIRECTORIO
+            # =========================================================
             with sub_tabs[1]:
                 st.subheader("Equipos Aprobados")
                 
@@ -858,7 +958,6 @@ def render_torneo(id_torneo):
                         col_si, col_no = st.columns(2)
                         if col_si.button("✅ Sí, dar de baja", type="primary", use_container_width=True):
                             with conn.connect() as db:
-                                # CAMBIO CLAVE: UPDATE en vez de DELETE
                                 db.execute(text("UPDATE equipos_globales SET estado='baja' WHERE id=:id"), {"id": st.session_state.baja_equipo_id})
                                 db.commit()
                             del st.session_state.baja_equipo_id
@@ -893,7 +992,7 @@ def render_torneo(id_torneo):
                                     link_wa = f"https://wa.me/{pref_url}{cel_url}"
                                     st.markdown(f"**{row['nombre']}** • [`Chat`]({link_wa})")
                                 with c_del:
-                                    if st.button("⛔ Bajar", key=f"del_{row['id']}", help="Dar de baja del torneo"):
+                                    if st.button("⛔", key=f"del_{row['id']}", help="Dar de baja"):
                                         st.session_state.baja_equipo_id = row['id']
                                         st.session_state.baja_equipo_nombre = row['nombre']
                                         st.rerun()
@@ -901,9 +1000,9 @@ def render_torneo(id_torneo):
                 except Exception as e:
                     st.error(f"Error listando equipos: {e}")
 
-            # ==========================================
+            # =========================================================
             # SUB-TAB 3: CONFIGURACIÓN
-            # ==========================================
+            # =========================================================
             with sub_tabs[2]:
                 st.subheader("Ajustes del Torneo")
                 
@@ -928,7 +1027,7 @@ def render_torneo(id_torneo):
                     if st.session_state.get("confirmar_inicio"):
                         st.markdown("---")
                         
-                        # Contamos equipos antes de asustar al presi
+                        # Contamos equipos
                         with conn.connect() as db:
                             cant = db.execute(text("SELECT COUNT(*) FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).scalar()
                         
@@ -936,28 +1035,21 @@ def render_torneo(id_torneo):
                         
                         col_si, col_no = st.columns(2)
                         
-                        # --- BOTÓN DE ACCIÓN ---
+                        # --- BOTÓN DE INICIO (Sin Globos) ---
                         if col_si.button("✅ Sí, ¡A rodar el balón!", use_container_width=True):
                             with st.spinner("Sorteando partidos y generando cruces..."):
-                                # LLAMADA A LA FUNCIÓN GENERADORA
                                 exito = generar_calendario(id_torneo)
-                                
                                 if exito:
                                     del st.session_state.confirmar_inicio
-                                    st.balloons()
-                                    st.toast("¡Torneo Iniciado con éxito!")
-                                    time.sleep(2)
+                                    st.toast("🏆 ¡Torneo Iniciado con éxito!")
+                                    time.sleep(1.5)
                                     st.rerun()
-                            
+                        
                         if col_no.button("❌ Cancelar", use_container_width=True):
                             del st.session_state.confirmar_inicio
                             st.rerun()
                 else:
-                    st.info("El torneo está en curso. Para reiniciar o cambiar ajustes avanzados, contacta soporte técnico.")
-
-            st.markdown("---")
-            if st.button("🔴 Cerrar Sesión Admin", use_container_width=True):
-                st.session_state.clear(); st.rerun()
+                    mostrar_bot("🏆 **Torneo en curso.** Los equipos están jugando por la gloria. Tú tienes el control del silbato.")
 
 
 
@@ -1495,6 +1587,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
