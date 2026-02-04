@@ -780,9 +780,9 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 
 
 
-    # ---------------------------------------------------------
+   # ---------------------------------------------------------
 ##EN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
-    # ---------------------------------------------------------
+# ---------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, color_tema):
     """
@@ -819,7 +819,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # 2. FUENTES
     # ------------------------------------------------------------
     SIZE_EQUIPO = 23    
-    SIZE_MARCADOR = 30  
+    SIZE_MARCADOR = 35  
     SIZE_VS = 30        
 
     FUENTES_SISTEMA = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
@@ -841,10 +841,10 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # ------------------------------------------------------------
     def procesar_logo(url):
         try:
-            if not url: return None
+            if not url or str(url) == "None": return None
             resp = requests.get(url, timeout=2)
             im = Image.open(BytesIO(resp.content)).convert("RGBA")
-            im.thumbnail((80, 80)) # Un poco más pequeños para que no saturen el centro
+            im.thumbnail((80, 80)) 
             return im
         except: return None
 
@@ -852,36 +852,37 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     esc_v = procesar_logo(url_escudo_v)
 
     # 👉 TANTEA AQUÍ: ESPACIO CENTRAL
-    # GAP_CENTRAL: Cuánta distancia hay del centro (X=400) hacia cada lado para los escudos.
-    GAP_CENTRAL = 35 
+    GAP_CENTRAL = 45 
 
+    # --- Escudo Local o Emoji ---
     if esc_l:
         pos_y = (H - esc_l.height) // 2 
-        # Lo pegamos a la izquierda del hueco central
         img.paste(esc_l, (CENTRO_X - GAP_CENTRAL - esc_l.width, pos_y), esc_l)
+    else:
+        # AJUSTE: Si no hay escudo, se pone emoji 🛡️
+        draw.text((CENTRO_X - GAP_CENTRAL - 40, CENTRO_Y), "🛡️", font=font_vs, anchor="mm")
 
+    # --- Escudo Visitante o Emoji ---
     if esc_v:
         pos_y = (H - esc_v.height) // 2
-        # Lo pegamos a la derecha del hueco central
         img.paste(esc_v, (CENTRO_X + GAP_CENTRAL, pos_y), esc_v)
+    else:
+        # AJUSTE: Si no hay escudo, se pone emoji 🛡️
+        draw.text((CENTRO_X + GAP_CENTRAL + 40, CENTRO_Y), "🛡️", font=font_vs, anchor="mm")
 
     # ------------------------------------------------------------
     # 4. PINTAR NOMBRES (PEGADOS A LOS ESCUDOS HACIA AFUERA)
     # ------------------------------------------------------------
     color_texto = (255, 255, 255)
     color_sombra = (0, 0, 0)
-    
-    # 👉 TANTEA AQUÍ: SEPARACIÓN NOMBRE-ESCUDO
     GAP_NOMBRE = 10 
 
     # == LOCAL (Anclaje a la Derecha "rm") ==
-    # El texto termina justo antes del escudo local
     x_text_l = CENTRO_X - GAP_CENTRAL - (esc_l.width if esc_l else 80) - GAP_NOMBRE
     draw.text((x_text_l+2, CENTRO_Y+2), local[:14], font=font_team, fill=color_sombra, anchor="rm")
     draw.text((x_text_l, CENTRO_Y), local[:14], font=font_team, fill=color_texto, anchor="rm")
 
     # == VISITANTE (Anclaje a la Izquierda "lm") ==
-    # El texto empieza justo después del escudo visitante
     x_text_v = CENTRO_X + GAP_CENTRAL + (esc_v.width if esc_v else 80) + GAP_NOMBRE
     draw.text((x_text_v+2, CENTRO_Y+2), visita[:14], font=font_team, fill=color_sombra, anchor="lm")
     draw.text((x_text_v, CENTRO_Y), visita[:14], font=font_team, fill=color_texto, anchor="lm")
@@ -890,10 +891,8 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # 5. MARCADOR O VS (CENTRADO PERFECTO)
     # ------------------------------------------------------------
     if "-" in marcador:
-        # Texto Marcador (Dorado)
         draw.text((CENTRO_X, CENTRO_Y), marcador, font=font_score, fill=(255, 215, 0), anchor="mm")
     else:
-        # Texto VS (Plateado)
         draw.text((CENTRO_X + 2, CENTRO_Y + 2), "VS", font=font_vs, fill=(0,0,0), anchor="mm")
         draw.text((CENTRO_X, CENTRO_Y), "VS", font=font_vs, fill=(200, 200, 200), anchor="mm")
 
@@ -902,16 +901,14 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # ------------------------------------------------------------
     try:
         rgb_borde = hex_to_rgb(color_tema)
-        # Nota: range() necesita un entero. i.e., int(1)
         for i in range(1): 
             draw.rectangle([0 + i, 0 + i, W - 1 - i, H - 1 - i], outline=rgb_borde, width=1)
     except: pass
 
     return img
-    # ---------------------------------------------------------
+# ---------------------------------------------------------
 ##FIN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
-    # ---------------------------------------------------------
-
+# ---------------------------------------------------------
 
 
 
@@ -1801,6 +1798,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
