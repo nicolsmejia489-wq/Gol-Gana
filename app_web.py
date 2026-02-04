@@ -820,27 +820,38 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     draw = ImageDraw.Draw(img)
 
     # ------------------------------------------------------------
-    # 2. FUENTES
+    # 2. FUENTES (DESCARGA AUTOMÁTICA DE OSWALD)
     # ------------------------------------------------------------
-    FUENTES_A_PROBAR = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf"]
-    
-    # 👉 TANTEA AQUÍ: TAMAÑOS DE TEXTO
-    # Sube o baja estos números para cambiar el tamaño de letra
-    SIZE_EQUIPO = 26    # Nombres de clubes
-    SIZE_MARCADOR = 40  # Goles (3 - 1)
+    # URL directa a la fuente Oswald Bold en los servidores de Google
+    URL_FUENTE_OSWALD = "https://github.com/google/fonts/raw/main/ofl/oswald/Oswald-Bold.ttf"
+
+    # 👉 TANTEA AQUÍ: TAMAÑOS DE LETRA (Oswald es una fuente "alta", quizás requiera menos tamaño)
+    SIZE_EQUIPO = 28    # Nombres de clubes
+    SIZE_MARCADOR = 50  # Goles
     SIZE_VS = 40        # Letras VS
 
-    font_team = None; font_score = None; font_vs = None
-    for fuente in FUENTES_A_PROBAR:
-        try:
-            font_team = ImageFont.truetype(fuente, SIZE_EQUIPO)
-            font_score = ImageFont.truetype(fuente, SIZE_MARCADOR)
-            font_vs = ImageFont.truetype(fuente, SIZE_VS)
-            break 
-        except: continue
-    
-    if font_team is None: # Fallback
-        font_team = ImageFont.load_default(); font_score = ImageFont.load_default(); font_vs = ImageFont.load_default()
+    try:
+        # 1. Descargamos la fuente a la memoria RAM
+        resp_font = requests.get(URL_FUENTE_OSWALD, timeout=3)
+        font_bytes = BytesIO(resp_font.content)
+        
+        # 2. Creamos los objetos de fuente con los tamaños deseados
+        # IMPORTANTE: Usamos 'font_bytes' como si fuera el archivo .ttf
+        font_team = ImageFont.truetype(font_bytes, SIZE_EQUIPO)
+        
+        # Rebobinamos el archivo en memoria para volver a leerlo (necesario para crear otra fuente)
+        font_bytes.seek(0)
+        font_score = ImageFont.truetype(font_bytes, SIZE_MARCADOR)
+        
+        font_bytes.seek(0)
+        font_vs = ImageFont.truetype(font_bytes, SIZE_VS)
+
+    except Exception as e:
+        # Si falla internet o la descarga, usamos la default por seguridad
+        print(f"Error cargando Oswald: {e}")
+        font_team = ImageFont.load_default()
+        font_score = ImageFont.load_default()
+        font_vs = ImageFont.load_default()
 
     # ------------------------------------------------------------
     # 3. ESCUDOS
@@ -1850,6 +1861,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
