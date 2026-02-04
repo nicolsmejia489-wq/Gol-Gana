@@ -696,7 +696,7 @@ def generar_calendario(id_torneo):
 
     
 
-' # ---------------------------------------------------------
+ # ---------------------------------------------------------
     ##EN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
     # ---------------------------------------------------------
 
@@ -1741,6 +1741,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
