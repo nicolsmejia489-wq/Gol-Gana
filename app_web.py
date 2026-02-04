@@ -465,63 +465,88 @@ def validar_acceso(id_torneo, pin_ingresado):
 def contenido_pestana_torneo(id_torneo, t_color):
     """
     Renderiza la vista pública del torneo.
-    Versión: Tabla Pro Ultra-Compacta y Fixture sin espacios.
+    Versión: Ingeniería de precisión (Alineación milimétrica y celdas fijas).
     """
     
     # ------------------------------------------------------------
-    # 1. VARIABLES ESTÉTICAS (TANTEA AQUÍ)
+    # 1. PARÁMETROS DE INGENIERÍA ESTÉTICA (TANTEA AQUÍ)
     # ------------------------------------------------------------
-    # 👉 ESPACIOS ENTRE TARJETAS DE PARTIDOS
-    MT_PARTIDOS = "-28px"      # Margen negativo entre tarjetas (más negativo = más pegadas)
+    # 👉 ESPACIO ENTRE TARJETAS DE PARTIDOS
+    MT_PARTIDOS = "-28px"      # Más negativo = más pegadas las tarjetas del fixture
+
+    # 👉 ESTRUCTURA DE LA TABLA (Clasificación)
+    T_ALTO_FILA = "32px"       # Altura fija de cada registro (Garantiza regularidad)
+    T_PAD_CELDA = "0px 5px"    # Aire interno de la celda (Arriba/Abajo Izquierda/Derecha)
+    T_FONT_SIZE = "13px"       # Tamaño de la fuente
     
-    # 👉 ESTÉTICA DE LA TABLA
-    T_PAD = "2px 5px"          # Padding de celdas (Arriba/Abajo Izquierda/Derecha)
-    T_FONT_SIZE = "13px"       # Tamaño letra general tabla
-    T_LINE_HEIGHT = "1.1"      # Altura de línea (reduce espacio vertical del texto)
-    T_ESCUDO_W = "22px"        # Ancho FIJO del escudo (para mantener estructura)
-    T_OPACIDAD = "0.6"         # Transparencia del fondo de la tabla (0.1 a 1.0)
+    # 👉 ALINEACIÓN DE LA COLUMNA "EQUIPO"
+    T_W_ESCUDO_BOX = "30px"    # Ancho del 'contenedor' del escudo (El nombre empezará tras este ancho)
+    T_W_ESCUDO_IMG = "22px"    # Tamaño real del escudo/emoji dentro de su caja
+    T_OPACIDAD = "0.7"         # Transparencia del fondo
 
     st.markdown(f"""
         <style>
-        /* 📦 RECORTE DE ESPACIO EN JORNADAS */
+        /* 📦 FIXTURE: RECORTE DE ESPACIO */
         [data-testid="stImage"] {{
             margin-bottom: {MT_PARTIDOS} !important;
             padding: 0px !important;
         }}
 
-        /* 📊 TABLA DE CLASIFICACIÓN ULTRA-COMPACTA */
+        /* 📊 TABLA: ALINEACIÓN MILIMÉTRICA */
         .tabla-pro {{
             width: 100%;
             border-collapse: collapse;
             font-family: 'Oswald', sans-serif;
             background: rgba(0,0,0,{T_OPACIDAD});
             border: 1px solid {t_color};
-            line-height: {T_LINE_HEIGHT};
         }}
         .tabla-pro th {{
-            background: #111;
-            color: #eee;
+            background: #000;
+            color: #888;
             font-size: 10px;
             text-transform: uppercase;
-            padding: 6px 2px;
+            padding: 8px 2px;
             border-bottom: 2px solid {t_color};
             text-align: center;
         }}
         .tabla-pro td {{
             color: #fff;
             font-size: {T_FONT_SIZE};
-            padding: {T_PAD};
+            padding: {T_PAD_CELDA};
+            height: {T_ALTO_FILA}; /* Altura rígida para regularidad vertical */
             border-bottom: 1px solid #222;
             text-align: center;
-            white-space: nowrap; /* Evita que el nombre salte de línea */
-        }}
-        .col-nombre {{ text-align: left !important; width: 40%; }}
-        .escudo-tabla {{
-            width: {T_ESCUDO_W};
-            height: {T_ESCUDO_W};
-            object-fit: contain;
             vertical-align: middle;
-            margin-right: 8px;
+        }}
+        
+        /* Contenedor Flex para la columna equipo */
+        .equipo-wrapper {{
+            display: flex;
+            align-items: center; /* Centrado vertical del contenido interno */
+            text-align: left;
+            width: 100%;
+        }}
+        
+        /* Caja fija para el escudo (Invisible pero con ancho) */
+        .escudo-box {{
+            width: {T_W_ESCUDO_BOX};
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0; /* Evita que la caja se encoja */
+        }}
+        
+        .escudo-img {{
+            width: {T_W_ESCUDO_IMG};
+            height: {T_W_ESCUDO_IMG};
+            object-fit: contain;
+        }}
+
+        .nombre-txt {{
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-left: 5px;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -567,7 +592,6 @@ def contenido_pestana_torneo(id_torneo, t_color):
             if df_fin.empty:
                 st.info("Esperando resultados...")
             else:
-                # Cálculo de Estadísticas (PJ, PTS, GF, GC, DG)
                 equipos_set = set(df_partidos['local']).union(set(df_partidos['visitante']))
                 stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
                 for _, f in df_fin.iterrows():
@@ -588,19 +612,27 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 mapa_escudos = dict(zip(df_partidos['local'], df_partidos['escudo_l']))
                 mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
 
-                # HTML Tabla (Recuperando columnas GF/GC y optimizando espacio)
-                html = f'<table class="tabla-pro"><thead><tr><th>#</th><th class="col-nombre">EQUIPO</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
+                # HTML Tabla con Columnas Alineadas
+                html = f'<table class="tabla-pro"><thead><tr><th>#</th><th style="text-align:left; padding-left:10px;">EQUIPO</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
                 for _, r in df_f.iterrows():
-                    esc_t = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
-                    img_t = f'<img src="{esc_t}" class="escudo-tabla">' if esc_t else '🛡️ '
+                    esc_url = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
+                    
+                    # El escudo o emoji va dentro de la caja fija .escudo-box
+                    img_html = f'<img src="{esc_url}" class="escudo-img">' if esc_url else '<span style="font-size:16px">🛡️</span>'
+                    
                     html += f"""<tr>
-                        <td>{r['POS']}</td>
-                        <td class="col-nombre"><b>{img_t}{r['EQ']}</b></td>
-                        <td style="color:{t_color}; font-weight:bold">{r['PTS']}</td>
+                        <td style="color:#888; font-size:11px;">{r['POS']}</td>
+                        <td>
+                            <div class="equipo-wrapper">
+                                <div class="escudo-box">{img_html}</div>
+                                <div class="nombre-txt"><b>{r['EQ']}</b></div>
+                            </div>
+                        </td>
+                        <td style="color:{t_color}; font-weight:bold; font-size:15px;">{r['PTS']}</td>
                         <td>{r['PJ']}</td>
-                        <td style="color:#888">{r['GF']}</td>
-                        <td style="color:#888">{r['GC']}</td>
-                        <td style="font-weight:bold">{r['DG']}</td>
+                        <td style="color:#777;">{r['GF']}</td>
+                        <td style="color:#777;">{r['GC']}</td>
+                        <td style="background:rgba(255,255,255,0.05); font-weight:bold;">{r['DG']}</td>
                     </tr>"""
                 st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
         idx_tab += 1
@@ -619,6 +651,8 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 img_partido = generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_m, t_color)
                 st.image(img_partido, use_container_width=True)
         idx_tab += 1
+
+
 
 
 
@@ -1832,6 +1866,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
