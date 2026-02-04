@@ -461,139 +461,215 @@ def validar_acceso(id_torneo, pin_ingresado):
 ######DESARROLLO DE TORNEO
 def contenido_pestana_torneo(id_torneo, t_color):
     """
-    Función auxiliar para renderizar la tabla de posiciones o cruces.
-    CORREGIDA: Usa JOINs para traducir local_id -> Nombre del equipo.
+    Renderiza la vista pública del torneo:
+    1. Tabla de Posiciones (Si aplica).
+    2. Pestañas dinámicas con los partidos por Jornada/Fase.
     """
-    # 1. Validar el formato del torneo
+    
+    # 1. RECUPERAR DATOS MAESTROS (Partidos con Nombres y Escudos)
     try:
         with conn.connect() as db:
-            res_fmt = db.execute(text("SELECT formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
-            t_formato = res_fmt[0] if res_fmt else "Liga"
-    except:
-        t_formato = "Liga" # Fallback
+            # Info del Torneo
+            res_t = db.execute(text("SELECT formato, fase FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+            t_formato = res_t.formato if res_t else "Liga"
+            t_fase_actual = res_t.fase if res_t else "inscripcion"
 
-    # ------------------------------------------
-    # CASO A: FORMATOS CON TABLA (Liga / Grupos)
-    # ------------------------------------------
-    if t_formato in ["Liga", "Grupos y Cruces", "Liga y Playoff"]:
-        try:
-            color_maestro = t_color 
+            # Query Maestra de Partidos (Trae todo: J1, J2, Octavos...)
+            q_master = text("""
+                SELECT 
+                    p.jornada, p.goles_l, p.goles_v, p.estado, p.fecha_partido,
+                    el.nombre as local, el.escudo as escudo_l,
+                    ev.nombre as visitante, ev.escudo as escudo_v
+                FROM partidos p
+                JOIN equipos_globales el ON p.local_id = el.id
+                JOIN equipos_globales ev ON p.visitante_id = ev.id
+                WHERE p.id_torneo = :id
+                ORDER BY p.jornada ASC, p.id ASC
+            """)
+            df_partidos = pd.read_sql_query(q_master, db, params={"id": id_torneo})
 
-            # 1. Obtener datos DE EQUIPOS (Nombres y Escudos)
-            with conn.connect() as db:
-                df_eq = pd.read_sql_query(
-                    text("SELECT nombre, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado'"), 
-                    db, 
-                    params={"id": id_torneo}
-                )
+    except Exception as e:
+        st.error(f"Error cargando datos del torneo: {e}")
+        return
+
+    # 2. DEFINIR ESTRUCTURA DE PESTAÑAS
+    # Identificamos las jornadas únicas existentes en la base de datos
+    if not df_partidos.empty:
+        # Si la columna jornada es número, ordenamos numéricamente. Si es texto, alfabéticamente.
+        jornadas_unicas = sorted(df_partidos['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
+    else:
+        jornadas_unicas = []
+
+    # Creamos la lista de títulos para las pestañas
+    titulos_tabs = []
+    
+    # ¿Debe llevar Tabla de Posiciones?
+    tiene_tabla = t_formato in ["Liga", "Grupos y Cruces", "Liga y Playoff"]
+    if tiene_tabla:
+        titulos_tabs.append("📊 Clasificación")
+
+    # Agregamos una pestaña por cada Jornada encontrada
+    for j in jornadas_unicas:
+        # Si es número "1", mostramos "Jornada 1". Si es texto "Octavos", mostramos "Octavos"
+        lbl = f"Jornada {j}" if str(j).isdigit() else str(j)
+        titulos_tabs.append(lbl)
+
+    # Si no hay nada (torneo nuevo), avisamos y salimos
+    if not titulos_tabs:
+        mostrar_bot("El torneo está configurado, pero aún no se ha generado el calendario.")
+        return
+
+    # CREAMOS LAS PESTAÑAS
+    tabs = st.tabs(titulos_tabs)
+    idx_tab = 0 # Controlador de índice para saber en qué pestaña estamos
+
+    # =========================================================
+    # 3. CONTENIDO: TABLA DE POSICIONES (Si aplica)
+    # =========================================================
+    if tiene_tabla:
+        with tabs[idx_tab]:
+            # Filtramos solo partidos FINALIZADOS para la tabla
+            df_finalizados = df_partidos[df_partidos['estado'] == 'Finalizado']
             
-            if df_eq.empty:
-                mostrar_bot("Aún no hay equipos oficiales en la tabla. El balón está detenido.")
+            if df_finalizados.empty and df_partidos.empty:
+                st.info("El balón aún no rueda en este torneo.")
             else:
-                # Diccionario maestro de escudos
-                mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
+                # Lógica de Cálculo de Puntos (Usando el DF que ya trajimos)
+                # Obtenemos lista de equipos únicos del DF de partidos (para no hacer otra query)
+                equipos_set = set(df_partidos['local']).union(set(df_partidos['visitante']))
+                stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
                 
-                # Inicializamos estadísticas en 0 para todos los aprobados
-                stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
-                
-                # 2. Obtener PARTIDOS FINALIZADOS (Con JOIN para traer nombres)
-                with conn.connect() as db:
-                    # AQUÍ ESTÁ LA CORRECCIÓN CLAVE:
-                    # Usamos 'el.nombre as local' y 'ev.nombre as visitante'
-                    # Así el código de abajo (f['local']) vuelve a funcionar sin cambios.
-                    q_partidos = text("""
-                        SELECT 
-                            p.goles_l, p.goles_v,
-                            el.nombre as local,
-                            ev.nombre as visitante
-                        FROM partidos p
-                        JOIN equipos_globales el ON p.local_id = el.id
-                        JOIN equipos_globales ev ON p.visitante_id = ev.id
-                        WHERE p.id_torneo = :id AND p.estado = 'Finalizado'
-                    """)
+                # Recorremos solo los finalizados
+                for _, f in df_finalizados.iterrows():
+                    l, v = f['local'], f['visitante']
+                    gl, gv = int(f['goles_l']), int(f['goles_v'])
                     
-                    df_p = pd.read_sql_query(q_partidos, db, params={"id": id_torneo})
-                
-                # Cálculo de Estadísticas (Lógica intacta)
-                for _, f in df_p.iterrows():
-                    l, v = f['local'], f['visitante'] # Ahora sí existen estas columnas gracias al alias SQL
+                    stats[l]['PJ']+=1; stats[v]['PJ']+=1
+                    stats[l]['GF']+=gl; stats[l]['GC']+=gv
+                    stats[v]['GF']+=gv; stats[v]['GC']+=gl
                     
-                    # Solo procesamos si los equipos siguen existiendo en la lista de aprobados
-                    if l in stats and v in stats:
-                        gl, gv = int(f['goles_l']), int(f['goles_v'])
-                        
-                        stats[l]['PJ'] += 1; stats[v]['PJ'] += 1
-                        stats[l]['GF'] += gl; stats[l]['GC'] += gv
-                        stats[v]['GF'] += gv; stats[v]['GC'] += gl
-                        
-                        if gl > gv: stats[l]['PTS'] += 3
-                        elif gv > gl: stats[v]['PTS'] += 3
-                        else: stats[l]['PTS'] += 1; stats[v]['PTS'] += 1
-                
-                # Convertir a DataFrame y Ordenar
+                    if gl > gv: stats[l]['PTS']+=3
+                    elif gv > gl: stats[v]['PTS']+=3
+                    else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
+
+                # Crear DF de Tabla
                 df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-                df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC'] # Renombrar columna índice a EQ
+                df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
                 df_f['DG'] = df_f['GF'] - df_f['GC']
                 df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
                 df_f.insert(0, 'POS', range(1, len(df_f) + 1))
+                
+                # Mapa de escudos (Extraído del DF maestro para optimizar)
+                # Creamos un dict {Nombre: Escudo} recorriendo locales y visitantes
+                mapa_escudos = dict(zip(df_partidos['local'], df_partidos['escudo_l']))
+                mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
 
-                # =========================================================================
-                # 3. DISEÑO Y ESTILOS
-                # =========================================================================
+                # RENDERIZADO HTML (Tu estilo oscuro perfecto)
                 plantilla_tabla = f"""
                 <style>
-                    /* --- CONTENEDOR PRINCIPAL DE LA TABLA --- */
-                    .tabla-pro {{ 
-                        width: 100%; border-collapse: collapse; table-layout: fixed; 
-                        background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; 
-                        border: 1px solid {color_maestro} !important; 
-                    }}
-                    /* --- ENCABEZADOS --- */
-                    .tabla-pro th {{ 
-                        background-color: #111; color: #ffffff !important; font-size: 11px; 
-                        height: 35px !important; text-align: center; border-bottom: 2px solid {color_maestro} !important; 
-                        padding: 1px 1px; 
-                    }}
-                    /* --- CELDAS --- */
-                    .tabla-pro td {{ 
-                        color: white; font-size: 13px; height: 30px !important; border-bottom: 1px solid #222; 
-                        vertical-align: middle !important; padding: 2px 1px !important; text-align: center; 
-                    }}
-                    /* --- ESCUDOS --- */
-                    .escudo-wrapper {{ display: inline-block; width: 35px; text-align: center; margin-right: 2px; vertical-align: middle; }}
-                    .img-escudo {{ height: 35px; width: 35px; object-fit: contain; }}
+                    .tabla-pro {{ width: 100%; border-collapse: collapse; table-layout: fixed; background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; border: 1px solid {t_color} !important; }}
+                    .tabla-pro th {{ background-color: #111; color: #fff !important; font-size: 11px; height: 35px; text-align: center; border-bottom: 2px solid {t_color}; padding: 1px; }}
+                    .tabla-pro td {{ color: white; font-size: 13px; height: 35px; border-bottom: 1px solid #222; vertical-align: middle; padding: 2px; text-align: center; }}
+                    .img-escudo {{ height: 30px; width: 30px; object-fit: contain; vertical-align: middle; margin-right: 5px; }}
                 </style>
+                <table class="tabla-pro"><thead><tr>
+                <th style="width:10%">POS</th><th style="width:45%; text-align:left; padding-left:10px">EQUIPO</th>
+                <th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>
+                </tr></thead><tbody>
                 """
-
-                tabla_html = '<table class="tabla-pro"><thead><tr>'
-                tabla_html += '<th style="width:10%">POS</th>'
-                tabla_html += '<th style="width:45%; text-align:left; padding-left:10px">EQUIPO</th>'
-                tabla_html += '<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th></tr></thead><tbody>'
-
+                
+                html_rows = ""
                 for _, r in df_f.iterrows():
-                    url = mapa_escudos.get(r['EQ'])
-                    img_html = f'<img src="{url}" class="img-escudo">' if url else ''
-                    escudo_final = f'<div class="escudo-wrapper">{img_html}</div>'
+                    escudo_url = mapa_escudos.get(r['EQ'])
+                    img_tag = f'<img src="{escudo_url}" class="img-escudo">' if escudo_url else ''
+                    html_rows += f"""<tr>
+                        <td>{r['POS']}</td>
+                        <td style='text-align:left; padding-left:10px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{img_tag}{r['EQ']}</td>
+                        <td style='color:{t_color}; font-weight:bold; font-size:14px;'>{r['PTS']}</td>
+                        <td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td style='color:#aaa; font-size:11px;'>{r['DG']}</td>
+                    </tr>"""
+                
+                st.markdown(plantilla_tabla + html_rows + "</tbody></table>", unsafe_allow_html=True)
+
+        idx_tab += 1 # Avanzamos al siguiente índice de pestaña
+
+    # =========================================================
+    # 4. CONTENIDO: JORNADAS / FASES (Dinámico)
+    # =========================================================
+    for jornada_actual in jornadas_unicas:
+        with tabs[idx_tab]:
+            # Filtramos DF maestro por esta jornada
+            df_j = df_partidos[df_partidos['jornada'] == jornada_actual]
+            
+            st.markdown(f"Resultados y programación - **{titulos_tabs[idx_tab]}**")
+            
+            if df_j.empty:
+                st.info("No hay partidos programados.")
+            else:
+                for _, row in df_j.iterrows():
+                    # TARJETA DE PARTIDO (Modo Espectador - Solo Lectura)
                     
-                    tabla_html += "<tr>"
-                    tabla_html += f"<td>{r['POS']}</td>"
-                    tabla_html += f"<td style='text-align:left; padding-left:10px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{escudo_final}{r['EQ']}</td>"
-                    tabla_html += f"<td style='color:{color_maestro}; font-weight:bold; font-size:14px;'>{r['PTS']}</td>"
-                    tabla_html += f"<td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td style='font-size:11px; color:#888;'>{r['DG']}</td></tr>"
+                    # Colores de marcador: Si está finalizado, el ganador se resalta
+                    color_l = "white"
+                    color_v = "white"
+                    weight_l = "normal"
+                    weight_v = "normal"
 
-                tabla_html += "</tbody></table>"
-                st.markdown(plantilla_tabla + tabla_html, unsafe_allow_html=True)
+                    if row['estado'] == 'Finalizado':
+                        if row['goles_l'] > row['goles_v']: 
+                            color_l = t_color; weight_l = "bold"
+                        elif row['goles_v'] > row['goles_l']: 
+                            color_v = t_color; weight_v = "bold"
 
-        except Exception as e:
-            st.error(f"Error al cargar la clasificación: {e}")
-    
-    # ------------------------------------------
-    # CASO B: OTROS FORMATOS (Cruces)
-    # ------------------------------------------
-    else:
-        mostrar_bot("Este torneo se juega por llaves de eliminación directa.")
-        st.info("🚧 Visualizador de Cuadro de Honor / Bracket en construcción.")
+                    st.markdown(f"""
+                        <div style='
+                            background: linear-gradient(180deg, rgba(40,40,50,0.8) 0%, rgba(20,20,25,0.9) 100%); 
+                            border: 1px solid rgba(255,255,255,0.1);
+                            border-radius: 12px; 
+                            padding: 15px; 
+                            margin-bottom: 12px;
+                        '>
+                    """, unsafe_allow_html=True)
+                    
+                    c1, c2, c3 = st.columns([2, 1, 2], vertical_alignment="center")
+                    
+                    # LOCAL
+                    with c1:
+                        col_txt, col_img = st.columns([3, 1])
+                        with col_txt: 
+                            st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:15px; line-height:1.1'>{row['local']}</div>", unsafe_allow_html=True)
+                        with col_img:
+                            if row['escudo_l']: st.image(row['escudo_l'], width=40)
+                    
+                    # MARCADOR CENTRAL
+                    with c2:
+                        if row['estado'] == 'Finalizado':
+                            marcador_html = f"""
+                                <div style='display:flex; justify-content:center; align-items:center; gap:8px; font-family:Oswald; font-size:24px;'>
+                                    <span style='color:{color_l}; font-weight:{weight_l}'>{int(row['goles_l'])}</span>
+                                    <span style='color:#666; font-size:14px;'>-</span>
+                                    <span style='color:{color_v}; font-weight:{weight_v}'>{int(row['goles_v'])}</span>
+                                </div>
+                                <div style='text-align:center; font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1px;'>Final</div>
+                            """
+                        else:
+                            marcador_html = f"""
+                                <div style='text-align:center; font-size:24px; color:#444; font-weight:bold;'>VS</div>
+                                <div style='text-align:center; font-size:10px; color:{t_color};'>Por Jugar</div>
+                            """
+                        st.markdown(marcador_html, unsafe_allow_html=True)
 
+                    # VISITANTE
+                    with c3:
+                        col_img, col_txt = st.columns([1, 3])
+                        with col_img:
+                            if row['escudo_v']: st.image(row['escudo_v'], width=40)
+                        with col_txt:
+                            st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:15px; line-height:1.1'>{row['visitante']}</div>", unsafe_allow_html=True)
+
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+        idx_tab += 1
 
 
 
@@ -1560,6 +1636,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
