@@ -1404,7 +1404,7 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN CON IA INTEGRADA
+# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN MÓVIL OPTIMIZADA
         with tabs[1]:
             if t_fase == "inscripcion":
                 mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu fixture.")
@@ -1440,44 +1440,37 @@ def render_torneo(id_torneo):
                             st.markdown(f"##### 📍 Jornada {p['jornada']}")
                             ultima_jornada_vista = p['jornada']
 
-                        # --- ROLES Y CONTACTO ---
+                        # --- ROLES Y ESTADO ---
                         es_local = (p['local_id'] == st.session_state.id_equipo)
-                        if es_local:
-                            rival_pref = p['pref_v']; rival_cel = p['cel_v']
-                        else:
-                            rival_pref = p['pref_l']; rival_cel = p['cel_l']
+                        rival_pref = p['pref_v'] if es_local else p['pref_l']
+                        rival_cel = p['cel_v'] if es_local else p['cel_l']
 
-                        # Definir texto marcador
-                        txt_score = "VS"
-                        if p['estado'] == 'Finalizado':
-                             txt_score = f"{int(p['goles_l'])}-{int(p['goles_v'])}"
+                        txt_score = f"{int(p['goles_l'])}-{int(p['goles_v'])}" if p['estado'] == 'Finalizado' else "VS"
                         
-                        # Generar y renderizar la tarjeta visual
+                        # Tarjeta Visual (Tu función estrella)
                         img_card = generar_tarjeta_imagen(
-                            local=p['nombre_local'],
-                            visita=p['nombre_visitante'],
-                            url_escudo_l=p['escudo_l'],
-                            url_escudo_v=p['escudo_v'],
-                            marcador=txt_score,
-                            color_tema=t_color
+                            local=p['nombre_local'], visita=p['nombre_visitante'],
+                            url_escudo_l=p['escudo_l'], url_escudo_v=p['escudo_v'],
+                            marcador=txt_score, color_tema=t_color
                         )
                         st.image(img_card, use_container_width=True)
 
-                        # --- BOTONERA DE ACCIONES ---
-                        c_chat, c_accion = st.columns([1, 1.5]) 
+                        # --- BOTONERA DOBLE (SÍ O SÍ EN HORIZONTAL) ---
+                        # Usamos 2 columnas de igual tamaño [1, 1] para forzar la paridad en móvil
+                        btn_col1, btn_col2 = st.columns(2)
                         
-                        # A. Chat WhatsApp
-                        with c_chat:
+                        # 1. BOTÓN CONTACTAR
+                        with btn_col1:
                             if rival_pref and rival_cel:
                                 num = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
-                                st.link_button("💬 Chat Rival", f"https://wa.me/{num}", use_container_width=True)
+                                st.link_button("📞 Contactar DT", f"https://wa.me/{num}", use_container_width=True, help="Escribir al rival por WhatsApp")
                             else:
-                                st.caption("🚫 Sin contacto")
+                                st.button("🚫 Sin número", disabled=True, use_container_width=True)
 
-                        # B. Gestión de Resultados con IA
-                        with c_accion:
+                        # 2. BOTÓN ACCIÓN (SUBIR O RECLAMAR)
+                        with btn_col2:
                             if p['estado'] == 'Finalizado':
-                                if st.button("🚩 Reclamar", key=f"rec_{p['id']}", help="Reportar marcador incorrecto", use_container_width=True):
+                                if st.button("🚩 Reclamar", key=f"rec_{p['id']}", use_container_width=True):
                                     with conn.connect() as db:
                                         db.execute(text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id"), {"id": p['id']})
                                         db.commit()
@@ -1485,50 +1478,40 @@ def render_torneo(id_torneo):
                             elif p['estado'] == 'Revision':
                                 st.warning("⚠️ En Revisión")
                             else:
-                                # POPOVER DE ESCANEO
-                                with st.popover("📸 Subir Resultado", use_container_width=True):
-                                    st.caption("Sube la foto del marcador para que la IA lo lea")
-                                    foto = st.file_uploader("Evidencia", type=['jpg','png','jpeg'], key=f"up_{p['id']}")
+                                # OBJETO POPOVER: El más cómodo para móvil (actúa como menú flotante)
+                                with st.popover("📸 Subir", use_container_width=True):
+                                    st.markdown("##### 🏁 Reportar Resultado")
+                                    st.caption("La IA analizará tu foto para validar los goles.")
+                                    
+                                    foto = st.file_uploader("Captura de pantalla", type=['jpg','png','jpeg'], key=f"up_{p['id']}")
                                     
                                     if foto:
-                                        
-                                        if st.button("Confirmar y Escanear", key=f"ok_{p['id']}", type="primary", use_container_width=True):
-                                            with st.spinner("La IA está analizando la jugada..."):
-                                                # 1. Llamada a la función de Visión
+                                        st.divider()
+                                        if st.button("🚀 Escanear y Enviar", key=f"ok_{p['id']}", type="primary", use_container_width=True):
+                                            with st.spinner("Leyendo marcador..."):
                                                 res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
                                                 
                                                 if res_ia:
                                                     gl, gv = res_ia
-                                                    # 2. Actualización de Base de Datos
-                                                    try:
-                                                        with conn.connect() as db:
-                                                            db.execute(text("""
-                                                                UPDATE partidos 
-                                                                SET goles_l = :gl, 
-                                                                    goles_v = :gv, 
-                                                                    estado = 'Finalizado',
-                                                                    metodo_registro = 'IA',
-                                                                    fecha_registro = CURRENT_TIMESTAMP
-                                                                WHERE id = :id
-                                                            """), {"gl": gl, "gv": gv, "id": p['id']})
-                                                            db.commit()
-                                                        
-                                                        st.success(f"✅ ¡Marcador detectado: {gl} - {gv}!")
-                                                        st.toast("Resultado actualizado correctamente")
-                                                        time.sleep(1.5)
-                                                        st.rerun()
-                                                    except Exception as e_db:
-                                                        st.error(f"Error al guardar: {e_db}")
+                                                    with conn.connect() as db:
+                                                        db.execute(text("""
+                                                            UPDATE partidos 
+                                                            SET goles_l = :gl, goles_v = :gv, estado = 'Finalizado',
+                                                                metodo_registro = 'IA', fecha_registro = CURRENT_TIMESTAMP
+                                                            WHERE id = :id
+                                                        """), {"gl": gl, "gv": gv, "id": p['id']})
+                                                        db.commit()
+                                                    
+                                                    st.success(f"Detección: {gl} - {gv}")
+                                                    time.sleep(1.5); st.rerun()
                                                 else:
-                                                    # Si la IA falla, damos el mensaje de error (ej: "No detecté números")
-                                                    st.error(f"❌ {msg_ia}")
-                                                    st.info("Asegúrate de que los nombres de los equipos y los números sean visibles.")
-                        
-                        st.write("") # Espaciador entre partidos
+                                                    st.error(msg_ia)
+                                                    st.info("Asegúrate de que la foto esté de frente y clara.")
+
+                        st.write("---") # Divisor sutil entre filas de partidos
 
                 except Exception as e:
-                    st.error(f"Error en la gestión de DT: {e}")
-
+                    st.error(f"Error en calendario: {e}")
         
 
                     
@@ -1964,6 +1947,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
