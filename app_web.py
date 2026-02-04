@@ -471,7 +471,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
     try:
         with conn.connect() as db:
             # Traemos el formato y el escudo por defecto del torneo
-            res_t = db.execute(text("SELECT formato, escudo FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+            res_t = db.execute(text("SELECT formato, escudo_defecto FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
             t_formato = res_t.formato if res_t else "Liga"
             t_escudo_defecto = res_t.escudo if res_t and res_t.escudo else None
 
@@ -1796,6 +1796,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
