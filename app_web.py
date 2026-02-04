@@ -472,7 +472,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
     # 1. PARÁMETROS DE INGENIERÍA ESTÉTICA (TANTEA AQUÍ)
     # ------------------------------------------------------------
     # 👉 ESPACIO ENTRE TARJETAS DE PARTIDOS
-    MT_PARTIDOS = "-35px"      # Más negativo = más pegadas las tarjetas del fixture
+    MT_PARTIDOS = "-10px"      # Más negativo = más pegadas las tarjetas del fixture
 
     # 👉 ESTRUCTURA DE LA TABLA (Clasificación)
     T_ALTO_FILA = "32px"       # Altura fija de cada registro (Garantiza regularidad)
@@ -1866,6 +1866,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
