@@ -790,7 +790,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # 1. CONFIGURACIÓN DEL LIENZO Y FONDO TRANSLÚCIDO
     # ------------------------------------------------------------
     # 👉 URL de tu imagen de fondo (La barra metálica)
-    URL_PLANTILLA = "https://i.imgur.com/8Q5QX7s.jpeg" 
+    URL_PLANTILLA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" 
 
     # 👉 TAMAÑO DE LA IMAGEN FINAL (Ancho, Alto)
     # W=800 es buen ancho para móvil. H=120 es la altura. 
@@ -939,7 +939,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # [350, 30, 450, 110] son las coordenadas [Izq, Arr, Der, Abajo] de la caja central.
         # fill=(0, 0, 0, 160) -> Negro con 160 de opacidad.
         # - Baja 160 a 100 para hacer la caja más transparente.
-        d_ov.rectangle([350, 30, 450, 110], fill=(0, 0, 0, 100))
+        d_ov.rectangle([350, 30, 450, 10], fill=(0, 0, 0, 100))
         
         img = Image.alpha_composite(img, overlay)
         draw = ImageDraw.Draw(img) # Reiniciar pincel
@@ -1855,6 +1855,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
