@@ -928,15 +928,31 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # Texto
         draw.text((CENTRO_X, CENTRO_Y), txt_vs, font=font_vs, fill=(200, 200, 200), anchor="mm")
 
-    # ------------------------------------------------------------
-    # 6. DIBUJAR EL BORDE (AL FINAL PARA CORREGIR ESQUINAS)
+   # ------------------------------------------------------------
+    # 6. DIBUJAR EL BORDE (TÉCNICA DE CAPAS PARA CIERRE PERFECTO)
     # ------------------------------------------------------------
     try:
+        # CONSEJO DE DISEÑO:
+        # Si usas el color del tema, asegúrate que sea oscuro o elegante.
+        # Si prefieres el estilo "Dark Mode" elegante, usa un gris casi negro:
+        # rgb_borde = (30, 30, 30) # Gris Antracita (Muy elegante)
+        
+        # Si quieres mantener el color del torneo:
         rgb_borde = hex_to_rgb(color_tema)
-        # 👉 TANTEA AQUÍ: GROSOR DEL BORDE
-        # width=4 es un borde normal. Pon 1 para muy fino.
-        # Dibujamos de 0 a W-1/H-1 para que quede dentro del lienzo.
-        draw.rectangle([0, 0, W-1, H-1], outline=rgb_borde, width=0.6)
+
+        # 👉 TANTEA AQUÍ: GROSOR
+        GROSOR_BORDE = 1  # 2 o 3 píxeles es ideal para móviles.
+        
+        # Bucle mágico: Dibuja varios rectángulos de 1px uno dentro de otro.
+        # Esto rellena las esquinas perfectamente.
+        for i in range(GROSOR_BORDE):
+            # Coordenadas: [x0, y0, x1, y1]
+            # En cada vuelta del bucle, nos metemos 1 pixel hacia adentro (+i, -i)
+            draw.rectangle(
+                [0 + i, 0 + i, W - 1 - i, H - 1 - i], 
+                outline=rgb_borde, 
+                width=1
+            )
     except:
         pass
 
@@ -1834,6 +1850,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
