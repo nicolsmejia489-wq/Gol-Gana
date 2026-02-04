@@ -889,7 +889,7 @@ def render_torneo(id_torneo):
         
         # BOTÓN SALIR (Arriba a la derecha para consistencia)
         c_vacio, c_salir = st.columns([6, 1])
-        if c_salir.button("🔴 Cerrar Sesión de Admin", key="btn_salir_admin", use_container_width=True):
+        if c_salir.button("🔴 Salir", key="btn_salir_admin", use_container_width=True):
             st.session_state.clear(); st.rerun()
 
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
@@ -1104,79 +1104,85 @@ def render_torneo(id_torneo):
                     st.error(f"Error listando equipos: {e}")
 
             # =========================================================
-# SUB-TAB 3: CONFIGURACIÓN
-# =========================================================
-with sub_tabs[2]:
-    st.subheader("Ajustes del Torneo")
-    
-    # --- IDENTIDAD ---
-    st.markdown("##### 🎨 Identidad")
-    c_col1, c_col2 = st.columns([1, 2])
-    
-    # 1. Color Principal
-    new_color = c_col1.color_picker("Color Principal", value=t_color)
-    if c_col2.button("Aplicar Color"):
-        with conn.connect() as db:
-            db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), {"c": new_color, "id": id_torneo})
-            db.commit()
-        st.success("Color actualizado")
-        time.sleep(1); st.rerun()
+            # SUB-TAB 3: CONFIGURACIÓN
+            # =========================================================
+            with sub_tabs[2]:
+                st.subheader("Ajustes del Torneo")
+                
+                # Color
+                st.markdown("##### 🎨 Identidad")
+                c_col1, c_col2 = st.columns([1, 2])
+                new_color = c_col1.color_picker("Color Principal", value=t_color)
+                if c_col2.button("Aplicar Color"):
+                    with conn.connect() as db:
+                        db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), {"c": new_color, "id": id_torneo})
+                        db.commit(); st.rerun()
+                
+                st.divider()
 
-    # 2. Escudo del Torneo (Default)
-    st.write("")
-    st.markdown("###### 🛡️ Escudo Oficial del Torneo")
+
+                # 2. Escudo del Torneo (Default)
+                st.write("")
+                st.markdown("###### 🛡️ Escudo Oficial del Torneo")
     
     # Mostramos el escudo actual si existe (asegúrate de traerlo en el SELECT inicial)
-    if 't_escudo' in locals() and t_escudo:
-        st.image(t_escudo, width=80)
+                if 't_escudo' in locals() and t_escudo:
+                    st.image(t_escudo, width=80)
     
-    archivo_escudo = st.file_uploader("Cargar escudo por defecto", type=['png', 'jpg', 'jpeg'], key="up_esc_torneo")
+                archivo_escudo = st.file_uploader("Cargar escudo por defecto", type=['png', 'jpg', 'jpeg'], key="up_esc_torneo")
     
-    if archivo_escudo:
-        if st.button("🚀 Procesar y Guardar", use_container_width=True):
-            with st.spinner("Subiendo a Cloudinary y eliminando fondo..."):
+                if archivo_escudo:
+                    if st.button("🚀 Procesar y Guardar", use_container_width=True):
+                        with st.spinner("Subiendo a Cloudinary y eliminando fondo..."):
                 # Usamos tu función: procesar_y_subir_escudo
-                url_cloudinary = procesar_y_subir_escudo(archivo_escudo)
+                            url_cloudinary = procesar_y_subir_escudo(archivo_escudo)
                 
-                if url_cloudinary:
-                    with conn.connect() as db:
-                        db.execute(text("UPDATE torneos SET escudo = :esc WHERE id = :id"), 
-                                   {"esc": url_cloudinary, "id": id_torneo})
-                        db.commit()
-                    st.success("Escudo del torneo guardado.")
-                    time.sleep(1); st.rerun()
+                            if url_cloudinary:
+                                with conn.connect() as db:
+                                    db.execute(text("UPDATE torneos SET escudo = :esc WHERE id = :id"), 
+                                               {"esc": url_cloudinary, "id": id_torneo})
+                                    db.commit()
+                                st.success("Escudo del torneo guardado.")
+                                time.sleep(1); st.rerun()
+                            else:
+                                st.error("No pudimos procesar la imagen.")
+
+                st.divider()
+
+                # Control de Fases
+                st.markdown(f"##### 🚀 Fase Actual: `{t_fase.upper()}`")
+                
+                if t_fase == "inscripcion":
+                    if st.button("🔐 Cerrar Inscripciones e Iniciar Competencia", type="primary", use_container_width=True):
+                        st.session_state.confirmar_inicio = True
+                    
+                    if st.session_state.get("confirmar_inicio"):
+                        st.markdown("---")
+                        
+                        # Contamos equipos
+                        with conn.connect() as db:
+                            cant = db.execute(text("SELECT COUNT(*) FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).scalar()
+                        
+                        mostrar_bot(f"¿Estás seguro, Presi? Tienes **{cant} equipos aprobados**. Al confirmar, generaré el calendario automáticamente.")
+                        
+                        col_si, col_no = st.columns(2)
+                        
+                        # --- BOTÓN DE INICIO (Sin Globos) ---
+                        if col_si.button("✅ Sí, ¡A rodar el balón!", use_container_width=True):
+                            with st.spinner("Sorteando partidos y generando cruces..."):
+                                exito = generar_calendario(id_torneo)
+                                if exito:
+                                    del st.session_state.confirmar_inicio
+                                    st.toast("🏆 ¡Torneo Iniciado con éxito!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                        
+                        if col_no.button("❌ Cancelar", use_container_width=True):
+                            del st.session_state.confirmar_inicio
+                            st.rerun()
                 else:
-                    st.error("No pudimos procesar la imagen.")
+                    mostrar_bot("🏆 **Torneo en curso.** Los equipos están jugando por la gloria. Tú tienes el control del silbato.")
 
-    st.divider()
-
-    # --- CONTROL DE FASES ---
-    st.markdown(f"##### 🚀 Fase Actual: `{t_fase.upper()}`")
-    
-    if t_fase == "inscripcion":
-        if st.button("🔐 Cerrar Inscripciones e Iniciar Competencia", type="primary", use_container_width=True):
-            st.session_state.confirmar_inicio = True
-        
-        if st.session_state.get("confirmar_inicio"):
-            st.markdown("---")
-            with conn.connect() as db:
-                cant = db.execute(text("SELECT COUNT(*) FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).scalar()
-            
-            mostrar_bot(f"¿Estás seguro, Presi? Tienes **{cant} equipos aprobados**. Al confirmar, generaré el calendario.")
-            
-            col_si, col_no = st.columns(2)
-            if col_si.button("✅ Sí, ¡A rodar el balón!", use_container_width=True):
-                with st.spinner("Sorteando partidos..."):
-                    if generar_calendario(id_torneo):
-                        del st.session_state.confirmar_inicio
-                        st.toast("🏆 ¡Torneo Iniciado!")
-                        time.sleep(1.5); st.rerun()
-            
-            if col_no.button("❌ Cancelar", use_container_width=True):
-                del st.session_state.confirmar_inicio
-                st.rerun()
-    else:
-        mostrar_bot("🏆 **Torneo en curso.** Los equipos están en la cancha.")
 
 
 
