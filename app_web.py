@@ -825,8 +825,8 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # 👉 TANTEA AQUÍ: TAMAÑOS DE LETRA (Ajusta estos números a tu gusto)
     # Como ahora sí funcionan, prueba con estos valores grandes:
     SIZE_EQUIPO = 23    # Nombres de clubes
-    SIZE_MARCADOR = 25  # Goles (3 - 1)
-    SIZE_VS = 25        # Letras VS
+    SIZE_MARCADOR = 30  # Goles (3 - 1)
+    SIZE_VS = 30        # Letras VS
 
     # Lista de fuentes que el servidor buscará localmente
     FUENTES_SISTEMA = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
@@ -1856,6 +1856,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
