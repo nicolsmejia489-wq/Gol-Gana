@@ -882,83 +882,73 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     esc_l = procesar_logo(url_escudo_l)
     esc_v = procesar_logo(url_escudo_v)
 
-    # ------------------------------------------------------------
-    # 5. PINTAR CONTENIDO
-    # ------------------------------------------------------------
-    
-    # --- ESCUDOS ---
+   # 👉 TANTEA AQUÍ: ANCHURA DEL ESCUDO
+    # Esto define dónde termina el escudo para saber dónde empezar a escribir.
+    ANCHO_ESCUDO_REAL = 95 
+    MARGIN_LATERAL = 35 # Distancia del escudo al borde de la imagen
+
+    # 👉 TANTEA AQUÍ: SEPARACIÓN (GAP)
+    # Cuántos píxeles de aire quieres entre el escudo y el texto.
+    GAP_ESCUDO = 15 
+
+    # --- PINTAR ESCUDOS ---
     if esc_l:
-        # Centrado vertical automático
         pos_y = (H - esc_l.height) // 2 
-        # 👉 TANTEA AQUÍ: POSICIÓN HORIZONTAL ESCUDO LOCAL
-        # 35 es la distancia desde el borde izquierdo.
-        # - Pon 10 para pegarlo al borde.
-        # - Pon 50 para alejarlo más hacia el centro.
-        img.paste(esc_l, (35, pos_y), esc_l)
+        # Escudo pegado al margen izquierdo (35px)
+        img.paste(esc_l, (MARGIN_LATERAL, pos_y), esc_l)
 
     if esc_v:
         pos_y = (H - esc_v.height) // 2
-        # 👉 TANTEA AQUÍ: POSICIÓN HORIZONTAL ESCUDO VISITANTE
-        # W - 35 significa "Ancho total menos 35px".
-        img.paste(esc_v, (W - 35 - esc_v.width, pos_y), esc_v)
+        # Escudo pegado al margen derecho
+        img.paste(esc_v, (W - MARGIN_LATERAL - esc_v.width, pos_y), esc_v)
 
-    # --- NOMBRES ---
-    color_texto = (255, 255, 255) # Blanco puro
-    color_sombra = (0, 0, 0)      # Negro puro
+    # --- PINTAR NOMBRES (PEGADOS AL ESCUDO) ---
+    color_texto = (255, 255, 255)
+    color_sombra = (0, 0, 0)
     
-    # 👉 TANTEA AQUÍ: ALTURA VERTICAL DEL TEXTO
-    # 50 es la coordenada Y. 
-    # - Sube el número (ej: 60) para BAJAR el texto.
-    # - Baja el número (ej: 40) para SUBIR el texto.
+    # Altura vertical del texto
     OFFSET_Y = 50
 
-    # Local
-    # local[:12] corta el nombre a 12 letras. Cambia 12 por 15 si quieres nombres más largos.
-    w_text_l = draw.textlength(local[:12], font=font_team)
-    # Fórmula para centrar el texto en el espacio izquierdo
-    x_text_l = 140 + (240 - w_text_l) / 2
+    # === LOCAL (Alineado a la IZQUIERDA ->) ===
+    # El texto empieza donde termina el escudo + el hueco (GAP)
+    # Cálculo: Margen (35) + Ancho Escudo (95) + Hueco (15) = 145px
+    x_text_l = MARGIN_LATERAL + ANCHO_ESCUDO_REAL + GAP_ESCUDO
     
-    # Dibujamos sombra (+2px a la derecha y abajo)
-    draw.text((x_text_l+2, OFFSET_Y+2), local[:12], font=font_team, fill=color_sombra)
-    draw.text((x_text_l, OFFSET_Y), local[:12], font=font_team, fill=color_texto)
+    draw.text((x_text_l+2, OFFSET_Y+2), local[:14], font=font_team, fill=color_sombra)
+    draw.text((x_text_l, OFFSET_Y), local[:14], font=font_team, fill=color_texto)
 
-    # Visitante
-    w_text_v = draw.textlength(visita[:12], font=font_team)
-    x_text_v = 420 + (240 - w_text_v) / 2
-    draw.text((x_text_v+2, OFFSET_Y+2), visita[:12], font=font_team, fill=color_sombra)
-    draw.text((x_text_v, OFFSET_Y), visita[:12], font=font_team, fill=color_texto)
-
-    # --- LÓGICA CENTRAL: ¿VS O MARCADOR? ---
+    # === VISITANTE (Alineado a la DERECHA <-) ===
+    # El texto debe terminar donde empieza el escudo - el hueco (GAP)
+    # Primero calculamos cuánto mide el texto
+    w_text_v = draw.textlength(visita[:14], font=font_team)
     
-    # Caso 1: Hay Goles (ej: "3 - 1")
+    # Cálculo: Ancho Total (800) - Margen (35) - Ancho Escudo (95) - Hueco (15) - Lo que mida el texto
+    punto_final_derecho = W - MARGIN_LATERAL - ANCHO_ESCUDO_REAL - GAP_ESCUDO
+    x_text_v = punto_final_derecho - w_text_v
+
+    draw.text((x_text_v+2, OFFSET_Y+2), visita[:14], font=font_team, fill=color_sombra)
+    draw.text((x_text_v, OFFSET_Y), visita[:14], font=font_team, fill=color_texto)
+
+    # --- MARCADOR O VS (CENTRAL) ---
+    # (Esta parte queda igual, siempre centrada en el medio absoluto W/2)
     if "-" in marcador:
-        # 👉 CAJA OSCURA DETRÁS DEL MARCADOR (Para que se lea bien)
+        # Overlay oscuro
         overlay = Image.new('RGBA', img.size, (0,0,0,0))
         d_ov = ImageDraw.Draw(overlay)
-        
-        # [350, 30, 450, 110] son las coordenadas [Izq, Arr, Der, Abajo] de la caja central.
-        # fill=(0, 0, 0, 160) -> Negro con 160 de opacidad.
-        # - Baja 160 a 100 para hacer la caja más transparente.
-        d_ov.rectangle([350, 30, 450, 110], fill=(0, 0, 0, 5))
-        
+        d_ov.rectangle([350, 30, 450, 110], fill=(0, 0, 0, 160)) 
         img = Image.alpha_composite(img, overlay)
-        draw = ImageDraw.Draw(img) # Reiniciar pincel
+        draw = ImageDraw.Draw(img)
 
         # Texto Dorado
         bbox = draw.textbbox((0, 0), marcador, font=font_score)
         w_sc = bbox[2] - bbox[0]
-        # 👉 COLOR DEL MARCADOR: (255, 215, 0) es Oro. (255,255,255) es Blanco.
         draw.text(((W - w_sc)/2, 35), marcador, font=font_score, fill=(255, 215, 0))
-    
-    # Caso 2: Partido Programado (Texto "VS")
     else:
+        # Texto VS
         txt_vs = "VS"
         bbox = draw.textbbox((0, 0), txt_vs, font=font_vs)
         w_vs = bbox[2] - bbox[0]
-        
-        # Sombra negra
         draw.text(((W - w_vs)/2 + 2, 42), txt_vs, font=font_vs, fill=(0,0,0))
-        # VS Plateado (200, 200, 200)
         draw.text(((W - w_vs)/2, 40), txt_vs, font=font_vs, fill=(200, 200, 200))
 
     return img
@@ -1855,6 +1845,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
