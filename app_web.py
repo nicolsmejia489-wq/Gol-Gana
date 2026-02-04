@@ -826,7 +826,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     
     # 👉 TANTEA AQUÍ: TAMAÑOS DE TEXTO
     # Sube o baja estos números para cambiar el tamaño de letra
-    SIZE_EQUIPO = 18    # Nombres de clubes
+    SIZE_EQUIPO = 23    # Nombres de clubes
     SIZE_MARCADOR = 40  # Goles (3 - 1)
     SIZE_VS = 40        # Letras VS
 
@@ -1834,6 +1834,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
