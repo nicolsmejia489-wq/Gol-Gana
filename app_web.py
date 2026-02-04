@@ -810,7 +810,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # ------------------------------------------------------------
     # 2. FUENTES
     # ------------------------------------------------------------
-    SIZE_EQUIPO = 23    
+    SIZE_EQUIPO = 25    
     SIZE_MARCADOR = 30  
     SIZE_VS = 30        
 
@@ -845,7 +845,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
 
     # 👉 TANTEA AQUÍ: ESPACIO CENTRAL
     # GAP_CENTRAL: Cuánta distancia hay del centro (X=400) hacia cada lado para los escudos.
-    GAP_CENTRAL = 65 
+    GAP_CENTRAL = 20 
 
     if esc_l:
         pos_y = (H - esc_l.height) // 2 
@@ -1793,6 +1793,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
