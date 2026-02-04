@@ -783,7 +783,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     """
     # URL DE TU PLANTILLA (¡PON AQUÍ EL LINK REAL DE LA IMAGEN QUE SUBISTE!)
     # Si no tienes link aun, usa este placeholder temporal o sube la tuya
-    URL_PLANTILLA = "https://i.imgur.com/tu_imagen_subida.jpg" # <--- CAMBIA ESTO
+    URL_PLANTILLA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" # <--- CAMBIA ESTO
 
     # 1. Cargar la Plantilla Base
     try:
@@ -1768,6 +1768,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
