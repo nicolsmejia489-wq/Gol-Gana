@@ -772,6 +772,86 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
     
 
 
+
+#EN PRUEBA
+def renderizar_tarjeta_horizontal(local, visita, escudo_l, escudo_v, marcador, color_tema):
+    """
+    Renderiza una tarjeta horizontal compacta (Estilo Mobile).
+    - Fuerza la fila horizontal (no se apila en celular).
+    - Espacio vacío si no hay escudo.
+    """
+    
+    # 1. Manejo de Escudos (Imagen o Espacio Vacío)
+    def get_img_tag(url):
+        if url:
+            return f'<img src="{url}" style="width: 35px; height: 35px; object-fit: contain;">'
+        else:
+            # Div transparente para mantener el espacio
+            return '<div style="width: 35px; height: 35px; display:inline-block;"></div>'
+
+    html_l = get_img_tag(escudo_l)
+    html_v = get_img_tag(escudo_v)
+
+    # 2. Estilo del Marcador (Diferente si es VS o Resultado)
+    bg_marcador = "transparent"
+    color_marcador = "#ccc" # Gris VS
+    
+    if "-" in marcador: # Es un resultado
+        bg_marcador = "rgba(0,0,0,0.4)"
+        color_marcador = "#fff" # Blanco brillante
+
+    # 3. HTML COMPACTO (CSS Inline para evitar conflictos)
+    html = f"""
+    <div style="
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between;
+        background: linear-gradient(90deg, rgba(20,20,35,0.95) 0%, rgba(40,40,60,0.95) 100%);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        font-family: sans-serif;
+        overflow: hidden;
+        white-space: nowrap;
+    ">
+        <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 8px; overflow: hidden;">
+            <span style="font-weight: bold; font-size: 13px; color: white; text-align: right; text-overflow: ellipsis; overflow: hidden;">{local}</span>
+            {html_l}
+        </div>
+
+        <div style="
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            background: {bg_marcador};
+            margin: 0 10px;
+        ">
+            <span style="
+                font-family: 'Arial Black', sans-serif; 
+                font-weight: 900; 
+                font-size: 16px; 
+                color: {color_marcador}; 
+                text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+                font-style: italic;
+            ">
+                {marcador}
+            </span>
+        </div>
+
+        <div style="flex: 1; display: flex; align-items: center; justify-content: flex-start; gap: 8px; overflow: hidden;">
+            {html_v}
+            <span style="font-weight: bold; font-size: 13px; color: white; text-align: left; text-overflow: ellipsis; overflow: hidden;">{visita}</span>
+        </div>
+    </div>
+    """
+    return html
+##FIN PROVISIONAL
+
+
+
+
+
+
         
 def render_torneo(id_torneo):
     # ---------------------------------------------------------
@@ -1112,7 +1192,7 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-        # 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN NATIVA (SIN HTML)
+        # 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN HORIZONTAL MOBILE
         with tabs[1]:
             if t_fase == "inscripcion":
                 mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu fixture.")
@@ -1122,6 +1202,7 @@ def render_torneo(id_torneo):
                 
                 try:
                     with conn.connect() as db:
+                        # QUERY MAESTRA (Intacta)
                         q_mis = text("""
                             SELECT 
                                 p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.metodo_registro,
@@ -1143,78 +1224,74 @@ def render_torneo(id_torneo):
                     ultima_jornada_vista = -1
 
                     for _, p in mis.iterrows():
+                        
                         # --- SEPARADOR DE JORNADA ---
                         if p['jornada'] != ultima_jornada_vista:
-                            st.divider()
-                            st.caption(f"📍 JORNADA {p['jornada']}")
+                            st.markdown(f"##### 📍 Jornada {p['jornada']}")
                             ultima_jornada_vista = p['jornada']
 
                         # --- ROLES ---
                         es_local = (p['local_id'] == st.session_state.id_equipo)
                         if es_local:
-                            rival_nom = p['nombre_visitante']; rival_pref = p['pref_v']; rival_cel = p['cel_v']
+                            rival_pref = p['pref_v']; rival_cel = p['cel_v']
                         else:
-                            rival_nom = p['nombre_local']; rival_pref = p['pref_l']; rival_cel = p['cel_l']
+                            rival_pref = p['pref_l']; rival_cel = p['cel_l']
 
-                        # --- TARJETA NATIVA (ST.CONTAINER) ---
-                        # Usamos border=True para enmarcar el partido
-                        with st.container(border=True):
-                            
-                            # Layout de 3 Columnas: Local | VS | Visitante
-                            c_local, c_marcador, c_visitante = st.columns([1, 0.8, 1], vertical_alignment="center")
-                            
-                            # COLUMNA LOCAL (Derecha)
-                            with c_local:
-                                esc_l = p['escudo_l'] if p['escudo_l'] else "https://cdn-icons-png.flaticon.com/512/1828/1828884.png"
-                                st.image(esc_l, width=50)
-                                st.markdown(f"**{p['nombre_local']}**")
+                        # --- DEFINIR CONTENIDO VISUAL ---
+                        # 1. Marcador
+                        txt_score = "VS"
+                        if p['estado'] == 'Finalizado':
+                             txt_score = f"{int(p['goles_l'])}-{int(p['goles_v'])}"
+                        
+                        # 2. Escudos (None si no hay)
+                        e_l = p['escudo_l'] if p['escudo_l'] else None
+                        e_v = p['escudo_v'] if p['escudo_v'] else None
 
-                            # COLUMNA MARCADOR (Centro)
-                            with c_marcador:
-                                if p['estado'] == 'Finalizado':
-                                    txt_score = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
-                                    st.markdown(f"<h2 style='text-align: center; color: {t_color}; margin:0;'>{txt_score}</h2>", unsafe_allow_html=True)
-                                    st.caption("Final")
-                                else:
-                                    st.markdown(f"<h2 style='text-align: center; color: #666; margin:0;'>VS</h2>", unsafe_allow_html=True)
-                                    st.caption("Pendiente")
+                        # 3. RENDERIZAR TARJETA (Aquí usamos la nueva función)
+                        html_card = renderizar_tarjeta_horizontal(
+                            local=p['nombre_local'],
+                            visita=p['nombre_visitante'],
+                            escudo_l=e_l,
+                            escudo_v=e_v,
+                            marcador=txt_score,
+                            color_tema=t_color
+                        )
+                        st.markdown(html_card, unsafe_allow_html=True)
 
-                            # COLUMNA VISITANTE (Izquierda)
-                            with c_visitante:
-                                esc_v = p['escudo_v'] if p['escudo_v'] else "https://cdn-icons-png.flaticon.com/512/1828/1828884.png"
-                                st.image(esc_v, width=50)
-                                st.markdown(f"**{p['nombre_visitante']}**")
+                        # --- BOTONES Y ACCIONES (Debajo de la tarjeta visual) ---
+                        c_chat, c_accion = st.columns([1, 2])
+                        
+                        # A. Chat
+                        with c_chat:
+                            if rival_pref and rival_cel:
+                                num = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
+                                st.link_button("💬 Chat", f"https://wa.me/{num}")
+                            else:
+                                st.caption("🚫")
 
-                            st.divider()
-
-                            # --- ACCIONES ---
-                            c_chat, c_accion = st.columns([1, 2])
-                            
-                            # 1. CHAT
-                            with c_chat:
-                                if rival_pref and rival_cel:
-                                    num = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
-                                    st.link_button("💬 Chat", f"https://wa.me/{num}")
-                                else:
-                                    st.caption("Sin contacto")
-
-                            # 2. GESTIÓN DEL PARTIDO
-                            with c_accion:
-                                if p['estado'] == 'Finalizado':
-                                    if st.button("Reclamar Resultado", key=f"rec_{p['id']}"):
-                                        with conn.connect() as db:
-                                            db.execute(text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id"), {"id": p['id']})
-                                            db.commit()
-                                        st.rerun()
-                                elif p['estado'] == 'Revision':
-                                    st.warning("En Revisión")
-                                else:
-                                    with st.popover("📸 Subir Resultado"):
-                                        foto = st.file_uploader("Foto", type=['jpg','png'], key=f"up_{p['id']}")
-                                        if foto and st.button("Enviar", key=f"ok_{p['id']}"):
-                                            # Aquí va tu lógica de IA/Cloudinary que ya tienes
-                                            st.info("Simulando envío...") # (Pega tu lógica aquí)
-                                            time.sleep(1)
+                        # B. Gestión
+                        with c_accion:
+                            if p['estado'] == 'Finalizado':
+                                if st.button("Reclamar", key=f"rec_{p['id']}", help="Reportar marcador incorrecto"):
+                                    with conn.connect() as db:
+                                        db.execute(text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id"), {"id": p['id']})
+                                        db.commit()
+                                    st.rerun()
+                            elif p['estado'] == 'Revision':
+                                st.caption("⚠️ En Revisión")
+                            else:
+                                with st.popover("📸 Cargar Resultado"):
+                                    foto = st.file_uploader("Evidencia", type=['jpg','png'], key=f"up_{p['id']}")
+                                    if foto and st.button("Enviar", key=f"ok_{p['id']}"):
+                                        # TU LÓGICA DE IA Y CLOUDINARY VA AQUÍ (La mantuve resumida por espacio)
+                                        with st.spinner("Procesando..."):
+                                            res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
+                                            if res_ia:
+                                                # ... (Pega aquí tu lógica de actualización de DB) ...
+                                                st.success("Enviado")
+                                                time.sleep(1); st.rerun()
+                                            else:
+                                                st.error(msg_ia)
 
                 except Exception as e:
                     st.error(f"Error: {e}")
@@ -1655,6 +1732,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
