@@ -781,175 +781,126 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 @st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, color_tema):
     """
-    Genera tarjeta con:
-    1. Fondo Translúcido (Elegante).
-    2. Borde del color del torneo.
-    3. VS o Marcador según estado.
+    Genera tarjeta con diseño CENTRALIZADO:
+    [Nombre Local] [Escudo L] [  VS/Score  ] [Escudo V] [Nombre Visitante]
     """
     # ------------------------------------------------------------
-    # 1. CONFIGURACIÓN DEL LIENZO Y FONDO TRANSLÚCIDO
+    # 1. CONFIGURACIÓN DEL LIENZO
     # ------------------------------------------------------------
-    # 👉 URL de tu imagen de fondo (La barra metálica)
     URL_PLANTILLA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" 
+    W, H = 800, 100 
+    CENTRO_Y = H // 2 
+    CENTRO_X = W // 2 # Punto crítico para el nuevo diseño
 
-    # 👉 TAMAÑO DE LA IMAGEN FINAL (Ancho, Alto)
-    # W=800 es buen ancho para móvil. H=140 es la altura. 
-    # Si quieres la tarjeta más alta, cambia 140 por 160 o 180.
-    W, H = 800, 140 
-    
-    # Función auxiliar para convertir Hex a RGB (ej: #FF0000 -> (255, 0, 0))
     def hex_to_rgb(hex_color):
-        hex_color = hex_color.lstrip('#')
-        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        try:
+            hex_color = hex_color.lstrip('#')
+            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        except: return (100, 100, 100)
 
     try:
-        # Intentamos cargar la plantilla
         response = requests.get(URL_PLANTILLA, timeout=3)
         fondo = Image.open(BytesIO(response.content)).convert("RGBA")
         fondo = fondo.resize((W, H))
-        
-        # --- APLICAR TRANSPARENCIA AL FONDO ---
-        # 👉 TANTEA AQUÍ: TRANSPARENCIA GENERAL
-        # 210 es el nivel de opacidad (0=Invisible, 255=Sólido/Sin transparencia).
-        # - Baja a 150 para que sea muy "fantasmal".
-        # - Sube a 255 para que se vea la imagen metálica sólida.
-        fondo.putalpha(10) 
-        
+        fondo.putalpha(10) # Tu transparencia actual
         img = Image.new("RGBA", (W, H), (0,0,0,0))
-        img.paste(fondo, (0,0), fondo) # Pegamos el fondo semitransparente
-        
+        img.paste(fondo, (0,0), fondo)
     except:
-        # Fallback: Fondo gris oscuro translúcido si falla la imagen
-        # (40, 44, 52) es el color RGB gris azulado. 200 es la transparencia.
         img = Image.new('RGBA', (W, H), (40, 44, 52, 200))
 
     draw = ImageDraw.Draw(img)
 
     # ------------------------------------------------------------
-    # 2. DIBUJAR EL BORDE DE MARCA (COLOR DEL TORNEO)
+    # 2. FUENTES
     # ------------------------------------------------------------
-    try:
-        rgb_borde = hex_to_rgb(color_tema)
-        # 👉 TANTEA AQUÍ: GROSOR DEL BORDE
-        # width=4 son 4 píxeles de grosor. Pon 1 o 2 para algo fino, 6 u 8 para grueso.
-        draw.rectangle([0, 0, W-1, H-1], outline=rgb_borde, width=1)
-    except:
-        pass # Si falla el color, sin borde
+    SIZE_EQUIPO = 23    
+    SIZE_MARCADOR = 30  
+    SIZE_VS = 30        
 
-    # ------------------------------------------------------------
-    # 3. FUENTES (TAMAÑOS AJUSTABLES)
-    # ------------------------------------------------------------
-    FUENTES_A_PROBAR = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
-    
-    font_team = None
-    font_score = None
-    font_vs = None
-    
-    # 👉 TANTEA AQUÍ: TAMAÑOS DE LETRA
-    # Cambia estos números para hacer las letras más grandes o chicas.
-    SIZE_EQUIPO = 25    # Tamaño de nombres (Local/Visita)
-    SIZE_MARCADOR = 35  # Tamaño de los goles (ej: 3 - 1)
-    SIZE_VS = 35        # Tamaño de las letras "VS"
+    FUENTES_SISTEMA = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
+    font_team = None; font_score = None; font_vs = None
 
-    for fuente in FUENTES_A_PROBAR:
+    for f_nombre in FUENTES_SISTEMA:
         try:
-            font_team = ImageFont.truetype(fuente, SIZE_EQUIPO)
-            font_score = ImageFont.truetype(fuente, SIZE_MARCADOR)
-            font_vs = ImageFont.truetype(fuente, SIZE_VS)
+            font_team = ImageFont.truetype(f_nombre, SIZE_EQUIPO)
+            font_score = ImageFont.truetype(f_nombre, SIZE_MARCADOR)
+            font_vs = ImageFont.truetype(f_nombre, SIZE_VS)
             break 
         except: continue
     
     if font_team is None:
-        font_team = ImageFont.load_default()
-        font_score = ImageFont.load_default()
-        font_vs = ImageFont.load_default()
+        font_team = ImageFont.load_default(); font_score = ImageFont.load_default(); font_vs = ImageFont.load_default()
 
     # ------------------------------------------------------------
-    # 4. PROCESAR ESCUDOS
+    # 3. PROCESAR Y POSICIONAR ESCUDOS (AHORA AL CENTRO)
     # ------------------------------------------------------------
     def procesar_logo(url):
         try:
             if not url: return None
             resp = requests.get(url, timeout=2)
             im = Image.open(BytesIO(resp.content)).convert("RGBA")
-            # 👉 TANTEA AQUÍ: TAMAÑO MÁXIMO DE LOS ESCUDOS
-            # (95, 95) significa que el escudo no pasará de 95px de ancho o alto.
-            # Sube a (110, 110) para escudos más grandes.
-            im.thumbnail((95, 95)) 
+            im.thumbnail((80, 80)) # Un poco más pequeños para que no saturen el centro
             return im
         except: return None
 
     esc_l = procesar_logo(url_escudo_l)
     esc_v = procesar_logo(url_escudo_v)
 
-   # 👉 TANTEA AQUÍ: ANCHURA DEL ESCUDO
-    # Esto define dónde termina el escudo para saber dónde empezar a escribir.
-    ANCHO_ESCUDO_REAL = 95 
-    MARGIN_LATERAL = 35 # Distancia del escudo al borde de la imagen
+    # 👉 TANTEA AQUÍ: ESPACIO CENTRAL
+    # GAP_CENTRAL: Cuánta distancia hay del centro (X=400) hacia cada lado para los escudos.
+    GAP_CENTRAL = 65 
 
-    # 👉 TANTEA AQUÍ: SEPARACIÓN (GAP)
-    # Cuántos píxeles de aire quieres entre el escudo y el texto.
-    GAP_ESCUDO = 15 
-
-    # --- PINTAR ESCUDOS ---
     if esc_l:
         pos_y = (H - esc_l.height) // 2 
-        # Escudo pegado al margen izquierdo (35px)
-        img.paste(esc_l, (MARGIN_LATERAL, pos_y), esc_l)
+        # Lo pegamos a la izquierda del hueco central
+        img.paste(esc_l, (CENTRO_X - GAP_CENTRAL - esc_l.width, pos_y), esc_l)
 
     if esc_v:
         pos_y = (H - esc_v.height) // 2
-        # Escudo pegado al margen derecho
-        img.paste(esc_v, (W - MARGIN_LATERAL - esc_v.width, pos_y), esc_v)
+        # Lo pegamos a la derecha del hueco central
+        img.paste(esc_v, (CENTRO_X + GAP_CENTRAL, pos_y), esc_v)
 
-    # --- PINTAR NOMBRES (PEGADOS AL ESCUDO) ---
+    # ------------------------------------------------------------
+    # 4. PINTAR NOMBRES (PEGADOS A LOS ESCUDOS HACIA AFUERA)
+    # ------------------------------------------------------------
     color_texto = (255, 255, 255)
     color_sombra = (0, 0, 0)
     
-    # Altura vertical del texto
-    OFFSET_Y = 50
+    # 👉 TANTEA AQUÍ: SEPARACIÓN NOMBRE-ESCUDO
+    GAP_NOMBRE = 10 
 
-    # === LOCAL (Alineado a la IZQUIERDA ->) ===
-    # El texto empieza donde termina el escudo + el hueco (GAP)
-    # Cálculo: Margen (35) + Ancho Escudo (95) + Hueco (15) = 145px
-    x_text_l = MARGIN_LATERAL + ANCHO_ESCUDO_REAL + GAP_ESCUDO
-    
-    draw.text((x_text_l+2, OFFSET_Y+2), local[:14], font=font_team, fill=color_sombra)
-    draw.text((x_text_l, OFFSET_Y), local[:14], font=font_team, fill=color_texto)
+    # == LOCAL (Anclaje a la Derecha "rm") ==
+    # El texto termina justo antes del escudo local
+    x_text_l = CENTRO_X - GAP_CENTRAL - (esc_l.width if esc_l else 80) - GAP_NOMBRE
+    draw.text((x_text_l+2, CENTRO_Y+2), local[:14], font=font_team, fill=color_sombra, anchor="rm")
+    draw.text((x_text_l, CENTRO_Y), local[:14], font=font_team, fill=color_texto, anchor="rm")
 
-    # === VISITANTE (Alineado a la DERECHA <-) ===
-    # El texto debe terminar donde empieza el escudo - el hueco (GAP)
-    # Primero calculamos cuánto mide el texto
-    w_text_v = draw.textlength(visita[:14], font=font_team)
-    
-    # Cálculo: Ancho Total (800) - Margen (35) - Ancho Escudo (95) - Hueco (15) - Lo que mida el texto
-    punto_final_derecho = W - MARGIN_LATERAL - ANCHO_ESCUDO_REAL - GAP_ESCUDO
-    x_text_v = punto_final_derecho - w_text_v
+    # == VISITANTE (Anclaje a la Izquierda "lm") ==
+    # El texto empieza justo después del escudo visitante
+    x_text_v = CENTRO_X + GAP_CENTRAL + (esc_v.width if esc_v else 80) + GAP_NOMBRE
+    draw.text((x_text_v+2, CENTRO_Y+2), visita[:14], font=font_team, fill=color_sombra, anchor="lm")
+    draw.text((x_text_v, CENTRO_Y), visita[:14], font=font_team, fill=color_texto, anchor="lm")
 
-    draw.text((x_text_v+2, OFFSET_Y+2), visita[:14], font=font_team, fill=color_sombra)
-    draw.text((x_text_v, OFFSET_Y), visita[:14], font=font_team, fill=color_texto)
-
-    # --- MARCADOR O VS (CENTRAL) ---
-    # (Esta parte queda igual, siempre centrada en el medio absoluto W/2)
+    # ------------------------------------------------------------
+    # 5. MARCADOR O VS (CENTRADO PERFECTO)
+    # ------------------------------------------------------------
     if "-" in marcador:
-        # Overlay oscuro
-        overlay = Image.new('RGBA', img.size, (0,0,0,0))
-        d_ov = ImageDraw.Draw(overlay)
-        d_ov.rectangle([350, 30, 450, 110], fill=(0, 0, 0, 160)) 
-        img = Image.alpha_composite(img, overlay)
-        draw = ImageDraw.Draw(img)
-
-        # Texto Dorado
-        bbox = draw.textbbox((0, 0), marcador, font=font_score)
-        w_sc = bbox[2] - bbox[0]
-        draw.text(((W - w_sc)/2, 35), marcador, font=font_score, fill=(255, 215, 0))
+        # Texto Marcador (Dorado)
+        draw.text((CENTRO_X, CENTRO_Y), marcador, font=font_score, fill=(255, 215, 0), anchor="mm")
     else:
-        # Texto VS
-        txt_vs = "VS"
-        bbox = draw.textbbox((0, 0), txt_vs, font=font_vs)
-        w_vs = bbox[2] - bbox[0]
-        draw.text(((W - w_vs)/2 + 2, 42), txt_vs, font=font_vs, fill=(0,0,0))
-        draw.text(((W - w_vs)/2, 40), txt_vs, font=font_vs, fill=(200, 200, 200))
+        # Texto VS (Plateado)
+        draw.text((CENTRO_X + 2, CENTRO_Y + 2), "VS", font=font_vs, fill=(0,0,0), anchor="mm")
+        draw.text((CENTRO_X, CENTRO_Y), "VS", font=font_vs, fill=(200, 200, 200), anchor="mm")
+
+    # ------------------------------------------------------------
+    # 6. BORDE (CAPAS)
+    # ------------------------------------------------------------
+    try:
+        rgb_borde = hex_to_rgb(color_tema)
+        # Nota: range() necesita un entero. i.e., int(1)
+        for i in range(1): 
+            draw.rectangle([0 + i, 0 + i, W - 1 - i, H - 1 - i], outline=rgb_borde, width=1)
+    except: pass
 
     return img
     # ---------------------------------------------------------
@@ -1845,4 +1796,5 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
