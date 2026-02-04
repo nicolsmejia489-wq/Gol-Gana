@@ -1404,19 +1404,38 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN MÓVIL OPTIMIZADA
+# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN ULTRA-COMPACTA MÓVIL
         with tabs[1]:
+            # ------------------------------------------------------------
+            # 0. CSS PARA FORZAR BOTONES LADO A LADO EN MÓVIL
+            # ------------------------------------------------------------
+            st.markdown("""
+                <style>
+                /* Forzamos que las columnas de botones no se rompan en móvil */
+                [data-testid="column"] {
+                    width: calc(50% - 5px) !important;
+                    flex: 1 1 calc(50% - 5px) !important;
+                    min-width: 0px !important;
+                }
+                /* Estilizamos los botones para que se vean uniformes */
+                .stButton button {
+                    height: 40px !important;
+                    padding: 0px !important;
+                    font-size: 13px !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
             if t_fase == "inscripcion":
-                mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu fixture.")
-                st.image("https://cdn-icons-png.flaticon.com/512/3363/3363697.png", width=100)
+                mostrar_bot("El balón aún no rueda, Profe. Aquí verás tu fixture cuando inicie.")
             else:
-                st.subheader(f"📅 Calendario de {st.session_state.nombre_equipo}")
+                st.subheader(f"📅 Mi Calendario")
                 
                 try:
                     with conn.connect() as db:
                         q_mis = text("""
                             SELECT 
-                                p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.metodo_registro,
+                                p.id, p.jornada, p.goles_l, p.goles_v, p.estado,
                                 p.local_id, p.visitante_id,
                                 el.nombre as nombre_local, el.escudo as escudo_l, el.prefijo as pref_l, el.celular_capitan as cel_l,
                                 ev.nombre as nombre_visitante, ev.escudo as escudo_v, ev.prefijo as pref_v, ev.celular_capitan as cel_v
@@ -1430,45 +1449,35 @@ def render_torneo(id_torneo):
                         mis = pd.read_sql_query(q_mis, db, params={"idt": id_torneo, "my_id": st.session_state.id_equipo})
                     
                     if mis.empty:
-                        st.info("Aún no tienes partidos asignados.")
+                        st.info("No tienes partidos asignados aún.")
                     
-                    ultima_jornada_vista = -1
-
                     for _, p in mis.iterrows():
-                        # --- SEPARADOR DE JORNADA ---
-                        if p['jornada'] != ultima_jornada_vista:
-                            st.markdown(f"##### 📍 Jornada {p['jornada']}")
-                            ultima_jornada_vista = p['jornada']
-
-                        # --- ROLES Y ESTADO ---
+                        # --- INFO DEL PARTIDO ---
                         es_local = (p['local_id'] == st.session_state.id_equipo)
                         rival_pref = p['pref_v'] if es_local else p['pref_l']
                         rival_cel = p['cel_v'] if es_local else p['cel_l']
-
                         txt_score = f"{int(p['goles_l'])}-{int(p['goles_v'])}" if p['estado'] == 'Finalizado' else "VS"
-                        
-                        # Tarjeta Visual (Tu función estrella)
-                        img_card = generar_tarjeta_imagen(
-                            local=p['nombre_local'], visita=p['nombre_visitante'],
-                            url_escudo_l=p['escudo_l'], url_escudo_v=p['escudo_v'],
-                            marcador=txt_score, color_tema=t_color
-                        )
-                        st.image(img_card, use_container_width=True)
 
-                        # --- BOTONERA DOBLE (SÍ O SÍ EN HORIZONTAL) ---
-                        # Usamos 2 columnas de igual tamaño [1, 1] para forzar la paridad en móvil
-                        btn_col1, btn_col2 = st.columns(2)
+                        # Tarjeta Imagen
+                        st.image(generar_tarjeta_imagen(
+                            p['nombre_local'], p['nombre_visitante'],
+                            p['escudo_l'], p['escudo_v'],
+                            txt_score, t_color
+                        ), use_container_width=True)
+
+                        # --- FILA DE BOTONES (ANCLAJE HORIZONTAL) ---
+                        c1, c2 = st.columns(2)
                         
-                        # 1. BOTÓN CONTACTAR
-                        with btn_col1:
+                        # Botón 1: WhatsApp
+                        with c1:
                             if rival_pref and rival_cel:
                                 num = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
-                                st.link_button("📞 Contactar DT", f"https://wa.me/{num}", use_container_width=True, help="Escribir al rival por WhatsApp")
+                                st.link_button("📞 WhatsApp", f"https://wa.me/{num}", use_container_width=True)
                             else:
-                                st.button("🚫 Sin número", disabled=True, use_container_width=True)
+                                st.button("🚫 Sin Tel.", disabled=True, use_container_width=True)
 
-                        # 2. BOTÓN ACCIÓN (SUBIR O RECLAMAR)
-                        with btn_col2:
+                        # Botón 2: Acción
+                        with c2:
                             if p['estado'] == 'Finalizado':
                                 if st.button("🚩 Reclamar", key=f"rec_{p['id']}", use_container_width=True):
                                     with conn.connect() as db:
@@ -1476,42 +1485,39 @@ def render_torneo(id_torneo):
                                         db.commit()
                                     st.rerun()
                             elif p['estado'] == 'Revision':
-                                st.warning("⚠️ En Revisión")
+                                st.button("⚠️ En Revisión", disabled=True, use_container_width=True)
                             else:
-                                # OBJETO POPOVER: El más cómodo para móvil (actúa como menú flotante)
-                                with st.popover("📸 Subir", use_container_width=True):
-                                    st.markdown("##### 🏁 Reportar Resultado")
-                                    st.caption("La IA analizará tu foto para validar los goles.")
-                                    
-                                    foto = st.file_uploader("Captura de pantalla", type=['jpg','png','jpeg'], key=f"up_{p['id']}")
-                                    
-                                    if foto:
-                                        st.divider()
-                                        if st.button("🚀 Escanear y Enviar", key=f"ok_{p['id']}", type="primary", use_container_width=True):
-                                            with st.spinner("Leyendo marcador..."):
-                                                res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
-                                                
-                                                if res_ia:
-                                                    gl, gv = res_ia
-                                                    with conn.connect() as db:
-                                                        db.execute(text("""
-                                                            UPDATE partidos 
-                                                            SET goles_l = :gl, goles_v = :gv, estado = 'Finalizado',
-                                                                metodo_registro = 'IA', fecha_registro = CURRENT_TIMESTAMP
-                                                            WHERE id = :id
-                                                        """), {"gl": gl, "gv": gv, "id": p['id']})
-                                                        db.commit()
-                                                    
-                                                    st.success(f"Detección: {gl} - {gv}")
-                                                    time.sleep(1.5); st.rerun()
-                                                else:
-                                                    st.error(msg_ia)
-                                                    st.info("Asegúrate de que la foto esté de frente y clara.")
+                                # Botón que activa el área de carga (Lógica de Estado)
+                                if st.button("📸 Subir", key=f"btn_show_{p['id']}", type="primary", use_container_width=True):
+                                    st.session_state[f"show_up_{p['id']}"] = True
 
-                        st.write("---") # Divisor sutil entre filas de partidos
+                        # --- ÁREA DE CARGA CONDICIONAL (Sustituye al Popover) ---
+                        if st.session_state.get(f"show_up_{p['id']}"):
+                            with st.container(border=True):
+                                st.markdown("##### 📸 Escanear Resultado")
+                                foto = st.file_uploader("Selecciona la foto del marcador", type=['jpg','png','jpeg'], key=f"file_{p['id']}")
+                                
+                                col_ca, col_ok = st.columns(2)
+                                if col_ca.button("Cancelar", key=f"can_{p['id']}", use_container_width=True):
+                                    del st.session_state[f"show_up_{p['id']}"]; st.rerun()
+                                
+                                if foto and col_ok.button("Escanear", key=f"go_{p['id']}", type="primary", use_container_width=True):
+                                    with st.spinner("IA procesando..."):
+                                        res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
+                                        if res_ia:
+                                            gl, gv = res_ia
+                                            with conn.connect() as db:
+                                                db.execute(text("UPDATE partidos SET goles_l=:gl, goles_v=:gv, estado='Finalizado', metodo_registro='IA' WHERE id=:id"),
+                                                           {"gl": gl, "gv": gv, "id": p['id']})
+                                                db.commit()
+                                            st.success(f"Detectado: {gl}-{gv}"); time.sleep(1); st.rerun()
+                                        else:
+                                            st.error(msg_ia)
+
+                        st.markdown("<br>", unsafe_allow_html=True) # Espacio entre partidos
 
                 except Exception as e:
-                    st.error(f"Error en calendario: {e}")
+                    st.error(f"Error: {e}")
         
 
                     
@@ -1947,6 +1953,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
