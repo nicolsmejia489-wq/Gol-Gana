@@ -941,7 +941,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         #rgb_borde = hex_to_rgb(color_tema)
 
         # 👉 TANTEA AQUÍ: GROSOR
-        GROSOR_BORDE = 1  # 2 o 3 píxeles es ideal para móviles.
+         GROSOR_BORDE = 1  # 2 o 3 píxeles es ideal para móviles.
         
         # Bucle mágico: Dibuja varios rectángulos de 1px uno dentro de otro.
         # Esto rellena las esquinas perfectamente.
@@ -1850,6 +1850,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
