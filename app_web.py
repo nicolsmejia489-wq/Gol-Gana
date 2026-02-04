@@ -462,22 +462,24 @@ def validar_acceso(id_torneo, pin_ingresado):
 def contenido_pestana_torneo(id_torneo, t_color):
     """
     Renderiza la vista pública del torneo:
-    1. Tabla de Posiciones (Si aplica).
-    2. Pestañas dinámicas con los partidos por Jornada/Fase.
+    1. Tabla de Posiciones.
+    2. Calendario Visual (Usando la tarjeta estética).
     """
     
-    # 1. RECUPERAR DATOS MAESTROS (Partidos con Nombres y Escudos)
+    # URL de escudo por defecto (si un equipo no tiene)
+    PLACEHOLDER_ESCUDO = "https://cdn-icons-png.flaticon.com/512/1828/1828884.png" 
+
+    # 1. RECUPERAR DATOS MAESTROS
     try:
         with conn.connect() as db:
             # Info del Torneo
-            res_t = db.execute(text("SELECT formato, fase FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+            res_t = db.execute(text("SELECT formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
             t_formato = res_t.formato if res_t else "Liga"
-            t_fase_actual = res_t.fase if res_t else "inscripcion"
 
-            # Query Maestra de Partidos (Trae todo: J1, J2, Octavos...)
+            # Query Maestra: Partidos + Nombres + Escudos
             q_master = text("""
                 SELECT 
-                    p.jornada, p.goles_l, p.goles_v, p.estado, p.fecha_partido,
+                    p.jornada, p.goles_l, p.goles_v, p.estado, 
                     el.nombre as local, el.escudo as escudo_l,
                     ev.nombre as visitante, ev.escudo as escudo_v
                 FROM partidos p
@@ -492,55 +494,48 @@ def contenido_pestana_torneo(id_torneo, t_color):
         st.error(f"Error cargando datos del torneo: {e}")
         return
 
-    # 2. DEFINIR ESTRUCTURA DE PESTAÑAS
-    # Identificamos las jornadas únicas existentes en la base de datos
-    if not df_partidos.empty:
-        # Si la columna jornada es número, ordenamos numéricamente. Si es texto, alfabéticamente.
-        jornadas_unicas = sorted(df_partidos['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
-    else:
-        jornadas_unicas = []
-
-    # Creamos la lista de títulos para las pestañas
+    # 2. DEFINIR PESTAÑAS (Tabla + Jornadas)
     titulos_tabs = []
     
-    # ¿Debe llevar Tabla de Posiciones?
+    # ¿Lleva Tabla?
     tiene_tabla = t_formato in ["Liga", "Grupos y Cruces", "Liga y Playoff"]
     if tiene_tabla:
         titulos_tabs.append("📊 Clasificación")
 
-    # Agregamos una pestaña por cada Jornada encontrada
-    for j in jornadas_unicas:
-        # Si es número "1", mostramos "Jornada 1". Si es texto "Octavos", mostramos "Octavos"
-        lbl = f"Jornada {j}" if str(j).isdigit() else str(j)
-        titulos_tabs.append(lbl)
+    # Identificar Jornadas existentes
+    if not df_partidos.empty:
+        # Ordenamos jornadas (Numérico si se puede, si no texto)
+        jornadas_unicas = sorted(df_partidos['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
+        for j in jornadas_unicas:
+            lbl = f"Jornada {j}" if str(j).isdigit() else str(j)
+            titulos_tabs.append(lbl)
+    else:
+        jornadas_unicas = []
 
-    # Si no hay nada (torneo nuevo), avisamos y salimos
     if not titulos_tabs:
-        mostrar_bot("El torneo está configurado, pero aún no se ha generado el calendario.")
+        mostrar_bot("El torneo está configurado, pero aún no hay calendario.")
         return
 
-    # CREAMOS LAS PESTAÑAS
+    # CREAR PESTAÑAS
     tabs = st.tabs(titulos_tabs)
-    idx_tab = 0 # Controlador de índice para saber en qué pestaña estamos
+    idx_tab = 0 
 
     # =========================================================
-    # 3. CONTENIDO: TABLA DE POSICIONES (Si aplica)
+    # 3. CONTENIDO: TABLA DE POSICIONES
     # =========================================================
     if tiene_tabla:
         with tabs[idx_tab]:
-            # Filtramos solo partidos FINALIZADOS para la tabla
-            df_finalizados = df_partidos[df_partidos['estado'] == 'Finalizado']
+            # Solo partidos finalizados suman puntos
+            df_fin = df_partidos[df_partidos['estado'] == 'Finalizado']
             
-            if df_finalizados.empty and df_partidos.empty:
-                st.info("El balón aún no rueda en este torneo.")
+            if df_fin.empty and df_partidos.empty:
+                st.info("Aún no hay datos para la tabla.")
             else:
-                # Lógica de Cálculo de Puntos (Usando el DF que ya trajimos)
-                # Obtenemos lista de equipos únicos del DF de partidos (para no hacer otra query)
+                # Calculadora de Puntos Rápida
                 equipos_set = set(df_partidos['local']).union(set(df_partidos['visitante']))
                 stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
                 
-                # Recorremos solo los finalizados
-                for _, f in df_finalizados.iterrows():
+                for _, f in df_fin.iterrows():
                     l, v = f['local'], f['visitante']
                     gl, gv = int(f['goles_l']), int(f['goles_v'])
                     
@@ -552,124 +547,68 @@ def contenido_pestana_torneo(id_torneo, t_color):
                     elif gv > gl: stats[v]['PTS']+=3
                     else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
 
-                # Crear DF de Tabla
+                # DataFrame Final
                 df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
                 df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
                 df_f['DG'] = df_f['GF'] - df_f['GC']
                 df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
                 df_f.insert(0, 'POS', range(1, len(df_f) + 1))
                 
-                # Mapa de escudos (Extraído del DF maestro para optimizar)
-                # Creamos un dict {Nombre: Escudo} recorriendo locales y visitantes
+                # Mapa de escudos para la tabla
                 mapa_escudos = dict(zip(df_partidos['local'], df_partidos['escudo_l']))
                 mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
 
-                # RENDERIZADO HTML (Tu estilo oscuro perfecto)
-                plantilla_tabla = f"""
-                <style>
-                    .tabla-pro {{ width: 100%; border-collapse: collapse; table-layout: fixed; background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; border: 1px solid {t_color} !important; }}
-                    .tabla-pro th {{ background-color: #111; color: #fff !important; font-size: 11px; height: 35px; text-align: center; border-bottom: 2px solid {t_color}; padding: 1px; }}
-                    .tabla-pro td {{ color: white; font-size: 13px; height: 35px; border-bottom: 1px solid #222; vertical-align: middle; padding: 2px; text-align: center; }}
-                    .img-escudo {{ height: 30px; width: 30px; object-fit: contain; vertical-align: middle; margin-right: 5px; }}
-                </style>
-                <table class="tabla-pro"><thead><tr>
-                <th style="width:10%">POS</th><th style="width:45%; text-align:left; padding-left:10px">EQUIPO</th>
-                <th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th>
-                </tr></thead><tbody>
-                """
+                # Render HTML Tabla
+                estilo = f"""<style>.t-pro {{width:100%; border-collapse:collapse; background:rgba(0,0,0,0.5); font-family:'Oswald'; border:1px solid {t_color};}} .t-pro th {{background:#111; color:#fff; font-size:11px; text-align:center; border-bottom:2px solid {t_color};}} .t-pro td {{color:#fff; font-size:13px; text-align:center; border-bottom:1px solid #333; padding:4px;}}</style>"""
+                html = f'{estilo}<table class="t-pro"><thead><tr><th width="10%">POS</th><th width="45%" style="text-align:left">EQUIPO</th><th width="10%">PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
                 
-                html_rows = ""
                 for _, r in df_f.iterrows():
-                    escudo_url = mapa_escudos.get(r['EQ'])
-                    img_tag = f'<img src="{escudo_url}" class="img-escudo">' if escudo_url else ''
-                    html_rows += f"""<tr>
-                        <td>{r['POS']}</td>
-                        <td style='text-align:left; padding-left:10px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{img_tag}{r['EQ']}</td>
-                        <td style='color:{t_color}; font-weight:bold; font-size:14px;'>{r['PTS']}</td>
-                        <td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td style='color:#aaa; font-size:11px;'>{r['DG']}</td>
-                    </tr>"""
+                    esc = mapa_escudos.get(r['EQ']) or PLACEHOLDER_ESCUDO
+                    html += f'<tr><td>{r["POS"]}</td><td style="text-align:left; font-weight:bold"><img src="{esc}" width="25" style="vertical-align:middle; margin-right:5px">{r["EQ"]}</td><td style="color:{t_color}; font-weight:bold">{r["PTS"]}</td><td>{r["PJ"]}</td><td style="color:#aaa">{r["DG"]}</td></tr>'
                 
-                st.markdown(plantilla_tabla + html_rows + "</tbody></table>", unsafe_allow_html=True)
-
-        idx_tab += 1 # Avanzamos al siguiente índice de pestaña
+                st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
+        
+        idx_tab += 1
 
     # =========================================================
-    # 4. CONTENIDO: JORNADAS / FASES (Dinámico)
+    # 4. CONTENIDO: JORNADAS (Usando tu Renderizador Estético)
     # =========================================================
     for jornada_actual in jornadas_unicas:
         with tabs[idx_tab]:
-            # Filtramos DF maestro por esta jornada
             df_j = df_partidos[df_partidos['jornada'] == jornada_actual]
             
-            st.markdown(f"Resultados y programación - **{titulos_tabs[idx_tab]}**")
+            st.markdown(f"**{titulos_tabs[idx_tab]}**")
             
             if df_j.empty:
-                st.info("No hay partidos programados.")
+                st.info("Sin partidos.")
             else:
                 for _, row in df_j.iterrows():
-                    # TARJETA DE PARTIDO (Modo Espectador - Solo Lectura)
-                    
-                    # Colores de marcador: Si está finalizado, el ganador se resalta
-                    color_l = "white"
-                    color_v = "white"
-                    weight_l = "normal"
-                    weight_v = "normal"
-
+                    # Definir Marcador
                     if row['estado'] == 'Finalizado':
-                        if row['goles_l'] > row['goles_v']: 
-                            color_l = t_color; weight_l = "bold"
-                        elif row['goles_v'] > row['goles_l']: 
-                            color_v = t_color; weight_v = "bold"
+                        try:
+                            txt = f"{int(row['goles_l'])} - {int(row['goles_v'])}"
+                        except: txt = "Err"
+                    else:
+                        txt = "VS"
 
-                    st.markdown(f"""
-                        <div style='
-                            background: linear-gradient(180deg, rgba(40,40,50,0.8) 0%, rgba(20,20,25,0.9) 100%); 
-                            border: 1px solid rgba(255,255,255,0.1);
-                            border-radius: 12px; 
-                            padding: 15px; 
-                            margin-bottom: 12px;
-                        '>
-                    """, unsafe_allow_html=True)
+                    # Definir Escudos (Fallback seguro)
+                    e_l = row['escudo_l'] if row['escudo_l'] else PLACEHOLDER_ESCUDO
+                    e_v = row['escudo_v'] if row['escudo_v'] else PLACEHOLDER_ESCUDO
+
+                    # LLAMADA A TU FUNCIÓN VISUAL
+                    card_html = renderizar_tarjeta_partido(
+                        local=row['local'],
+                        visita=row['visitante'],
+                        escudo_l=e_l,
+                        escudo_v=e_v,
+                        marcador_texto=txt,
+                        color_tema=t_color
+                    )
                     
-                    c1, c2, c3 = st.columns([2, 1, 2], vertical_alignment="center")
-                    
-                    # LOCAL
-                    with c1:
-                        col_txt, col_img = st.columns([3, 1])
-                        with col_txt: 
-                            st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:15px; line-height:1.1'>{row['local']}</div>", unsafe_allow_html=True)
-                        with col_img:
-                            if row['escudo_l']: st.image(row['escudo_l'], width=40)
-                    
-                    # MARCADOR CENTRAL
-                    with c2:
-                        if row['estado'] == 'Finalizado':
-                            marcador_html = f"""
-                                <div style='display:flex; justify-content:center; align-items:center; gap:8px; font-family:Oswald; font-size:24px;'>
-                                    <span style='color:{color_l}; font-weight:{weight_l}'>{int(row['goles_l'])}</span>
-                                    <span style='color:#666; font-size:14px;'>-</span>
-                                    <span style='color:{color_v}; font-weight:{weight_v}'>{int(row['goles_v'])}</span>
-                                </div>
-                                <div style='text-align:center; font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1px;'>Final</div>
-                            """
-                        else:
-                            marcador_html = f"""
-                                <div style='text-align:center; font-size:24px; color:#444; font-weight:bold;'>VS</div>
-                                <div style='text-align:center; font-size:10px; color:{t_color};'>Por Jugar</div>
-                            """
-                        st.markdown(marcador_html, unsafe_allow_html=True)
-
-                    # VISITANTE
-                    with c3:
-                        col_img, col_txt = st.columns([1, 3])
-                        with col_img:
-                            if row['escudo_v']: st.image(row['escudo_v'], width=40)
-                        with col_txt:
-                            st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:15px; line-height:1.1'>{row['visitante']}</div>", unsafe_allow_html=True)
-
-                    st.markdown("</div>", unsafe_allow_html=True)
-
+                    st.markdown(card_html, unsafe_allow_html=True)
+        
         idx_tab += 1
+        
 
 
 
@@ -775,9 +714,95 @@ def generar_calendario(id_torneo):
         return False
 
 
+  # =========================================================
+         ESTETICA DE PARTIDOS - RENDERIZAR 
+ # =========================================================
 
+def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema):
+    """
+    Genera el HTML de una tarjeta de partido con estilo Gamer/Elegante.
+    Detecta si hay ganador para iluminar el borde.
+    """
+    # 1. Configuración de Estilo por defecto
+    border_color = "rgba(255,255,255,0.1)" # Borde sutil
+    box_shadow = "none"
+    bg_gradient = "linear-gradient(180deg, rgba(35,35,45,0.95) 0%, rgba(15,15,20,0.98) 100%)"
+    
+    # 2. Lógica de "Brillo de Ganador"
+    # Si el marcador es numérico (ej: "3 - 1"), analizamos quién ganó
+    try:
+        if "-" in marcador_texto and marcador_texto != "VS":
+            parts = marcador_texto.split('-')
+            g_l = int(parts[0])
+            g_v = int(parts[1])
+            
+            # Si hay un resultado definido (no empate 0-0 sin jugar), damos brillo
+            if g_l != g_v or (g_l == g_v and g_l > -1): 
+                border_color = color_tema
+                box_shadow = f"0 0 8px {color_tema}40" # Brillo con transparencia
+    except:
+        pass
 
+    # 3. Construcción del HTML
+    html_code = f"""
+    <div style="
+        position: relative;
+        background: {bg_gradient};
+        border-radius: 12px;
+        border: 1px solid {border_color};
+        box-shadow: {box_shadow};
+        padding: 15px 10px;
+        margin-bottom: 12px;
+        overflow: hidden;
+        font-family: 'Oswald', sans-serif;
+    ">
+        <div style="display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1;">
+            
+            <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
+                <span style="
+                    font-weight: 600; 
+                    font-size: 15px; 
+                    color: #fff; 
+                    text-align: right; 
+                    line-height: 1.1;
+                    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                ">{local}</span>
+                <img src="{escudo_l}" style="width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));">
+            </div>
 
+            <div style="width: 90px; text-align: center;">
+                <div style="
+                    font-size: 24px; 
+                    font-weight: 700; 
+                    color: #fff; 
+                    letter-spacing: 1px;
+                    background: rgba(0,0,0,0.3);
+                    border-radius: 6px;
+                    padding: 2px 0;
+                    margin: 0 5px;
+                ">
+                    {marcador_texto}
+                </div>
+            </div>
+
+            <div style="flex: 1; display: flex; align-items: center; justify-content: flex-start; gap: 10px;">
+                <img src="{escudo_v}" style="width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));">
+                <span style="
+                    font-weight: 600; 
+                    font-size: 15px; 
+                    color: #fff; 
+                    text-align: left;
+                    line-height: 1.1;
+                    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                ">{visita}</span>
+            </div>
+            
+        </div>
+    </div>
+    """
+    return html_code
+
+    
 
 
         
@@ -1636,6 +1661,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
