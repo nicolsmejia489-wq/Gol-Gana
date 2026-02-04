@@ -826,7 +826,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     URL_FUENTE_OSWALD = "https://github.com/google/fonts/raw/main/ofl/oswald/Oswald-Bold.ttf"
 
     # 👉 TANTEA AQUÍ: TAMAÑOS DE LETRA (Oswald es una fuente "alta", quizás requiera menos tamaño)
-    SIZE_EQUIPO = 28    # Nombres de clubes
+    SIZE_EQUIPO = 280    # Nombres de clubes
     SIZE_MARCADOR = 50  # Goles
     SIZE_VS = 40        # Letras VS
 
@@ -1861,6 +1861,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
