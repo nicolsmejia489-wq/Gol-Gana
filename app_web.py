@@ -1410,9 +1410,9 @@ def render_torneo(id_torneo):
             # 0. VARIABLES DE TANTEO ESTÉTICO (AJUSTA EL ANCHO AQUÍ)
             # ------------------------------------------------------------
             T_ALTO_BTN = "36px"      # Altura (px)
-            T_ANCHO_BTN = "85%"      # 👉 TANTEA AQUÍ: 100% = Ancho total, 70% = Más delgados
-            T_FONT_BTN = "11px"      # Tamaño letra
-            T_GAP_COL = "2px"        # Espacio entre columnas
+            T_ANCHO_BTN = "50%"      # 👉 TANTEA AQUÍ: 100% = Ancho total, 70% = Más delgados
+            T_FONT_BTN = "10px"      # Tamaño letra
+            T_GAP_COL = "0px"        # Espacio entre columnas
 
             st.markdown(f"""
                 <style>
@@ -1978,6 +1978,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
