@@ -693,87 +693,12 @@ def generar_calendario(id_torneo):
         return False
 
 
-  # =========================================================
-       ##  ESTETICA DE PARTIDOS - RENDERIZAR 
- # =========================================================
 
-def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
-    """
-    Genera el HTML de la tarjeta con estilo Gamer/Elegante y Fondo Texturizado.
-    """
-    # 1. Configuración de Bordes y Brillo (Lógica de Ganador)
-    border_style = f"1px solid rgba(255,255,255,0.1)"
-    box_shadow = "none"
-    
-    # Detectar ganador para iluminar borde
-    try:
-        if "-" in marcador_texto and marcador_texto != "VS":
-            parts = marcador_texto.split('-')
-            g_l = int(parts[0])
-            g_v = int(parts[1])
-            if g_l != g_v or (g_l == g_v and g_l > -1): 
-                border_style = f"1px solid {color_tema}"
-                box_shadow = f"0 0 10px {color_tema}40" # Glow
-    except:
-        pass
-
-    # 2. Manejo de Escudos (Imagen vs Emoji)
-    def render_img(url):
-        if url and len(str(url)) > 5: # Si hay URL válida
-            return f'<img src="{url}" style="width: 45px; height: 45px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));">'
-        else: # Si es None o vacío -> Emoji
-            return '<span style="font-size:30px; line-height:1;">🛡️</span>'
-
-    html_l = render_img(escudo_l)
-    html_v = render_img(escudo_v)
-
-    # 3. HTML (Estructura idéntica a la que funcionaba)
-    html_code = f"""
-    <div style="
-        position: relative;
-        background: linear-gradient(180deg, rgba(30,30,35,0.95) 0%, rgba(15,15,20,0.98) 100%);
-        border-radius: 12px;
-        border: {border_style};
-        box-shadow: {box_shadow};
-        padding: 15px;
-        margin-bottom: 12px;
-        overflow: hidden;
-        font-family: 'Oswald', sans-serif;
-    ">
-        <div style="
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background-image: url('{url_fondo}'); 
-            background-size: cover; opacity: 0.05; pointer-events: none; z-index: 0;
-        "></div>
-
-        <div style="display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1;">
-            
-            <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
-                <span style="font-weight: 600; font-size: 15px; color: #fff; text-align: right; line-height: 1.1; text-shadow: 1px 1px 2px black;">{local}</span>
-                {html_l}
-            </div>
-
-            <div style="width: 90px; text-align: center;">
-                <div style="
-                    font-size: 24px; font-weight: 700; color: #fff; letter-spacing: 1px;
-                    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 2px 0; margin: 0 5px;
-                ">
-                    {marcador_texto}
-                </div>
-            </div>
-
-            <div style="flex: 1; display: flex; align-items: center; justify-content: flex-start; gap: 10px;">
-                {html_v}
-                <span style="font-weight: 600; font-size: 15px; color: #fff; text-align: left; line-height: 1.1; text-shadow: 1px 1px 2px black;">{visita}</span>
-            </div>
-            
-        </div>
-    </div>
-    """
-    return html_code
     
 
-
+' # ---------------------------------------------------------
+    ##EN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
+    # ---------------------------------------------------------
 
 @st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, color_tema):
@@ -964,7 +889,7 @@ def render_torneo(id_torneo):
         
         # BOTÓN SALIR (Arriba a la derecha para consistencia)
         c_vacio, c_salir = st.columns([6, 1])
-        if c_salir.button("🔴 Salir", key="btn_salir_admin", use_container_width=True):
+        if c_salir.button("🔴 Cerrar Sesión de Admin", key="btn_salir_admin", use_container_width=True):
             st.session_state.clear(); st.rerun()
 
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
@@ -1184,18 +1109,46 @@ def render_torneo(id_torneo):
             with sub_tabs[2]:
                 st.subheader("Ajustes del Torneo")
                 
-                # Color
+                # --- IDENTIDAD (Color y Escudo) ---
                 st.markdown("##### 🎨 Identidad")
                 c_col1, c_col2 = st.columns([1, 2])
+                
+                # 1. Color Principal
                 new_color = c_col1.color_picker("Color Principal", value=t_color)
                 if c_col2.button("Aplicar Color"):
                     with conn.connect() as db:
                         db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), {"c": new_color, "id": id_torneo})
-                        db.commit(); st.rerun()
+                        db.commit()
+                    st.success("Color actualizado")
+                    time.sleep(1); st.rerun()
+
+                # 2. Escudo del Torneo (Default)
+                st.write("")
+                st.markdown("###### 🛡️ Escudo Oficial del Torneo")
+                st.caption("Este escudo se usará por defecto para los equipos que no tengan uno propio.")
                 
+                # Reutilizamos tu lógica de subir_imagen_cloudinary con limpieza de fondo
+                archivo_escudo = st.file_uploader("Subir nuevo escudo", type=['png', 'jpg', 'jpeg'], key="up_escudo_torneo")
+                
+                if archivo_escudo:
+                    if st.button("🚀 Cargar y Limpiar Escudo", use_container_width=True):
+                        with st.spinner("Procesando imagen y eliminando fondo..."):
+                            # Usamos la misma función que usas para los equipos
+                            url_cloudinary = subir_imagen_cloudinary(archivo_escudo, eliminar_fondo=True)
+                            
+                            if url_cloudinary:
+                                with conn.connect() as db:
+                                    db.execute(text("UPDATE torneos SET escudo = :esc WHERE id = :id"), 
+                                               {"esc": url_cloudinary, "id": id_torneo})
+                                    db.commit()
+                                st.success("¡Escudo del torneo actualizado con éxito!")
+                                time.sleep(1.5); st.rerun()
+                            else:
+                                st.error("Error al procesar la imagen. Intenta de nuevo.")
+
                 st.divider()
 
-                # Control de Fases
+                # --- CONTROL DE FASES ---
                 st.markdown(f"##### 🚀 Fase Actual: `{t_fase.upper()}`")
                 
                 if t_fase == "inscripcion":
@@ -1204,30 +1157,25 @@ def render_torneo(id_torneo):
                     
                     if st.session_state.get("confirmar_inicio"):
                         st.markdown("---")
-                        
-                        # Contamos equipos
                         with conn.connect() as db:
                             cant = db.execute(text("SELECT COUNT(*) FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).scalar()
                         
                         mostrar_bot(f"¿Estás seguro, Presi? Tienes **{cant} equipos aprobados**. Al confirmar, generaré el calendario automáticamente.")
                         
                         col_si, col_no = st.columns(2)
-                        
-                        # --- BOTÓN DE INICIO (Sin Globos) ---
                         if col_si.button("✅ Sí, ¡A rodar el balón!", use_container_width=True):
                             with st.spinner("Sorteando partidos y generando cruces..."):
                                 exito = generar_calendario(id_torneo)
                                 if exito:
                                     del st.session_state.confirmar_inicio
                                     st.toast("🏆 ¡Torneo Iniciado con éxito!")
-                                    time.sleep(1.5)
-                                    st.rerun()
+                                    time.sleep(1.5); st.rerun()
                         
                         if col_no.button("❌ Cancelar", use_container_width=True):
                             del st.session_state.confirmar_inicio
                             st.rerun()
                 else:
-                    mostrar_bot("🏆 **Torneo en curso.** Los equipos están jugando por la gloria. Tú tienes el control del silbato.")
+                    mostrar_bot("🏆 **Torneo en curso.** Los equipos están jugando por la gloria.")
 
 
 
@@ -1793,6 +1741,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
