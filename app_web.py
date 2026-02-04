@@ -472,7 +472,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
     # 1. PARÁMETROS DE INGENIERÍA ESTÉTICA (TANTEA AQUÍ)
     # ------------------------------------------------------------
     # 👉 ESPACIO ENTRE TARJETAS DE PARTIDOS
-    MT_PARTIDOS = "-28px"      # Más negativo = más pegadas las tarjetas del fixture
+    MT_PARTIDOS = "-35px"      # Más negativo = más pegadas las tarjetas del fixture
 
     # 👉 ESTRUCTURA DE LA TABLA (Clasificación)
     T_ALTO_FILA = "32px"       # Altura fija de cada registro (Garantiza regularidad)
@@ -613,7 +613,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
 
                 # HTML Tabla con Columnas Alineadas
-                html = f'<table class="tabla-pro"><thead><tr><th>#</th><th style="text-align:left; padding-left:10px;">EQUIPO</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
+                html = f'<table class="tabla-pro"><thead><tr><th>#</th><th style="text-align:left; padding-left:20px;">EQUIPO</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
                 for _, r in df_f.iterrows():
                     esc_url = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
                     
@@ -1866,6 +1866,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
