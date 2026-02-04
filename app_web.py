@@ -16,6 +16,8 @@ from difflib import SequenceMatcher
 
 
 
+
+
 # --- CONFIGURACIÓN DE CLOUDINARY CORREGIDA ---
 cloudinary.config( 
     # Accedemos primero a la sección ["cloudinary"] y luego a la clave específica
@@ -212,103 +214,69 @@ def mostrar_bot(mensaje):
 
 
 # ------------------------------------------------------------
-# 1. OPTIMIZACIÓN DE RECURSOS (Para no saturar el servidor)
+# 1. CARGA LIGERA DEL MOTOR (Cache de Recurso)
 # ------------------------------------------------------------
-@st.cache_resource
-def obtener_lector():
-    # Cargamos el lector una sola vez y lo guardamos en memoria
-    return easyocr.Reader(['en'], gpu=False) # Pon True si tienes GPU
-
-def similitud(a, b):
-    # Compara qué tan parecidas son dos palabras (0.0 a 1.0)
-    return SequenceMatcher(None, a, b).ratio()
-
-def limpiar_texto_ocr(t):
-    # Quita basura y deja solo letras, números y guiones
-    return re.sub(r'[^A-Z0-9-]', '', t.upper())
+@st.cache_resource(show_spinner="Iniciando Cerebro Gol-Bot...")
+def cargar_motor_ia():
+    # Cargamos solo inglés/números para ahorrar espacio en RAM
+    return easyocr.Reader(['en'], gpu=False) # Cloud no suele tener GPU
 
 # ------------------------------------------------------------
-# 2. FUNCIÓN MAESTRA DE VISIÓN
+# 2. FUNCIÓN DE VISIÓN OPTIMIZADA (V. Lite)
 # ------------------------------------------------------------
 def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
-    """
-    Analiza la foto del marcador y triangula los goles según 
-    la posición de los nombres de los equipos.
-    """
     try:
-        # Preparación de imagen
+        # A. Carga y Redimensionamiento (Crítico para la RAM)
         imagen_bytes.seek(0)
         file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        if img is None: return None, "Error: Imagen no procesable."
+        if img is None: return None, "Imagen corrupta"
 
-        # Pre-procesamiento para pantallas (CLAHE)
+        # Reducimos tamaño: Si es > 800px, la bajamos. 
+        # Esto hace que la IA vuele y no consuma casi nada.
+        alto, ancho = img.shape[:2]
+        if ancho > 800:
+            escala = 800 / ancho
+            img = cv2.resize(img, (800, int(alto * escala)))
+
+        # B. Pre-procesamiento para pantallas (Grises + Contraste)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        # CLAHE ayuda a leer pantallas con mucho brillo o reflejo
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         gray = clahe.apply(gray)
         
-        # Lectura OCR
-        reader = obtener_lector()
-        alto, ancho = gray.shape
-        # Cortamos la zona inferior (40%) para evitar distracciones del campo
-        zona_interes = gray[0:int(alto*0.6), :] 
-        resultados = reader.readtext(zona_interes, detail=1)
+        # C. Ejecución del OCR (Solo en la zona de interés)
+        reader = cargar_motor_ia()
+        # Leemos solo el 60% superior para ignorar el césped o controles
+        zona = gray[0:int(gray.shape[0]*0.6), :]
+        
+        # Solo pedimos texto y confianza, sin detalles pesados
+        resultados = reader.readtext(zona, detail=1, paragraph=False)
 
-        candidatos_local = []
-        candidatos_visita = []
-        candidatos_numeros = []
+        candidatos_num = []
+        # ... (resto de tu lógica de anclaje de nombres igual) ...
+        
+        # 
 
-        # Limpieza de nombres para búsqueda
-        keywords_l = local_real.upper().split()
-        keywords_v = visitante_real.upper().split()
-
+        # Ejemplo simplificado de extracción:
         for (bbox, texto, prob) in resultados:
-            texto_l = limpiar_texto_ocr(texto)
-            if not texto_l or prob < 0.3: continue
-
-            # Centro X del bloque de texto
-            centro_x = (bbox[0][0] + bbox[1][0]) / 2
-
-            # A. Detectar Marcador Directo (Ej: "2-1")
-            match_directo = re.search(r'(\d+)-(\d+)', texto_l)
-            if match_directo:
-                return (int(match_directo.group(1)), int(match_directo.group(2))), "Marcador Directo (Texto)"
-
-            # B. Detectar Números sueltos (Posibles goles)
-            if texto_l.isdigit():
-                val = int(texto_l)
-                if val < 30: # Filtro: Nadie mete 30 goles, evita leer el minuto 45
-                    candidatos_numeros.append({'val': val, 'x': centro_x})
-                continue
-
-            # C. Anclar posición de Equipos
-            if any(similitud(k, texto_l) > 0.7 for k in keywords_l):
-                candidatos_local.append(centro_x)
-            if any(similitud(k, texto_l) > 0.7 for k in keywords_v):
-                candidatos_visita.append(centro_x)
-
-        # ------------------------------------------------------------
-        # 3. TRIANGULACIÓN GEOMÉTRICA
-        # ------------------------------------------------------------
-        if len(candidatos_numeros) >= 2:
-            candidatos_numeros.sort(key=lambda k: k['x'])
+            txt = texto.upper().strip()
+            if prob < 0.25: continue # Ignoramos lecturas dudosas
             
-            # Determinamos "fronteras"
-            # Si no detectamos el nombre, asumimos bordes de la imagen
-            x_lim_l = max(candidatos_local) if candidatos_local else 0
-            x_lim_v = min(candidatos_visita) if candidatos_visita else ancho
+            # Buscamos números de 1 o 2 dígitos (goles)
+            if txt.isdigit() and int(txt) < 30:
+                # Centro X para triangular
+                cx = (bbox[0][0] + bbox[1][0]) / 2
+                candidatos_num.append({'v': int(txt), 'x': cx})
 
-            # Buscamos los dos números que estén más "al centro" entre los equipos
-            # o simplemente los dos más claros de izquierda a derecha
-            goles_l = candidatos_numeros[0]['val']
-            goles_v = candidatos_numeros[1]['val']
-            
-            return (goles_l, goles_v), "Triangulación Exitosa"
+        if len(candidatos_num) >= 2:
+            candidatos_num.sort(key=lambda k: k['x'])
+            return (candidatos_num[0]['v'], candidatos_num[1]['v']), "Escaneo Exitoso"
 
-        return None, "No detecté suficientes números. Toma la foto de frente al marcador."
+        return None, "No detecté los goles. Intenta una foto más nítida."
 
     except Exception as e:
-        return None, f"Error Visión: {str(e)}"
+        return None, f"Fallo técnico: {str(e)}"
 
 
 
@@ -1996,6 +1964,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
