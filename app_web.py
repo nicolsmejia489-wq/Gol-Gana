@@ -779,41 +779,57 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 @st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     """
-    Genera la tarjeta usando la PLANTILLA "VS" METÁLICA como base.
+    Genera la tarjeta usando una plantilla base y FUENTES DESCARGADAS.
     """
-    # URL DE TU PLANTILLA (¡PON AQUÍ EL LINK REAL DE LA IMAGEN QUE SUBISTE!)
-    # Si no tienes link aun, usa este placeholder temporal o sube la tuya
-    URL_PLANTILLA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" # <--- CAMBIA ESTO
+    # ---------------------------------------------------------
+    # 1. CARGA DE RECURSOS (PLANTILLA + FUENTE)
+    # ---------------------------------------------------------
+    
+    # URL DE TU PLANTILLA (La barra metálica o diseño que subiste)
+    URL_PLANTILLA = "https://res.cloudinary.com/..." # <--- ¡PON TU URL AQUÍ!
 
-    # 1. Cargar la Plantilla Base
+    # URL DE LA FUENTE (Usamos Oswald Bold directamente de Google Fonts)
+    URL_FUENTE = "https://github.com/google/fonts/raw/main/ofl/oswald/Oswald-Bold.ttf"
+
     try:
-        response = requests.get(URL_PLANTILLA, timeout=3)
-        img = Image.open(BytesIO(response.content)).convert("RGBA")
-    except:
-        # Fallback si falla la carga: Crea un fondo negro
-        img = Image.new('RGBA', (800, 150), (20, 20, 30, 255))
+        # A. Cargar Imagen de Fondo
+        resp_img = requests.get(URL_PLANTILLA, timeout=3)
+        img = Image.open(BytesIO(resp_img.content)).convert("RGBA")
+        
+        # B. Cargar Fuente Tipográfica
+        resp_font = requests.get(URL_FUENTE, timeout=3)
+        font_bytes = BytesIO(resp_font.content)
+        
+        # DEFINIMOS TAMAÑOS A NUESTRO GUSTO:
+        # Aquí es donde ganas el control total. Sube o baja estos números.
+        SIZE_EQUIPOS = 42  
+        SIZE_MARCADOR = 60 
+        
+        font_team = ImageFont.truetype(font_bytes, SIZE_EQUIPOS)
+        
+        # Necesitamos volver a leer el byte stream para cargarla de nuevo con otro tamaño
+        font_bytes.seek(0) 
+        font_score = ImageFont.truetype(font_bytes, SIZE_MARCADOR)
+        
+    except Exception as e:
+        # Fallback de emergencia (Fondo negro y fuente default)
+        img = Image.new('RGBA', (800, 140), (20, 20, 30, 255))
+        font_team = ImageFont.load_default()
+        font_score = ImageFont.load_default()
 
-    # Redimensionamos la plantilla a un tamaño estándar para calcular bien las coordenadas
+    # Redimensionamos lienzo
     W, H = 800, 140
     img = img.resize((W, H))
     draw = ImageDraw.Draw(img)
 
-    # 2. Configurar Fuentes (Grandes y Claras)
-    # Intenta usar una fuente Bold si la tienes, si no, usa default
-    try:
-        font_team = ImageFont.truetype("arialbd.ttf", 35) # Arial Bold
-        font_score = ImageFont.truetype("arialbd.ttf", 50) # Score Gigante
-    except:
-        font_team = ImageFont.load_default()
-        font_score = ImageFont.load_default()
-
-    # 3. Procesar Escudos
+    # ---------------------------------------------------------
+    # 2. PROCESAR ESCUDOS (Tu lógica intacta)
+    # ---------------------------------------------------------
     def procesar_logo(url):
         try:
             if not url: return None
             resp = requests.get(url, timeout=2)
             im = Image.open(BytesIO(resp.content)).convert("RGBA")
-            # Los círculos de la plantilla parecen de unos 90-100px
             im.thumbnail((90, 90), Image.Resampling.LANCZOS)
             return im
         except: return None
@@ -821,61 +837,58 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     esc_l = procesar_logo(url_escudo_l)
     esc_v = procesar_logo(url_escudo_v)
 
-    # 4. Posicionamiento (Ajustado a tu imagen metálica)
-    # Basado en la imagen: Círculos en los extremos, Nombres en las barras grises
+    # ---------------------------------------------------------
+    # 3. PINTAR (Posiciones ajustadas a tu gusto)
+    # ---------------------------------------------------------
     
     # --- ESCUDOS ---
-    # Círculo Izquierdo (aprox 30px del borde)
     if esc_l:
-        # Centramos el escudo en el círculo izquierdo
-        pos_x = 35 
         pos_y = (H - esc_l.height) // 2 
-        img.paste(esc_l, (pos_x, pos_y), esc_l)
+        img.paste(esc_l, (35, pos_y), esc_l) # 35px del borde izq
 
-    # Círculo Derecho (aprox 30px del borde derecho)
     if esc_v:
-        pos_x = W - 35 - esc_v.width
         pos_y = (H - esc_v.height) // 2
-        img.paste(esc_v, (pos_x, pos_y), esc_v)
+        img.paste(esc_v, (W - 35 - esc_v.width, pos_y), esc_v) # 35px del borde der
 
-    # --- TEXTOS (NOMBRES) ---
-    color_texto = (255, 255, 255) # Blanco
-    # Sombra negra para legibilidad
+    # --- NOMBRES DE EQUIPOS ---
+    # Color Blanco y Sombra Negra
+    color_texto = (255, 255, 255)
     color_sombra = (0, 0, 0)
-
-    # Nombre Local (Centrado en la barra izquierda)
-    # Coordenadas aprox: Entre el escudo (130px) y el VS central (380px)
-    w_text_l = draw.textlength(local[:12], font=font_team)
-    x_text_l = 140 + (240 - w_text_l) / 2  # Centrado en su caja
     
-    draw.text((x_text_l+2, 52), local[:12], font=font_team, fill=color_sombra) # Sombra
-    draw.text((x_text_l, 50), local[:12], font=font_team, fill=color_texto)
+    # Ajuste vertical para bajar un poco el texto si queda muy arriba
+    OFFSET_Y_TEXTO = 48 
 
-    # Nombre Visitante (Centrado en la barra derecha)
-    # Coordenadas aprox: Entre el VS (420px) y el escudo derecho (670px)
-    w_text_v = draw.textlength(visita[:12], font=font_team)
-    x_text_v = 420 + (240 - w_text_v) / 2
+    # LOCAL (Centrado en su zona izquierda)
+    # Zona de texto: Desde pixel 130 hasta 380 (aprox 250px de ancho)
+    w_text_l = draw.textlength(local[:14], font=font_team) # Limitamos a 14 letras
+    x_text_l = 135 + (250 - w_text_l) // 2 
+    
+    draw.text((x_text_l+2, OFFSET_Y_TEXTO+2), local[:14], font=font_team, fill=color_sombra) # Sombra
+    draw.text((x_text_l, OFFSET_Y_TEXTO), local[:14], font=font_team, fill=color_texto)
 
-    draw.text((x_text_v+2, 52), visita[:12], font=font_team, fill=color_sombra) # Sombra
-    draw.text((x_text_v, 50), visita[:12], font=font_team, fill=color_texto)
+    # VISITANTE (Centrado en su zona derecha)
+    # Zona de texto: Desde pixel 415 hasta 665
+    w_text_v = draw.textlength(visita[:14], font=font_team)
+    x_text_v = 415 + (250 - w_text_v) // 2
 
-    # --- MARCADOR (Sobre el VS Metálico) ---
-    # Si hay marcador (no es VS), dibujamos un parche oscuro encima del logo "VS" 
-    # para que se lean los números
+    draw.text((x_text_v+2, OFFSET_Y_TEXTO+2), visita[:14], font=font_team, fill=color_sombra) # Sombra
+    draw.text((x_text_v, OFFSET_Y_TEXTO), visita[:14], font=font_team, fill=color_texto)
+
+    # --- MARCADOR ---
     if "-" in marcador:
-        # Dibujar caja semitransparente sobre el logo VS central
-        # El centro es 400. Caja de 350 a 450
+        # Parche oscuro (Overlay)
         overlay = Image.new('RGBA', img.size, (0,0,0,0))
         draw_ov = ImageDraw.Draw(overlay)
-        # Caja negra al 80% de opacidad sobre el VS
-        draw_ov.rectangle([340, 30, 460, 110], fill=(0, 0, 0, 200)) 
+        # Caja negra translúcida (ajustar opacidad con el último número: 200)
+        draw_ov.rectangle([350, 25, 450, 115], fill=(0, 0, 0, 180)) 
         img = Image.alpha_composite(img, overlay)
-        draw = ImageDraw.Draw(img) # Reiniciar draw sobre la nueva imagen compuesta
+        draw = ImageDraw.Draw(img) # Reiniciar pincel
 
-        # Escribir marcador dorado
+        # Texto Marcador
         bbox = draw.textbbox((0, 0), marcador, font=font_score)
         w_score = bbox[2] - bbox[0]
-        draw.text(((W - w_score)/2, 40), marcador, font=font_score, fill=(255, 215, 0))
+        # Centrado perfecto horizontalmente (W/2) y verticalmente (aprox 35px)
+        draw.text(((W - w_score)/2, 35), marcador, font=font_score, fill=(255, 215, 0))
 
     return img
 ##FIN PROVISIONAL
@@ -1768,6 +1781,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
