@@ -1404,48 +1404,48 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN DE PRECISIÓN MÓVIL
+# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN DIMENSIONADA
         with tabs[1]:
             # ------------------------------------------------------------
-            # 0. VARIABLES DE TANTEO ESTÉTICO (AJUSTA AQUÍ)
+            # 0. VARIABLES DE TANTEO ESTÉTICO (AJUSTA EL ANCHO AQUÍ)
             # ------------------------------------------------------------
-            T_ALTO_BTN = "25px"      # Altura de los botones
-            T_FONT_BTN = "8px"      # Tamaño de letra (Para que quepa el texto largo)
-            T_GAP_COL = "5px"        # Espacio entre botones
-            
-            # ------------------------------------------------------------
-            # 1. CSS PARA FORZAR FILA ÚNICA Y TAMAÑOS
-            # ------------------------------------------------------------
+            T_ALTO_BTN = "36px"      # Altura (px)
+            T_ANCHO_BTN = "85%"      # 👉 TANTEA AQUÍ: 100% = Ancho total, 70% = Más delgados
+            T_FONT_BTN = "11px"      # Tamaño letra
+            T_GAP_COL = "2px"        # Espacio entre columnas
+
             st.markdown(f"""
                 <style>
-                /* Forzamos que el bloque de columnas no se rompa en móvil */
+                /* 1. CONTENEDOR DE COLUMNAS (FUERZA HORIZONTAL) */
                 [data-testid="stHorizontalBlock"] {{
                     display: flex !important;
                     flex-direction: row !important;
                     flex-wrap: nowrap !important;
                     gap: {T_GAP_COL} !important;
-                    align-items: center !important;
+                    justify-content: center !important; /* Centra el bloque de botones */
                 }}
 
-                /* Forzamos que cada columna ocupe el 50% exacto */
+                /* 2. COLUMNAS AL 50% */
                 [data-testid="column"] {{
                     width: 50% !important;
                     flex: 1 1 50% !important;
                     min-width: 0px !important;
+                    display: flex !important;
+                    justify-content: center !important; /* Centra el botón dentro de la columna */
                 }}
 
-                /* Estilizamos los botones: Altura, fuente y recorte de texto si no cabe */
+                /* 3. BOTÓN CON ANCHO PERSONALIZADO */
                 .stButton button, .stLinkButton a {{
                     height: {T_ALTO_BTN} !important;
-                    padding: 0px 2px !important;
+                    width: {T_ANCHO_BTN} !important; /* 👉 AQUÍ SE RECORTA EL TAMAÑO HORIZONTAL */
                     font-size: {T_FONT_BTN} !important;
+                    padding: 0px !important;
                     display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    text-align: center !important;
+                    margin: 0 auto !important; /* Asegura centrado horizontal */
                     white-space: nowrap !important;
-                    overflow: hidden !important;
-                    text-overflow: ellipsis !important; /* Pone "..." si el texto es muy largo */
+                    text-overflow: ellipsis !important;
                 }}
                 </style>
             """, unsafe_allow_html=True)
@@ -1473,42 +1473,37 @@ def render_torneo(id_torneo):
                         mis = pd.read_sql_query(q_mis, db, params={"idt": id_torneo, "my_id": st.session_state.id_equipo})
                     
                     if mis.empty:
-                        st.info("No tienes partidos asignados en este torneo.")
+                        st.info("No tienes partidos asignados.")
                     
                     ultima_jornada = -1
 
                     for _, p in mis.iterrows():
-                        # Separador de Jornada
                         if p['jornada'] != ultima_jornada:
                             st.markdown(f"##### 📍 Jornada {p['jornada']}")
                             ultima_jornada = p['jornada']
 
-                        # Datos del partido
                         es_local = (p['local_id'] == st.session_state.id_equipo)
                         rival_pref = p['pref_v'] if es_local else p['pref_l']
                         rival_cel = p['cel_v'] if es_local else p['cel_l']
                         txt_score = f"{int(p['goles_l'])}-{int(p['goles_v'])}" if p['estado'] == 'Finalizado' else "VS"
 
-                        # Renderizado de Tarjeta Imagen
                         st.image(generar_tarjeta_imagen(
                             p['nombre_local'], p['nombre_visitante'],
                             p['escudo_l'], p['escudo_v'],
                             txt_score, t_color
                         ), use_container_width=True)
 
-                        # --- FILA DE ACCIONES (FORZADA A FILA) ---
-                        col_wa, col_acc = st.columns(2)
+                        # --- BOTONERA ---
+                        c1, c2 = st.columns(2)
                         
-                        # 1. Contactar DT Rival
-                        with col_wa:
+                        with c1:
                             if rival_pref and rival_cel:
                                 num_wa = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
                                 st.link_button("📞 Contactar DT Rival", f"https://wa.me/{num_wa}", use_container_width=True)
                             else:
-                                st.button("🚫 Sin Contacto", disabled=True, use_container_width=True)
+                                st.button("🚫 Sin contacto", disabled=True, use_container_width=True)
 
-                        # 2. Subir Resultado / Reclamar
-                        with col_acc:
+                        with c2:
                             if p['estado'] == 'Finalizado':
                                 if st.button("🚩 Reclamar", key=f"rec_{p['id']}", use_container_width=True):
                                     with conn.connect() as db:
@@ -1518,44 +1513,36 @@ def render_torneo(id_torneo):
                             elif p['estado'] == 'Revision':
                                 st.button("⚠️ En Revisión", disabled=True, use_container_width=True)
                             else:
-                                # Botón que activa el área de subida
                                 if st.button("📸 Subir Resultado", key=f"btn_up_{p['id']}", type="primary", use_container_width=True):
                                     st.session_state[f"active_up_{p['id']}"] = True
 
-                        # --- ÁREA DE SUBIDA (CONTENEDOR DE ESTADO) ---
+                        # --- ÁREA DE CARGA ---
                         if st.session_state.get(f"active_up_{p['id']}"):
                             with st.container(border=True):
                                 st.markdown("##### 🏁 Reportar Marcador")
-                                st.caption("Sube la foto del marcador para que la IA procese el resultado.")
-                                
-                                foto = st.file_uploader("Evidencia (Foto)", type=['jpg','png','jpeg'], key=f"f_up_{p['id']}")
+                                foto = st.file_uploader("Evidencia", type=['jpg','png','jpeg'], key=f"f_up_{p['id']}")
                                 
                                 c_can, c_scan = st.columns(2)
                                 if c_can.button("Cancelar", key=f"can_{p['id']}", use_container_width=True):
-                                    del st.session_state[f"active_up_{p['id']}"]
-                                    st.rerun()
+                                    del st.session_state[f"active_up_{p['id']}"]; st.rerun()
                                 
                                 if foto and c_scan.button("Escanear", key=f"go_{p['id']}", type="primary", use_container_width=True):
-                                    with st.spinner("IA procesando..."):
+                                    with st.spinner("Leyendo marcador..."):
                                         res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
                                         if res_ia:
                                             gl, gv = res_ia
                                             with conn.connect() as db:
-                                                db.execute(text("""
-                                                    UPDATE partidos 
-                                                    SET goles_l=:gl, goles_v=:gv, estado='Finalizado', metodo_registro='IA' 
-                                                    WHERE id=:id
-                                                """), {"gl": gl, "gv": gv, "id": p['id']})
+                                                db.execute(text("UPDATE partidos SET goles_l=:gl, goles_v=:gv, estado='Finalizado', metodo_registro='IA' WHERE id=:id"),
+                                                           {"gl": gl, "gv": gv, "id": p['id']})
                                                 db.commit()
-                                            st.success(f"Detectado: {gl}-{gv}")
-                                            time.sleep(1); st.rerun()
+                                            st.success(f"Detectado: {gl}-{gv}"); time.sleep(1); st.rerun()
                                         else:
                                             st.error(msg_ia)
 
-                        st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True) # Espacio entre tarjetas
+                        st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True)
 
                 except Exception as e:
-                    st.error(f"Error en Calendario: {e}")
+                    st.error(f"Error: {e}")
         
 
                     
@@ -1991,6 +1978,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
