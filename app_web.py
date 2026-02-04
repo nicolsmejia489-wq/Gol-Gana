@@ -1112,7 +1112,7 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-       # 2. CALENDARIO Y GESTIÓN (DT)
+        # 2. CALENDARIO Y GESTIÓN (DT)
         with tabs[1]:
             # A. Si estamos en inscripción, mensaje de espera
             if t_fase == "inscripcion":
@@ -1122,14 +1122,11 @@ def render_torneo(id_torneo):
             # B. Si el torneo ya inició
             else:
                 st.subheader(f"📅 Calendario de {st.session_state.nombre_equipo}")
-                
-                # Fondo para las tarjetas visuales
                 URL_FONDO = "https://www.transparenttextures.com/patterns/cubes.png"
 
                 try:
                     with conn.connect() as db:
                         # 1. CONSULTA MAESTRA (ADAPTADA CON JOINs)
-                        # Traemos datos del partido + Nombres, Escudos y Celulares de ambos equipos
                         q_mis = text("""
                             SELECT 
                                 p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.metodo_registro,
@@ -1159,38 +1156,32 @@ def render_torneo(id_torneo):
                         # --- SEPARADOR DE JORNADA ---
                         if p['jornada'] != ultima_jornada_vista:
                             st.divider()
-                            c_spacer, c_title, c_spacer2 = st.columns([1, 2, 1])
-                            with c_title:
-                                lbl_j = f"JORNADA {p['jornada']}" if str(p['jornada']).isdigit() else str(p['jornada'])
-                                st.header(lbl_j)
+                            st.markdown(f"#### 📍 Jornada {p['jornada']}")
                             ultima_jornada_vista = p['jornada']
 
-                        # --- DETERMINAR ROLES (SOY LOCAL O VISITANTE?) ---
+                        # --- DETERMINAR ROLES ---
                         es_local = (p['local_id'] == st.session_state.id_equipo)
                         
-                        # Datos del Rival para el Chat
                         if es_local:
                             rival_nombre = p['nombre_visitante']
-                            rival_pref = p['pref_v']
-                            rival_cel = p['cel_v']
+                            rival_pref = p['pref_v']; rival_cel = p['cel_v']
                         else:
                             rival_nombre = p['nombre_local']
-                            rival_pref = p['pref_l']
-                            rival_cel = p['cel_l']
+                            rival_pref = p['pref_l']; rival_cel = p['cel_l']
 
-                        # --- CONTENEDOR PRINCIPAL DEL PARTIDO ---
+                        # --- CONTENEDOR PRINCIPAL ---
                         with st.container(border=True):
                             
-                            # 1. TARJETA VISUAL (Resumen Estético)
+                            # 1. TARJETA VISUAL
                             txt_marcador = "VS"
                             if p['estado'] == 'Finalizado':
                                 try: txt_marcador = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
                                 except: pass
                             
-                            # Fallback para escudos
                             e_l = p['escudo_l'] if p['escudo_l'] else None
                             e_v = p['escudo_v'] if p['escudo_v'] else None
 
+                            # Generamos HTML
                             html_card = renderizar_tarjeta_partido(
                                 local=p['nombre_local'],
                                 visita=p['nombre_visitante'],
@@ -1200,114 +1191,82 @@ def render_torneo(id_torneo):
                                 color_tema=t_color,
                                 url_fondo=URL_FONDO
                             )
+                            # Renderizamos HTML (La clave es unsafe_allow_html=True)
                             st.markdown(html_card, unsafe_allow_html=True)
 
-                            # 2. INFO RIVAL + CHAT (Estrategia Antigua)
+                            # 2. CHAT CON RIVAL
                             c_riv, c_wa = st.columns([3, 1], vertical_alignment="center")
-                            with c_riv:
-                                st.caption(f"Tu Rival: **{rival_nombre}**")
+                            with c_riv: st.caption(f"Tu Rival: **{rival_nombre}**")
                             with c_wa:
                                 link_wa = None
                                 if rival_pref and rival_cel:
                                     num = f"{str(rival_pref).replace('+', '')}{str(rival_cel).replace(' ', '')}"
                                     link_wa = f"https://wa.me/{num}"
                                 
-                                if link_wa:
-                                    st.link_button("💬 WhatsApp Rival", link_wa, use_container_width=True)
-                                else:
-                                    st.caption("🚫 Sin contacto")
+                                if link_wa: st.link_button("💬 Chat", link_wa, use_container_width=True)
+                                else: st.caption("🚫 Sin contacto")
 
                             st.markdown("<hr style='margin: 10px 0; opacity:0.3'>", unsafe_allow_html=True)
 
-                            # 3. ZONA DE ACCIÓN (Lógica Antigua adaptada a IDs)
+                            # 3. ZONA DE ACCIÓN
                             metodo = p['metodo_registro'] if pd.notna(p['metodo_registro']) else "Algoritmo"
 
-                            # CASO A: FINALIZADO
                             if p['estado'] == 'Finalizado':
                                 st.success(f"✅ Resultado Oficial ({metodo})")
-                                
                                 if st.button("❌ ¿Marcador Incorrecto?", key=f"err_{p['id']}", use_container_width=True):
-                                    try:
-                                        with conn.connect() as db:
-                                            # Marcamos conflicto y revisión
-                                            q = text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id")
-                                            db.execute(q, {"id": p['id']})
-                                            db.commit()
-                                        st.warning("Partido marcado para revisión.")
-                                        time.sleep(1.5); st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Error al reportar: {e}")
+                                    with conn.connect() as db:
+                                        db.execute(text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id"), {"id": p['id']})
+                                        db.commit()
+                                    st.warning("Marcado para revisión."); time.sleep(1); st.rerun()
 
-                            # CASO B: EN REVISIÓN
                             elif p['estado'] == 'Revision':
                                 st.warning("⏳ Resultado en Revisión por el Admin.")
-                                st.caption("Existe un conflicto o reporte sobre este partido.")
 
-                            # CASO C: PENDIENTE (CARGA DE RESULTADOS)
                             else:
                                 st.caption("📸 REPORTAR RESULTADO")
                                 tipo_carga = st.radio("Método:", ["Ocultar", "Usar Cámara", "Subir Foto"], horizontal=True, label_visibility="collapsed", key=f"radio_{p['id']}")
                                 
                                 foto = None
-                                if tipo_carga == "Usar Cámara":
-                                    foto = st.camera_input("Toma la foto", key=f"cam_{p['id']}")
-                                elif tipo_carga == "Subir Foto":
-                                    foto = st.file_uploader("Selecciona imagen", type=['jpg','png','jpeg'], key=f"upl_{p['id']}")
+                                if tipo_carga == "Usar Cámara": foto = st.camera_input("Toma la foto", key=f"cam_{p['id']}")
+                                elif tipo_carga == "Subir Foto": foto = st.file_uploader("Selecciona imagen", type=['jpg','png','jpeg'], key=f"upl_{p['id']}")
 
                                 if foto:
-                                    st.image(foto, width=200)
-                                    
                                     if st.button("📤 ENVIAR AHORA", key=f"send_{p['id']}", type="primary", use_container_width=True):
-                                        with st.spinner("🔍 Gol Bot analizando imagen..."):
-                                            
-                                            # IMPORTANTE: Pasamos los nombres reales extraídos del JOIN
+                                        with st.spinner("Analizando..."):
+                                            # Pasamos nombres reales para la IA
                                             res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
 
                                             if res_ia:
                                                 gl_ia, gv_ia = res_ia
-                                                st.info(f"🔢 Resultado Detectado: {gl_ia} - {gv_ia}")
-
+                                                st.info(f"🔢 Resultado: {gl_ia} - {gv_ia}")
+                                                
                                                 try:
                                                     foto.seek(0)
-                                                    # Subida a Cloudinary
                                                     res_c = cloudinary.uploader.upload(foto, folder=f"gol_gana/torneo_{id_torneo}/evidencias")
                                                     url = res_c['secure_url']
-                                                    
-                                                    # Determinar qué columna de foto actualizar
                                                     cf = "url_foto_l" if es_local else "url_foto_v"
 
                                                     with conn.connect() as db:
-                                                        # Verificamos si ya había goles registrados (por el rival)
                                                         gl_ex = int(p['goles_l']) if pd.notna(p['goles_l']) else None
                                                         gv_ex = int(p['goles_v']) if pd.notna(p['goles_v']) else None
 
                                                         if gl_ex is not None:
-                                                            # COINCIDENCIA: Si lo que dice la IA coincide con lo que ya estaba
                                                             if gl_ex == gl_ia and gv_ex == gv_ia:
                                                                 q = text(f"UPDATE partidos SET {cf}=:u, conflicto=false, estado='Finalizado', metodo_registro='Algoritmo' WHERE id=:id")
                                                                 db.execute(q, {"u": url, "id": p['id']})
-                                                                st.balloons()
-                                                                st.success("✅ ¡Coincidencia confirmada! Partido Finalizado.")
-                                                            
-                                                            # CONFLICTO: Si no coinciden
+                                                                st.success("✅ ¡Coincidencia confirmada!")
                                                             else:
                                                                 q = text(f"UPDATE partidos SET goles_l=NULL, goles_v=NULL, conflicto=true, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Revision', metodo_registro='Algoritmo' WHERE id=:id")
                                                                 db.execute(q, {"u": url, "gl": gl_ia, "gv": gv_ia, "id": p['id']})
-                                                                st.warning("⚠️ Los resultados no coinciden con los del rival. El Admin revisará.")
-                                                        
+                                                                st.warning("⚠️ Conflicto detectado. Revisión requerida.")
                                                         else:
-                                                            # PRIMER REPORTE: Se guarda como finalizado (o pendiente de confirmación del rival)
-                                                            # Según tu estrategia antigua, el primero gana/setea.
                                                             q = text(f"UPDATE partidos SET goles_l=:gl, goles_v=:gv, {cf}=:u, ia_goles_l=:gl, ia_goles_v=:gv, estado='Finalizado', conflicto=false, metodo_registro='Algoritmo' WHERE id=:id")
                                                             db.execute(q, {"gl": gl_ia, "gv": gv_ia, "u": url, "id": p['id']})
-                                                            st.balloons()
-                                                            st.success("✅ Resultado registrado con éxito.")
-                                                        
+                                                            st.success("✅ Registrado con éxito.")
                                                         db.commit()
-                                                    
                                                     time.sleep(2); st.rerun()
                                                 except Exception as e:
-                                                    st.error(f"Error Base Datos: {e}")
+                                                    st.error(f"Error BD: {e}")
                                             else:
                                                 st.error(f"❌ {msg_ia}")
 
@@ -1750,6 +1709,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
