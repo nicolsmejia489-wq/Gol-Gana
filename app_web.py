@@ -475,11 +475,27 @@ def contenido_pestana_torneo(id_torneo, t_color):
     # ------------------------------------------
     # CASO A: FORMATOS CON TABLA (Liga / Grupos)
     # ------------------------------------------
-    if t_formato in ["Liga", "Grupos y Cruces"]:
+   def contenido_pestana_torneo(id_torneo, t_color):
+    """
+    Función auxiliar para renderizar la tabla de posiciones o cruces.
+    CORREGIDA: Usa JOINs para traducir local_id -> Nombre del equipo.
+    """
+    # 1. Validar el formato del torneo
+    try:
+        with conn.connect() as db:
+            res_fmt = db.execute(text("SELECT formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+            t_formato = res_fmt[0] if res_fmt else "Liga"
+    except:
+        t_formato = "Liga" # Fallback
+
+    # ------------------------------------------
+    # CASO A: FORMATOS CON TABLA (Liga / Grupos)
+    # ------------------------------------------
+    if t_formato in ["Liga", "Grupos y Cruces", "Liga y Playoff"]:
         try:
             color_maestro = t_color 
 
-            # 1. Obtener datos FILTRADOS POR TORNEO
+            # 1. Obtener datos DE EQUIPOS (Nombres y Escudos)
             with conn.connect() as db:
                 df_eq = pd.read_sql_query(
                     text("SELECT nombre, escudo FROM equipos_globales WHERE id_torneo = :id AND estado = 'aprobado'"), 
@@ -490,123 +506,96 @@ def contenido_pestana_torneo(id_torneo, t_color):
             if df_eq.empty:
                 mostrar_bot("Aún no hay equipos oficiales en la tabla. El balón está detenido.")
             else:
+                # Diccionario maestro de escudos
                 mapa_escudos = dict(zip(df_eq['nombre'], df_eq['escudo']))
+                
+                # Inicializamos estadísticas en 0 para todos los aprobados
                 stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in df_eq['nombre']}
                 
+                # 2. Obtener PARTIDOS FINALIZADOS (Con JOIN para traer nombres)
                 with conn.connect() as db:
-                    df_p = pd.read_sql_query(
-                        text("SELECT * FROM partidos WHERE id_torneo = :id AND estado = 'Finalizado'"), 
-                        db, 
-                        params={"id": id_torneo}
-                    )
+                    # AQUÍ ESTÁ LA CORRECCIÓN CLAVE:
+                    # Usamos 'el.nombre as local' y 'ev.nombre as visitante'
+                    # Así el código de abajo (f['local']) vuelve a funcionar sin cambios.
+                    q_partidos = text("""
+                        SELECT 
+                            p.goles_l, p.goles_v,
+                            el.nombre as local,
+                            ev.nombre as visitante
+                        FROM partidos p
+                        JOIN equipos_globales el ON p.local_id = el.id
+                        JOIN equipos_globales ev ON p.visitante_id = ev.id
+                        WHERE p.id_torneo = :id AND p.estado = 'Finalizado'
+                    """)
+                    
+                    df_p = pd.read_sql_query(q_partidos, db, params={"id": id_torneo})
                 
-                # Cálculo de Estadísticas
+                # Cálculo de Estadísticas (Lógica intacta)
                 for _, f in df_p.iterrows():
-                    l, v = f['local'], f['visitante']
+                    l, v = f['local'], f['visitante'] # Ahora sí existen estas columnas gracias al alias SQL
+                    
+                    # Solo procesamos si los equipos siguen existiendo en la lista de aprobados
                     if l in stats and v in stats:
                         gl, gv = int(f['goles_l']), int(f['goles_v'])
+                        
                         stats[l]['PJ'] += 1; stats[v]['PJ'] += 1
                         stats[l]['GF'] += gl; stats[l]['GC'] += gv
                         stats[v]['GF'] += gv; stats[v]['GC'] += gl
+                        
                         if gl > gv: stats[l]['PTS'] += 3
                         elif gv > gl: stats[v]['PTS'] += 3
                         else: stats[l]['PTS'] += 1; stats[v]['PTS'] += 1
                 
+                # Convertir a DataFrame y Ordenar
                 df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-                df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
+                df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC'] # Renombrar columna índice a EQ
                 df_f['DG'] = df_f['GF'] - df_f['GC']
                 df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
                 df_f.insert(0, 'POS', range(1, len(df_f) + 1))
 
                 # =========================================================================
-                # 2. DISEÑO Y ESTILOS (AQUÍ ESTÁ TODO LO EDITABLE)
+                # 3. DISEÑO Y ESTILOS
                 # =========================================================================
                 plantilla_tabla = f"""
                 <style>
                     /* --- CONTENEDOR PRINCIPAL DE LA TABLA --- */
                     .tabla-pro {{ 
-                        width: 100%;                        /* Ancho de la tabla */
-                        border-collapse: collapse;          /* Bordes colapsados (estilo limpio) */
-                        table-layout: fixed;                /* Fija el ancho de columnas */
-                        background-color: rgba(0,0,0,0.5);  /* Color de Fondo (Negro semitransparente) */
-                        font-family: 'Oswald', sans-serif;  /* TIPO DE FUENTE PRINCIPAL */
-                        border: 1px solid {color_maestro} !important; /* Borde externo del color del torneo */
+                        width: 100%; border-collapse: collapse; table-layout: fixed; 
+                        background-color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; 
+                        border: 1px solid {color_maestro} !important; 
                     }}
-
-                    /* --- ENCABEZADOS (POS, EQUIPO, PTS...) --- */
+                    /* --- ENCABEZADOS --- */
                     .tabla-pro th {{ 
-                        background-color: #111;             /* Fondo del encabezado (Casi negro) */
-                        color: #ffffff !important;          /* Color del texto del encabezado */
-                        font-size: 11px;                    /* TAMAÑO FUENTE ENCABEZADO */
-                        height: 35px !important;            /* ALTURA de la fila de encabezado */
-                        text-align: center;                 /* Alineación texto (centrado) */
-                        border-bottom: 2px solid {color_maestro} !important; /* Línea separadora de color */
-                        padding: 1px 1px;                   /* Relleno interno */
+                        background-color: #111; color: #ffffff !important; font-size: 11px; 
+                        height: 35px !important; text-align: center; border-bottom: 2px solid {color_maestro} !important; 
+                        padding: 1px 1px; 
                     }}
-
-                    /* --- CELDAS DEL CUERPO (DATOS) --- */
+                    /* --- CELDAS --- */
                     .tabla-pro td {{ 
-                        color: white;                       /* Color texto general */
-                        font-size: 13px;                    /* TAMAÑO FUENTE DATOS */
-                        height: 30px !important;            /* ALTURA FILA EQUIPOS (Aumentado para escudo grande) */
-                        border-bottom: 1px solid #222;      /* Línea gris suave entre filas */
-                        vertical-align: middle !important;  /* Centrado vertical */
-                        padding: 2px 1px !important;        /* Espacio lateral mínimo */
-                        text-align: center;                 /* Por defecto todo centrado */
+                        color: white; font-size: 13px; height: 30px !important; border-bottom: 1px solid #222; 
+                        vertical-align: middle !important; padding: 2px 1px !important; text-align: center; 
                     }}
-
-                    /* --- CONTENEDOR DEL ESCUDO (Caja invisible) --- */
-                    .escudo-wrapper {{
-                        display: inline-block;
-                        width: 35px;                        /* ANCHO RESERVADO PARA ESCUDO */
-                        text-align: center;
-                        margin-right: 2px;                 /* ESPACIO ENTRE ESCUDO Y NOMBRE DEL EQUIPO */
-                        vertical-align: middle;
-                    }}
-                    
-                    /* --- IMAGEN DEL ESCUDO --- */
-                    .img-escudo {{
-                        height: 35px;                       /* ALTO DEL ESCUDO (Aumentado) */
-                        width: 35px;                        /* ANCHO DEL ESCUDO (Aumentado) */
-                        object-fit: contain;                /* Para que no se deforme */
-                    }}
+                    /* --- ESCUDOS --- */
+                    .escudo-wrapper {{ display: inline-block; width: 35px; text-align: center; margin-right: 2px; vertical-align: middle; }}
+                    .img-escudo {{ height: 35px; width: 35px; object-fit: contain; }}
                 </style>
                 """
 
-                # Construcción del HTML
                 tabla_html = '<table class="tabla-pro"><thead><tr>'
-                
-                # --- ANCHOS DE COLUMNAS (La suma debe dar 100%) ---
                 tabla_html += '<th style="width:10%">POS</th>'
-                tabla_html += '<th style="width:45%; text-align:left; padding-left:10px">EQUIPO</th>' # Columna ancha alineada a izq
-                tabla_html += '<th style="width:10%">PTS</th>'
-                tabla_html += '<th style="width:9%">PJ</th>'
-                tabla_html += '<th style="width:9%">GF</th>'
-                tabla_html += '<th style="width:9%">GC</th>'
-                tabla_html += '<th style="width:8%">DG</th>'
-                tabla_html += '</tr></thead><tbody>'
+                tabla_html += '<th style="width:45%; text-align:left; padding-left:10px">EQUIPO</th>'
+                tabla_html += '<th style="width:10%">PTS</th><th style="width:9%">PJ</th><th style="width:9%">GF</th><th style="width:9%">GC</th><th style="width:8%">DG</th></tr></thead><tbody>'
 
                 for _, r in df_f.iterrows():
                     url = mapa_escudos.get(r['EQ'])
-                    # Renderizado de imagen
                     img_html = f'<img src="{url}" class="img-escudo">' if url else ''
                     escudo_final = f'<div class="escudo-wrapper">{img_html}</div>'
                     
                     tabla_html += "<tr>"
                     tabla_html += f"<td>{r['POS']}</td>"
-                    
-                    # Estilos específicos de la celda de Nombre (Negrita, corte de texto si es muy largo)
-                    tabla_html += f"<td style='text-align:left; padding-left:10px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>"
-                    tabla_html += f"{escudo_final}{r['EQ']}</td>"
-                    
-                    # Estilo columna Puntos (Color del torneo y negrita)
+                    tabla_html += f"<td style='text-align:left; padding-left:10px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{escudo_final}{r['EQ']}</td>"
                     tabla_html += f"<td style='color:{color_maestro}; font-weight:bold; font-size:14px;'>{r['PTS']}</td>"
-                    
-                    tabla_html += f"<td>{r['PJ']}</td>"
-                    tabla_html += f"<td>{r['GF']}</td>"
-                    tabla_html += f"<td>{r['GC']}</td>"
-                    tabla_html += f"<td style='font-size:11px; color:#888;'>{r['DG']}</td>"
-                    tabla_html += "</tr>"
+                    tabla_html += f"<td>{r['PJ']}</td><td>{r['GF']}</td><td>{r['GC']}</td><td style='font-size:11px; color:#888;'>{r['DG']}</td></tr>"
 
                 tabla_html += "</tbody></table>"
                 st.markdown(plantilla_tabla + tabla_html, unsafe_allow_html=True)
@@ -1587,6 +1576,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
