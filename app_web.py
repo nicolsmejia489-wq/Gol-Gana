@@ -804,7 +804,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
 
     # 2. Cargar Fuentes
     @st.cache_data(show_spinner=False)
-def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
+    def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     """
     Genera la tarjeta usando la PLANTILLA "VS" METÁLICA como base.
     """
@@ -1795,6 +1795,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
