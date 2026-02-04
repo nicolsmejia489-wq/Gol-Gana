@@ -936,7 +936,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # 👉 TANTEA AQUÍ: GROSOR DEL BORDE
         # width=4 es un borde normal. Pon 1 para muy fino.
         # Dibujamos de 0 a W-1/H-1 para que quede dentro del lienzo.
-        draw.rectangle([0, 0, W-1, H-1], outline=rgb_borde, width=1)
+        draw.rectangle([0, 0, W-1, H-1], outline=rgb_borde, width=0.2)
     except:
         pass
 
@@ -1834,6 +1834,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
