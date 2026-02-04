@@ -935,10 +935,10 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # CONSEJO DE DISEÑO:
         # Si usas el color del tema, asegúrate que sea oscuro o elegante.
         # Si prefieres el estilo "Dark Mode" elegante, usa un gris casi negro:
-        # rgb_borde = (30, 30, 30) # Gris Antracita (Muy elegante)
+         rgb_borde = (30, 30, 30) # Gris Antracita (Muy elegante)
         
         # Si quieres mantener el color del torneo:
-        rgb_borde = hex_to_rgb(color_tema)
+        #rgb_borde = hex_to_rgb(color_tema)
 
         # 👉 TANTEA AQUÍ: GROSOR
         GROSOR_BORDE = 1  # 2 o 3 píxeles es ideal para móviles.
@@ -1850,6 +1850,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
