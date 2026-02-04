@@ -896,7 +896,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         rgb_borde = hex_to_rgb(color_tema)
         # Nota: range() necesita un entero. i.e., int(1)
         for i in range(1): 
-            draw.rectangle([0 + i, 0 + i, W - 1 - i, H - 1 - i], outline=rgb_borde, width=1)
+            draw.rectangle([0 + i, 0 + i, W - 1 - i, H - 1 - i], outline=rgb_borde, width=0)
     except: pass
 
     return img
@@ -1793,6 +1793,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
