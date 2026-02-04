@@ -465,55 +465,63 @@ def validar_acceso(id_torneo, pin_ingresado):
 def contenido_pestana_torneo(id_torneo, t_color):
     """
     Renderiza la vista pública del torneo.
-    Ajuste: Control total de espacios y estética detallada.
+    Versión: Tabla Pro Ultra-Compacta y Fixture sin espacios.
     """
     
     # ------------------------------------------------------------
-    # 1. ESTÉTICA GLOBAL (CSS) - TANTEA AQUÍ
+    # 1. VARIABLES ESTÉTICAS (TANTEA AQUÍ)
     # ------------------------------------------------------------
-    # 👉 Aquí es donde reducimos el espacio entre los partidos (imágenes)
-    ESPACIO_ENTRE_TARJETAS = "-10px" # TANTEA: -10px (poco) a -40px (muy pegadas)
-    OPACIDAD_TABLA = "0.5"           # TANTEA: 0.1 (transparente) a 1.0 (sólido)
-    TAMANO_LETRA_TABLA = "14px"      # TANTEA: 12px a 18px
+    # 👉 ESPACIOS ENTRE TARJETAS DE PARTIDOS
+    MT_PARTIDOS = "-28px"      # Margen negativo entre tarjetas (más negativo = más pegadas)
     
+    # 👉 ESTÉTICA DE LA TABLA
+    T_PAD = "2px 5px"          # Padding de celdas (Arriba/Abajo Izquierda/Derecha)
+    T_FONT_SIZE = "13px"       # Tamaño letra general tabla
+    T_LINE_HEIGHT = "1.1"      # Altura de línea (reduce espacio vertical del texto)
+    T_ESCUDO_W = "22px"        # Ancho FIJO del escudo (para mantener estructura)
+    T_OPACIDAD = "0.6"         # Transparencia del fondo de la tabla (0.1 a 1.0)
+
     st.markdown(f"""
         <style>
-        /* 📦 REDUCTOR DE ESPACIO ENTRE PARTIDOS */
+        /* 📦 RECORTE DE ESPACIO EN JORNADAS */
         [data-testid="stImage"] {{
-            margin-bottom: {ESPACIO_ENTRE_TARJETAS} !important; 
-            padding-bottom: 0px !important;
-            filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3)); /* TANTEA: Sombra de la tarjeta */
+            margin-bottom: {MT_PARTIDOS} !important;
+            padding: 0px !important;
         }}
 
-        /* 📊 ESTÉTICA DE LA TABLA DE CLASIFICACIÓN */
-        .tabla-GG {{
+        /* 📊 TABLA DE CLASIFICACIÓN ULTRA-COMPACTA */
+        .tabla-pro {{
             width: 100%;
             border-collapse: collapse;
-            font-family: 'Oswald', sans-serif; /* Fuente principal */
-            background: rgba(0,0,0,{OPACIDAD_TABLA});
-            border: 1px solid {t_color}; /* Borde del color del torneo */
-            border-radius: 8px;
-            overflow: hidden;
+            font-family: 'Oswald', sans-serif;
+            background: rgba(0,0,0,{T_OPACIDAD});
+            border: 1px solid {t_color};
+            line-height: {T_LINE_HEIGHT};
         }}
-        .tabla-GG th {{
-            background-color: #111; /* Fondo encabezado (Negro puro) */
-            color: white;
-            padding: 12px;
-            font-size: 11px;
-            text-transform: uppercase; /* Encabezados en mayúsculas */
+        .tabla-pro th {{
+            background: #111;
+            color: #eee;
+            font-size: 10px;
+            text-transform: uppercase;
+            padding: 6px 2px;
             border-bottom: 2px solid {t_color};
             text-align: center;
         }}
-        .tabla-GG td {{
-            color: white;
-            padding: 10px;
-            font-size: {TAMANO_LETRA_TABLA};
+        .tabla-pro td {{
+            color: #fff;
+            font-size: {T_FONT_SIZE};
+            padding: {T_PAD};
+            border-bottom: 1px solid #222;
             text-align: center;
-            border-bottom: 1px solid #333; /* Línea divisoria entre equipos */
+            white-space: nowrap; /* Evita que el nombre salte de línea */
         }}
-        /* Fila de cebra (Opcional: comenta para quitar) */
-        .tabla-GG tr:nth-child(even) {{
-            background: rgba(255,255,255,0.05); 
+        .col-nombre {{ text-align: left !important; width: 40%; }}
+        .escudo-tabla {{
+            width: {T_ESCUDO_W};
+            height: {T_ESCUDO_W};
+            object-fit: contain;
+            vertical-align: middle;
+            margin-right: 8px;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -528,56 +536,42 @@ def contenido_pestana_torneo(id_torneo, t_color):
             t_escudo_defecto = res_t.escudo_defecto if res_t and res_t.escudo_defecto else None
 
             q_master = text("""
-                SELECT 
-                    p.jornada, p.goles_l, p.goles_v, p.estado, 
-                    el.nombre as local, el.escudo as escudo_l,
-                    ev.nombre as visitante, ev.escudo as escudo_v
+                SELECT p.jornada, p.goles_l, p.goles_v, p.estado, 
+                       el.nombre as local, el.escudo as escudo_l,
+                       ev.nombre as visitante, ev.escudo as escudo_v
                 FROM partidos p
                 JOIN equipos_globales el ON p.local_id = el.id
                 JOIN equipos_globales ev ON p.visitante_id = ev.id
-                WHERE p.id_torneo = :id
-                ORDER BY p.jornada ASC, p.id ASC
+                WHERE p.id_torneo = :id ORDER BY p.jornada ASC, p.id ASC
             """)
             df_partidos = pd.read_sql_query(q_master, db, params={"id": id_torneo})
     except Exception as e:
-        st.error(f"Error DB: {e}")
-        return
+        st.error(f"Error DB: {e}"); return
 
-    # ------------------------------------------------------------
-    # 3. LÓGICA DE PESTAÑAS (TABS)
-    # ------------------------------------------------------------
+    # 3. PESTAÑAS
     titulos_tabs = []
     tiene_tabla = t_formato in ["Liga", "Grupos y Cruces", "Liga y Playoff"]
-    
     if tiene_tabla: titulos_tabs.append("📊 Clasificación")
-
     if not df_partidos.empty:
         jornadas_unicas = sorted(df_partidos['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
-        for j in jornadas_unicas:
-            titulos_tabs.append(f"Jornada {j}" if str(j).isdigit() else str(j))
-    else:
-        jornadas_unicas = []
-
-    if not titulos_tabs:
-        mostrar_bot("Torneo listo. Esperando el pitazo inicial.")
-        return
+        for j in jornadas_unicas: titulos_tabs.append(f"Jornada {j}" if str(j).isdigit() else str(j))
+    else: return
 
     tabs = st.tabs(titulos_tabs)
     idx_tab = 0 
 
-    # --- A. RENDER TABLA DE POSICIONES ---
+    # --- A. TABLA DE POSICIONES ---
     if tiene_tabla:
         with tabs[idx_tab]:
             df_fin = df_partidos[df_partidos['estado'] == 'Finalizado']
             if df_fin.empty:
-                st.info("La tabla se actualizará tras los primeros resultados.")
+                st.info("Esperando resultados...")
             else:
-                # (Lógica interna de puntos omitida para brevedad, igual a la anterior)
+                # Cálculo de Estadísticas (PJ, PTS, GF, GC, DG)
                 equipos_set = set(df_partidos['local']).union(set(df_partidos['visitante']))
                 stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
                 for _, f in df_fin.iterrows():
-                    l, v = f['local'], f['visitante']
-                    gl, gv = int(f['goles_l']), int(f['goles_v'])
+                    l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
                     stats[l]['PJ']+=1; stats[v]['PJ']+=1
                     stats[l]['GF']+=gl; stats[l]['GC']+=gv
                     stats[v]['GF']+=gv; stats[v]['GC']+=gl
@@ -594,52 +588,36 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 mapa_escudos = dict(zip(df_partidos['local'], df_partidos['escudo_l']))
                 mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
 
-                # 👉 TANTEA AQUÍ: HTML DE LA TABLA
-                html = f'<table class="tabla-GG"><thead><tr><th>POS</th><th style="text-align:left">EQUIPO</th><th>PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
+                # HTML Tabla (Recuperando columnas GF/GC y optimizando espacio)
+                html = f'<table class="tabla-pro"><thead><tr><th>#</th><th class="col-nombre">EQUIPO</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
                 for _, r in df_f.iterrows():
                     esc_t = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
-                    # 👉 TANTEA AQUÍ: Tamaño del mini escudo en la tabla (width="25")
-                    img_t = f'<img src="{esc_t}" width="25" style="vertical-align:middle; margin-right:10px">' if esc_t else '🛡️ '
-                    html += f'<tr><td>{r["POS"]}</td><td style="text-align:left; font-weight:bold">{img_t}{r["EQ"]}</td><td style="color:{t_color}; font-weight:bold">{r["PTS"]}</td><td>{r["PJ"]}</td><td>{r["DG"]}</td></tr>'
+                    img_t = f'<img src="{esc_t}" class="escudo-tabla">' if esc_t else '🛡️ '
+                    html += f"""<tr>
+                        <td>{r['POS']}</td>
+                        <td class="col-nombre"><b>{img_t}{r['EQ']}</b></td>
+                        <td style="color:{t_color}; font-weight:bold">{r['PTS']}</td>
+                        <td>{r['PJ']}</td>
+                        <td style="color:#888">{r['GF']}</td>
+                        <td style="color:#888">{r['GC']}</td>
+                        <td style="font-weight:bold">{r['DG']}</td>
+                    </tr>"""
                 st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
         idx_tab += 1
 
-    # --- B. RENDER JORNADAS (PARTIDOS) ---
+    # --- B. JORNADAS ---
     for j_actual in jornadas_unicas:
         with tabs[idx_tab]:
             df_j = df_partidos[df_partidos['jornada'] == j_actual]
+            if df_j.empty: st.info("Sin partidos."); continue
             
-            # 👉 TANTEA AQUÍ: Título de la jornada (Color y tamaño)
-            st.markdown(f"<h5 style='color:{t_color}; margin-bottom:10px;'>📅 {titulos_tabs[idx_tab]}</h5>", unsafe_allow_html=True)
-            
-            if df_j.empty:
-                st.info("Sin partidos.")
-            else:
-                for _, row in df_j.iterrows():
-                    # 1. Marcador
-                    txt_m = "VS"
-                    if row['estado'] == 'Finalizado':
-                        try: txt_m = f"{int(row['goles_l'])} - {int(row['goles_v'])}"
-                        except: pass
+            for _, row in df_j.iterrows():
+                txt_m = f"{int(row['goles_l'])} - {int(row['goles_v'])}" if row['estado'] == 'Finalizado' else "VS"
+                u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
+                u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
 
-                    # 2. Escudos Fallback
-                    u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
-                    u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
-
-                    # 3. Llamar a la función de imagen
-                    img_partido = generar_tarjeta_imagen(
-                        local=row['local'],
-                        visita=row['visitante'],
-                        url_escudo_l=u_l,
-                        url_escudo_v=u_v,
-                        marcador=txt_m,
-                        color_tema=t_color
-                    )
-                    
-                    # 4. Mostrar imagen
-                    # 👉 El CSS de arriba afectará este componente reduciendo su margen inferior.
-                    st.image(img_partido, use_container_width=True)
-                    
+                img_partido = generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_m, t_color)
+                st.image(img_partido, use_container_width=True)
         idx_tab += 1
 
 
@@ -1854,6 +1832,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
