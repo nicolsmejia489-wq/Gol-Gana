@@ -8,6 +8,11 @@ from cloudinary.utils import cloudinary_url
 from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
+import re
+import cv2
+import numpy as np
+import easyocr
+from difflib import SequenceMatcher
 
 
 
@@ -200,6 +205,115 @@ def mostrar_bot(mensaje):
             <div class="bot-text">{mensaje}</div>
         </div>
     """, unsafe_allow_html=True)
+
+
+
+
+
+
+# ------------------------------------------------------------
+# 1. OPTIMIZACIÓN DE RECURSOS (Para no saturar el servidor)
+# ------------------------------------------------------------
+@st.cache_resource
+def obtener_lector():
+    # Cargamos el lector una sola vez y lo guardamos en memoria
+    return easyocr.Reader(['en'], gpu=False) # Pon True si tienes GPU
+
+def similitud(a, b):
+    # Compara qué tan parecidas son dos palabras (0.0 a 1.0)
+    return SequenceMatcher(None, a, b).ratio()
+
+def limpiar_texto_ocr(t):
+    # Quita basura y deja solo letras, números y guiones
+    return re.sub(r'[^A-Z0-9-]', '', t.upper())
+
+# ------------------------------------------------------------
+# 2. FUNCIÓN MAESTRA DE VISIÓN
+# ------------------------------------------------------------
+def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
+    """
+    Analiza la foto del marcador y triangula los goles según 
+    la posición de los nombres de los equipos.
+    """
+    try:
+        # Preparación de imagen
+        imagen_bytes.seek(0)
+        file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
+        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        if img is None: return None, "Error: Imagen no procesable."
+
+        # Pre-procesamiento para pantallas (CLAHE)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        gray = clahe.apply(gray)
+        
+        # Lectura OCR
+        reader = obtener_lector()
+        alto, ancho = gray.shape
+        # Cortamos la zona inferior (40%) para evitar distracciones del campo
+        zona_interes = gray[0:int(alto*0.6), :] 
+        resultados = reader.readtext(zona_interes, detail=1)
+
+        candidatos_local = []
+        candidatos_visita = []
+        candidatos_numeros = []
+
+        # Limpieza de nombres para búsqueda
+        keywords_l = local_real.upper().split()
+        keywords_v = visitante_real.upper().split()
+
+        for (bbox, texto, prob) in resultados:
+            texto_l = limpiar_texto_ocr(texto)
+            if not texto_l or prob < 0.3: continue
+
+            # Centro X del bloque de texto
+            centro_x = (bbox[0][0] + bbox[1][0]) / 2
+
+            # A. Detectar Marcador Directo (Ej: "2-1")
+            match_directo = re.search(r'(\d+)-(\d+)', texto_l)
+            if match_directo:
+                return (int(match_directo.group(1)), int(match_directo.group(2))), "Marcador Directo (Texto)"
+
+            # B. Detectar Números sueltos (Posibles goles)
+            if texto_l.isdigit():
+                val = int(texto_l)
+                if val < 30: # Filtro: Nadie mete 30 goles, evita leer el minuto 45
+                    candidatos_numeros.append({'val': val, 'x': centro_x})
+                continue
+
+            # C. Anclar posición de Equipos
+            if any(similitud(k, texto_l) > 0.7 for k in keywords_l):
+                candidatos_local.append(centro_x)
+            if any(similitud(k, texto_l) > 0.7 for k in keywords_v):
+                candidatos_visita.append(centro_x)
+
+        # ------------------------------------------------------------
+        # 3. TRIANGULACIÓN GEOMÉTRICA
+        # ------------------------------------------------------------
+        if len(candidatos_numeros) >= 2:
+            candidatos_numeros.sort(key=lambda k: k['x'])
+            
+            # Determinamos "fronteras"
+            # Si no detectamos el nombre, asumimos bordes de la imagen
+            x_lim_l = max(candidatos_local) if candidatos_local else 0
+            x_lim_v = min(candidatos_visita) if candidatos_visita else ancho
+
+            # Buscamos los dos números que estén más "al centro" entre los equipos
+            # o simplemente los dos más claros de izquierda a derecha
+            goles_l = candidatos_numeros[0]['val']
+            goles_v = candidatos_numeros[1]['val']
+            
+            return (goles_l, goles_v), "Triangulación Exitosa"
+
+        return None, "No detecté suficientes números. Toma la foto de frente al marcador."
+
+    except Exception as e:
+        return None, f"Error Visión: {str(e)}"
+
+
+
+
+
 
 
 
@@ -1322,7 +1436,7 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-        # 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN IMAGEN REFINADA
+# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN CON IA INTEGRADA
         with tabs[1]:
             if t_fase == "inscripcion":
                 mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu fixture.")
@@ -1358,7 +1472,7 @@ def render_torneo(id_torneo):
                             st.markdown(f"##### 📍 Jornada {p['jornada']}")
                             ultima_jornada_vista = p['jornada']
 
-                        # --- ROLES ---
+                        # --- ROLES Y CONTACTO ---
                         es_local = (p['local_id'] == st.session_state.id_equipo)
                         if es_local:
                             rival_pref = p['pref_v']; rival_cel = p['cel_v']
@@ -1370,7 +1484,7 @@ def render_torneo(id_torneo):
                         if p['estado'] == 'Finalizado':
                              txt_score = f"{int(p['goles_l'])}-{int(p['goles_v'])}"
                         
-                        # Generar la imagen con la NUEVA función (Plantilla Metálica)
+                        # Generar y renderizar la tarjeta visual
                         img_card = generar_tarjeta_imagen(
                             local=p['nombre_local'],
                             visita=p['nombre_visitante'],
@@ -1379,24 +1493,20 @@ def render_torneo(id_torneo):
                             marcador=txt_score,
                             color_tema=t_color
                         )
-                        
-                        # Renderizar imagen
                         st.image(img_card, use_container_width=True)
 
-                        # --- BOTONERA DE ACCIONES (Corregida) ---
-                        # Usamos columnas ajustadas para que los botones no se monten
+                        # --- BOTONERA DE ACCIONES ---
                         c_chat, c_accion = st.columns([1, 1.5]) 
                         
-                        # A. Chat
+                        # A. Chat WhatsApp
                         with c_chat:
                             if rival_pref and rival_cel:
                                 num = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
-                                # Botón ancho completo para verse ordenado
                                 st.link_button("💬 Chat Rival", f"https://wa.me/{num}", use_container_width=True)
                             else:
                                 st.caption("🚫 Sin contacto")
 
-                        # B. Gestión (Aquí arreglamos el texto superpuesto)
+                        # B. Gestión de Resultados con IA
                         with c_accion:
                             if p['estado'] == 'Finalizado':
                                 if st.button("🚩 Reclamar", key=f"rec_{p['id']}", help="Reportar marcador incorrecto", use_container_width=True):
@@ -1407,29 +1517,49 @@ def render_torneo(id_torneo):
                             elif p['estado'] == 'Revision':
                                 st.warning("⚠️ En Revisión")
                             else:
-                                # CAMBIO CLAVE: Texto corto "📸 Subir" para evitar superposición
+                                # POPOVER DE ESCANEO
                                 with st.popover("📸 Subir Resultado", use_container_width=True):
-                                    st.caption("Sube la foto del marcador final")
-                                    foto = st.file_uploader("Evidencia", type=['jpg','png'], key=f"up_{p['id']}")
+                                    st.caption("Sube la foto del marcador para que la IA lo lea")
+                                    foto = st.file_uploader("Evidencia", type=['jpg','png','jpeg'], key=f"up_{p['id']}")
                                     
                                     if foto:
-                                        if st.button("Confirmar Envío", key=f"ok_{p['id']}", type="primary"):
-                                            # LOGICA DE ENVIO (Resumida)
-                                            with st.spinner("Enviando..."):
+                                        
+                                        if st.button("Confirmar y Escanear", key=f"ok_{p['id']}", type="primary", use_container_width=True):
+                                            with st.spinner("La IA está analizando la jugada..."):
+                                                # 1. Llamada a la función de Visión
                                                 res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
+                                                
                                                 if res_ia:
-                                                    # ... (Tu lógica de actualización DB aquí) ...
-                                                    st.success("✅ Enviado")
-                                                    time.sleep(1); st.rerun()
+                                                    gl, gv = res_ia
+                                                    # 2. Actualización de Base de Datos
+                                                    try:
+                                                        with conn.connect() as db:
+                                                            db.execute(text("""
+                                                                UPDATE partidos 
+                                                                SET goles_l = :gl, 
+                                                                    goles_v = :gv, 
+                                                                    estado = 'Finalizado',
+                                                                    metodo_registro = 'IA',
+                                                                    fecha_registro = CURRENT_TIMESTAMP
+                                                                WHERE id = :id
+                                                            """), {"gl": gl, "gv": gv, "id": p['id']})
+                                                            db.commit()
+                                                        
+                                                        st.success(f"✅ ¡Marcador detectado: {gl} - {gv}!")
+                                                        st.toast("Resultado actualizado correctamente")
+                                                        time.sleep(1.5)
+                                                        st.rerun()
+                                                    except Exception as e_db:
+                                                        st.error(f"Error al guardar: {e_db}")
                                                 else:
-                                                    st.error(msg_ia)
+                                                    # Si la IA falla, damos el mensaje de error (ej: "No detecté números")
+                                                    st.error(f"❌ {msg_ia}")
+                                                    st.info("Asegúrate de que los nombres de los equipos y los números sean visibles.")
                         
-                        # Espaciador sutil
-                        st.write("") 
+                        st.write("") # Espaciador entre partidos
 
                 except Exception as e:
-                    st.error(f"Error: {e}")
-
+                    st.error(f"Error en la gestión de DT: {e}")
 
         
 
@@ -1866,6 +1996,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
