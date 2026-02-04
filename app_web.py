@@ -1409,9 +1409,9 @@ def render_torneo(id_torneo):
             # ------------------------------------------------------------
             # 0. VARIABLES DE TANTEO ESTÉTICO (AJUSTA AQUÍ)
             # ------------------------------------------------------------
-            T_ALTO_BTN = "38px"      # Altura de los botones
-            T_FONT_BTN = "11px"      # Tamaño de letra (Para que quepa el texto largo)
-            T_GAP_COL = "6px"        # Espacio entre botones
+            T_ALTO_BTN = "25px"      # Altura de los botones
+            T_FONT_BTN = "8px"      # Tamaño de letra (Para que quepa el texto largo)
+            T_GAP_COL = "5px"        # Espacio entre botones
             
             # ------------------------------------------------------------
             # 1. CSS PARA FORZAR FILA ÚNICA Y TAMAÑOS
@@ -1991,6 +1991,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
