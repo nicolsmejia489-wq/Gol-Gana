@@ -1392,15 +1392,22 @@ def render_torneo(id_torneo):
 
 # --- ESCENARIO C: ESPECTADOR (Por defecto) ---
     else:
-        # Pestañas ordenadas
-        tabs = st.tabs(["📝 Inscripciones", "🏆 Torneo", "🔐 Ingreso"])
+        # LÓGICA DE VISIBILIDAD DE PESTAÑAS SEGÚN FASE
+        if t_fase == "inscripcion":
+            tabs = st.tabs(["📝 Inscripciones", "🏆 Torneo", "🔐 Ingreso"])
+            idx_torneo = 1
+            idx_ingreso = 2
+        else:
+            # Si el torneo ya empezó, ocultamos Inscripciones
+            tabs = st.tabs(["🏆 Torneo", "🔐 Ingreso"])
+            idx_torneo = 0
+            idx_ingreso = 1
 
         # ==========================================
-        # 1. INSCRIPCIONES (Lógica Doble Vía con Flujo de Estados Correcto)
+        # 1. INSCRIPCIONES (Solo visible en fase inscripción)
         # ==========================================
- 
-        with tabs[0]:
-            if t_fase == "inscripcion":
+        if t_fase == "inscripcion":
+            with tabs[0]:
                 
                 # CEREBRO GOL BOT
                 if "msg_bot_ins" not in st.session_state:
@@ -1583,19 +1590,18 @@ def render_torneo(id_torneo):
                                 }
                                 st.session_state.reg_estado = "confirmar"
                                 st.rerun()
-            else:
-                st.warning("🚫 Inscripciones Cerradas.")
 
-
-                
-
-        # 2. TORNEO
-        with tabs[1]:
+        # ==========================================
+        # 2. TORNEO (Siempre Visible)
+        # ==========================================
+        with tabs[idx_torneo]:
              # LLAMADA A LA FUNCIÓN
              contenido_pestana_torneo(id_torneo, t_color)
              
-        # 3. INGRESO (Login Clásico Actualizado)
-        with tabs[2]:
+        # ==========================================
+        # 3. INGRESO (Siempre Visible)
+        # ==========================================
+        with tabs[idx_ingreso]:
             st.subheader("🔐 Acceso DT / Admin")
             with st.container(border=True):
                 c_in, c_btn = st.columns([3, 1])
@@ -1628,6 +1634,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
