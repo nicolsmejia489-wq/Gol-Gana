@@ -885,11 +885,11 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
    # 👉 TANTEA AQUÍ: ANCHURA DEL ESCUDO
     # Esto define dónde termina el escudo para saber dónde empezar a escribir.
     ANCHO_ESCUDO_REAL = 95 
-    MARGIN_LATERAL = 15 # Distancia del escudo al borde de la imagen
+    MARGIN_LATERAL = 5 # Distancia del escudo al borde de la imagen
 
     # 👉 TANTEA AQUÍ: SEPARACIÓN (GAP)
     # Cuántos píxeles de aire quieres entre el escudo y el texto.
-    GAP_ESCUDO = 15 
+    GAP_ESCUDO = 5 
 
     # --- PINTAR ESCUDOS ---
     if esc_l:
@@ -1845,4 +1845,5 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
