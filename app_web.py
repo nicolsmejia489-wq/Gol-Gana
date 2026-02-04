@@ -781,68 +781,56 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 @st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, color_tema):
     """
-    Genera tarjeta con:
-    1. Fondo Translúcido.
-    2. Borde SÓLIDO perfecto en las esquinas.
-    3. Centrado vertical automático de textos.
+    Genera tarjeta manteniendo tu estructura actual.
+    Mejoras: Centrado vertical automático y comentarios de edición.
     """
     # ------------------------------------------------------------
-    # CONFIGURACIÓN INICIAL
+    # 1. CONFIGURACIÓN DEL LIENZO
     # ------------------------------------------------------------
     URL_PLANTILLA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" 
 
-    # 👉 TANTEA AQUÍ: TAMAÑO DEL CONTENIDO INTERIOR
-    W_INT, H_INT = 800, 100 
+    # 👉 TANTEA AQUÍ: TAMAÑO DE LA IMAGEN
+    W, H = 800, 100 
+    
+    # Calculamos la mitad vertical exacta para el centrado
+    CENTRO_Y = H // 2 
 
-    # 👉 TANTEA AQUÍ: GROSOR DEL BORDE
-    # Cuántos píxeles de marco de color quieres.
-    BORDER_WIDTH = 4 
-
-    # Calculamos el tamaño total de la imagen final (Contenido + Borde)
-    W_TOTAL = W_INT + (BORDER_WIDTH * 2)
-    H_TOTAL = H_INT + (H_INT * 2) # Error aquí en el cálculo previo mental, corregido abajo
-
-    # Función auxiliar Hex a RGB
     def hex_to_rgb(hex_color):
         try:
             hex_color = hex_color.lstrip('#')
             return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        except: return (100, 100, 100) # Gris default si falla
+        except: return (100, 100, 100)
 
-    # ------------------------------------------------------------
-    # 1. CREAR EL FONDO TRANSLÚCIDO (IMAGEN INTERIOR)
-    # ------------------------------------------------------------
     try:
         response = requests.get(URL_PLANTILLA, timeout=3)
         fondo = Image.open(BytesIO(response.content)).convert("RGBA")
-        fondo = fondo.resize((W_INT, H_INT))
+        fondo = fondo.resize((W, H))
         
-        # 👉 TANTEA AQUÍ: TRANSPARENCIA
-        # 0 (Invisible) a 255 (Sólido). 
-        # Un valor bajo como 50-100 da un efecto cristal muy elegante.
-        fondo.putalpha(80) 
+        # 👉 TANTEA AQUÍ: TRANSPARENCIA DEL FONDO
+        # 0 = Invisible | 255 = Sólido.
+        # Pon 100-150 para un efecto cristal. Pon 10 para casi invisible.
+        fondo.putalpha(150) 
         
-        # Creamos el lienzo interior transparente y pegamos el fondo
-        img_interior = Image.new("RGBA", (W_INT, H_INT), (0,0,0,0))
-        img_interior.paste(fondo, (0,0), fondo)
+        img = Image.new("RGBA", (W, H), (0,0,0,0))
+        img.paste(fondo, (0,0), fondo)
         
     except:
-        # Fallback: Gris translúcido
-        img_interior = Image.new('RGBA', (W_INT, H_INT), (40, 44, 52, 150))
+        img = Image.new('RGBA', (W, H), (40, 44, 52, 200))
 
-    draw = ImageDraw.Draw(img_interior)
+    draw = ImageDraw.Draw(img)
 
     # ------------------------------------------------------------
-    # 2. FUENTES Y TAMAÑOS
+    # 2. FUENTES
     # ------------------------------------------------------------
     FUENTES_A_PROBAR = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf"]
-    font_team = None; font_score = None; font_vs = None
     
-    # 👉 TANTEA AQUÍ: TAMAÑOS DE LETRA
-    SIZE_EQUIPO = 30    
-    SIZE_MARCADOR = 45  
-    SIZE_VS = 40        
+    # 👉 TANTEA AQUÍ: TAMAÑOS DE TEXTO
+    # Sube o baja estos números para cambiar el tamaño de letra
+    SIZE_EQUIPO = 28    # Nombres de clubes
+    SIZE_MARCADOR = 45  # Goles (3 - 1)
+    SIZE_VS = 40        # Letras VS
 
+    font_team = None; font_score = None; font_vs = None
     for fuente in FUENTES_A_PROBAR:
         try:
             font_team = ImageFont.truetype(fuente, SIZE_EQUIPO)
@@ -851,19 +839,19 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
             break 
         except: continue
     
-    if font_team is None:
+    if font_team is None: # Fallback
         font_team = ImageFont.load_default(); font_score = ImageFont.load_default(); font_vs = ImageFont.load_default()
 
     # ------------------------------------------------------------
-    # 3. PROCESAR Y PEGAR ESCUDOS
+    # 3. ESCUDOS
     # ------------------------------------------------------------
     def procesar_logo(url):
         try:
             if not url: return None
             resp = requests.get(url, timeout=2)
             im = Image.open(BytesIO(resp.content)).convert("RGBA")
-            # 👉 TANTEA AQUÍ: TAMAÑO MÁXIMO ESCUDOS
-            # Asegúrate que sea menor que H_INT (100)
+            # 👉 TANTEA AQUÍ: TAMAÑO MÁXIMO DEL ESCUDO
+            # (90, 90) es un buen tamaño para altura 100.
             im.thumbnail((90, 90)) 
             return im
         except: return None
@@ -871,87 +859,88 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     esc_l = procesar_logo(url_escudo_l)
     esc_v = procesar_logo(url_escudo_v)
 
-    # 👉 TANTEA AQUÍ: MÁRGENES Y SEPARACIÓN
-    # MARGIN_LATERAL: Distancia del escudo al borde lateral de la imagen interior.
-    # GAP_ESCUDO: Espacio entre escudo y nombre.
-    MARGIN_LATERAL = 20 
-    GAP_ESCUDO = 15     
-    ANCHO_ESCUDO_REAL = 90 # Debe coincidir con el thumbnail de arriba
+    # 👉 TANTEA AQUÍ: POSICIÓN DE LOS ESCUDOS
+    # ANCHO_ESCUDO_REAL: Espacio reservado para el escudo (para que el texto no se monte).
+    # MARGIN_LATERAL: Distancia desde el borde de la imagen.
+    # GAP_ESCUDO: Espacio de aire entre escudo y texto.
+    ANCHO_ESCUDO_REAL = 90
+    MARGIN_LATERAL = 10 
+    GAP_ESCUDO = 10 
 
-    # Centro vertical matemático
-    POS_Y_CENTER = H_INT // 2
-
-    # --- Pegar Escudos ---
     if esc_l:
-        # Centrado vertical automático usando matemáticas
-        pos_y_escudo = (H_INT - esc_l.height) // 2 
-        img_interior.paste(esc_l, (MARGIN_LATERAL, pos_y_escudo), esc_l)
+        # Centrado vertical automático: (Alto Imagen - Alto Escudo) / 2
+        pos_y = (H - esc_l.height) // 2 
+        img.paste(esc_l, (MARGIN_LATERAL, pos_y), esc_l)
 
     if esc_v:
-        pos_y_escudo = (H_INT - esc_v.height) // 2
-        img_interior.paste(esc_v, (W_INT - MARGIN_LATERAL - esc_v.width, pos_y_escudo), esc_v)
+        pos_y = (H - esc_v.height) // 2
+        img.paste(esc_v, (W - MARGIN_LATERAL - esc_v.width, pos_y), esc_v)
 
     # ------------------------------------------------------------
-    # 4. PINTAR TEXTOS (CON CENTRADO VERTICAL AUTOMÁTICO)
+    # 4. PINTAR NOMBRES (CENTRADO VERTICAL AUTOMÁTICO)
     # ------------------------------------------------------------
     color_texto = (255, 255, 255)
     color_sombra = (0, 0, 0)
     
-    # === LOCAL (Alineado a la IZQUIERDA del punto de anclaje) ===
-    # El punto de anclaje X es donde termina el escudo + gap
-    anchor_x_l = MARGIN_LATERAL + ANCHO_ESCUDO_REAL + GAP_ESCUDO
+    # == LOCAL (Izquierda) ==
+    # Calculamos dónde empieza el texto (X)
+    x_text_l = MARGIN_LATERAL + ANCHO_ESCUDO_REAL + GAP_ESCUDO
     
-    # Usamos anchor="lm" (Left Middle) -> El punto medio izquierdo del texto se pone en (x,y)
-    # Sombra (+2px)
-    draw.text((anchor_x_l + 2, POS_Y_CENTER + 2), local, font=font_team, fill=color_sombra, anchor="lm")
-    # Texto principal
-    draw.text((anchor_x_l, POS_Y_CENTER), local, font=font_team, fill=color_texto, anchor="lm")
+    # USAMOS ANCHOR="lm" (Left Middle)
+    # Esto significa: "Pon la mitad vertical del texto en la coordenada Y exacta".
+    # CENTRO_Y es H // 2 (la mitad de la imagen).
+    draw.text((x_text_l+2, CENTRO_Y+2), local[:14], font=font_team, fill=color_sombra, anchor="lm")
+    draw.text((x_text_l, CENTRO_Y), local[:14], font=font_team, fill=color_texto, anchor="lm")
 
-    # === VISITANTE (Alineado a la DERECHA del punto de anclaje) ===
-    # El punto de anclaje X es donde empieza el escudo derecho - gap
-    anchor_x_v = W_INT - MARGIN_LATERAL - ANCHO_ESCUDO_REAL - GAP_ESCUDO
+    # == VISITANTE (Derecha) ==
+    # Calculamos dónde termina el texto (X)
+    x_text_v = W - MARGIN_LATERAL - ANCHO_ESCUDO_REAL - GAP_ESCUDO
 
-    # Usamos anchor="rm" (Right Middle) -> El punto medio derecho del texto se pone en (x,y)
-    draw.text((anchor_x_v + 2, POS_Y_CENTER + 2), visita, font=font_team, fill=color_sombra, anchor="rm")
-    draw.text((anchor_x_v, POS_Y_CENTER), visita, font=font_team, fill=color_texto, anchor="rm")
+    # USAMOS ANCHOR="rm" (Right Middle)
+    # Alinea el texto a la derecha y lo centra verticalmente.
+    draw.text((x_text_v+2, CENTRO_Y+2), visita[:14], font=font_team, fill=color_sombra, anchor="rm")
+    draw.text((x_text_v, CENTRO_Y), visita[:14], font=font_team, fill=color_texto, anchor="rm")
 
-    # --- MARCADOR O VS (CENTRADO ABSOLUTO) ---
-    center_x_abs = W_INT // 2
-    
+    # ------------------------------------------------------------
+    # 5. MARCADOR O VS (CENTRADO PERFECTO)
+    # ------------------------------------------------------------
+    # Coordenada X central
+    CENTRO_X = W // 2 
+
     if "-" in marcador:
-        # Si hay marcador, no usamos overlay oscuro porque tu imagen de fondo ya es oscura.
-        # Texto Dorado, centrado con anchor="mm" (Middle Middle)
-        # 👉 TANTEA AQUÍ: COLOR DEL MARCADOR (R,G,B)
-        color_marcador = (255, 215, 0) # Dorado
-        
-        # Sombra ligera
-        draw.text((center_x_abs + 2, POS_Y_CENTER + 2), marcador, font=font_score, fill=(0,0,0,150), anchor="mm")
-        draw.text((center_x_abs, POS_Y_CENTER), marcador, font=font_score, fill=color_marcador, anchor="mm")
+        # 👉 TANTEA AQUÍ: CAJA OSCURA DEL MARCADOR
+        # Si quieres quitarla, comenta estas 4 líneas.
+        # fill=(0,0,0,0) es transparente. (0,0,0,100) es negro suave.
+        overlay = Image.new('RGBA', img.size, (0,0,0,0))
+        d_ov = ImageDraw.Draw(overlay)
+        # Dibujamos un rectángulo centrado detrás del número
+        d_ov.rectangle([CENTRO_X - 60, 10, CENTRO_X + 60, H - 10], fill=(0, 0, 0, 0)) 
+        img = Image.alpha_composite(img, overlay)
+        draw = ImageDraw.Draw(img)
+
+        # Texto Dorado con anchor="mm" (Middle Middle -> Centro absoluto)
+        draw.text((CENTRO_X, CENTRO_Y), marcador, font=font_score, fill=(255, 215, 0), anchor="mm")
     else:
-        # Texto VS
+        # VS
         txt_vs = "VS"
-        color_vs = (200, 200, 200) # Gris claro
-        
-        draw.text((center_x_abs + 2, POS_Y_CENTER + 2), txt_vs, font=font_vs, fill=color_sombra, anchor="mm")
-        draw.text((center_x_abs, POS_Y_CENTER), txt_vs, font=font_vs, fill=color_vs, anchor="mm")
+        # Sombra
+        draw.text((CENTRO_X + 2, CENTRO_Y + 2), txt_vs, font=font_vs, fill=(0,0,0), anchor="mm")
+        # Texto
+        draw.text((CENTRO_X, CENTRO_Y), txt_vs, font=font_vs, fill=(200, 200, 200), anchor="mm")
 
     # ------------------------------------------------------------
-    # 5. PASO FINAL: CREAR EL BORDE SÓLIDO PERFECTO
+    # 6. DIBUJAR EL BORDE (AL FINAL PARA CORREGIR ESQUINAS)
     # ------------------------------------------------------------
-    # Esta es la técnica profesional para bordes gruesos y esquinas perfectas.
-    
-    rgb_borde = hex_to_rgb(color_tema)
-    
-    # 1. Creamos una imagen base SÓLIDA del color del borde, más grande que el contenido.
-    W_TOTAL = W_INT + (BORDER_WIDTH * 2)
-    H_TOTAL = H_INT + (BORDER_WIDTH * 2)
-    img_final_con_borde = Image.new("RGBA", (W_TOTAL, H_TOTAL), rgb_borde + (255,)) # + (255,) para opacidad total
+    try:
+        rgb_borde = hex_to_rgb(color_tema)
+        # 👉 TANTEA AQUÍ: GROSOR DEL BORDE
+        # width=4 es un borde normal. Pon 1 para muy fino.
+        # Dibujamos de 0 a W-1/H-1 para que quede dentro del lienzo.
+        draw.rectangle([0, 0, W-1, H-1], outline=rgb_borde, width=4)
+    except:
+        pass
 
-    # 2. Pegamos la imagen interior translúcida justo en el centro, dejando el margen del borde.
-    img_final_con_borde.paste(img_interior, (BORDER_WIDTH, BORDER_WIDTH), img_interior)
-
-    # Devolvemos la imagen final compuesta (Borde sólido + Contenido translúcido)
-    return img_final_con_borde
+    return img
     # ---------------------------------------------------------
 ##FIN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
     # ---------------------------------------------------------
@@ -1845,6 +1834,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
