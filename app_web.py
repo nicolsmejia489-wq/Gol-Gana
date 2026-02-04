@@ -779,33 +779,6 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 @st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     """
-    Genera una tarjeta PNG elegante con fondo semitransparente y fuentes grandes.
-    """
-    # ==========================================
-    # 🎨 VARIABLES TANTEABLES (AQUÍ EDITAS LA ESTÉTICA)
-    # ==========================================
-    ANCHO, ALTO = 900, 180              # Tamaño del lienzo (Más ancho = mejor calidad en celular)
-    
-    # Color de Fondo (R, G, B, A). La 'A' es Transparencia (0=Invisible, 255=Sólido)
-    # Aquí usamos un negro azulado con transparencia media (180) para dar efecto elegante
-    BG_COLOR = (15, 20, 30, 200)       
-    
-    COLOR_TEXTO = (255, 255, 255, 255)  # Blanco puro
-    COLOR_VS = (150, 150, 150, 200)     # Gris para el "VS"
-    COLOR_SCORE = (255, 215, 0, 255)    # Dorado para resultado final
-    
-    TAMANO_FUENTE_EQUIPO = 200           # Tamaño grande para nombres
-    TAMANO_FUENTE_MARCADOR = 220         # Tamaño gigante para goles
-    # ==========================================
-
-    # 1. Crear Lienzo (RGBA para permitir transparencia)
-    img = Image.new('RGBA', (ANCHO, ALTO), color=BG_COLOR)
-    draw = ImageDraw.Draw(img)
-
-    # 2. Cargar Fuentes
-    @st.cache_data(show_spinner=False)
-    def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
-    """
     Genera la tarjeta usando la PLANTILLA "VS" METÁLICA como base.
     """
     # URL DE TU PLANTILLA (¡PON AQUÍ EL LINK REAL DE LA IMAGEN QUE SUBISTE!)
@@ -1795,6 +1768,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
