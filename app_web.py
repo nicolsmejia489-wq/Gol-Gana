@@ -794,8 +794,8 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     COLOR_VS = (150, 150, 150, 200)     # Gris para el "VS"
     COLOR_SCORE = (255, 215, 0, 255)    # Dorado para resultado final
     
-    TAMANO_FUENTE_EQUIPO = 45           # Tamaño grande para nombres
-    TAMANO_FUENTE_MARCADOR = 60         # Tamaño gigante para goles
+    TAMANO_FUENTE_EQUIPO = 100           # Tamaño grande para nombres
+    TAMANO_FUENTE_MARCADOR = 120         # Tamaño gigante para goles
     # ==========================================
 
     # 1. Crear Lienzo (RGBA para permitir transparencia)
@@ -1751,6 +1751,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
