@@ -897,13 +897,22 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         draw.text((CENTRO_X, CENTRO_Y), "VS", font=font_vs, fill=(200, 200, 200), anchor="mm")
 
     # ------------------------------------------------------------
-    # 6. BORDE (CAPAS)
+    # 6. BORDE (SÓLO LÍNEA HORIZONTAL SUPERIOR)
     # ------------------------------------------------------------
     try:
         rgb_borde = hex_to_rgb(color_tema)
-        for i in range(1): 
-            draw.rectangle([0 + i, 0 + i, W - 1 - i, H - 1 - i], outline=rgb_borde, width=1)
-    except: pass
+        
+        # 👉 TANTEA AQUÍ: GROSOR DE LA LÍNEA
+        # Si quieres que la línea sea más notoria, sube el rango a 2 o 3.
+        GROSOR_LINEA = 2 
+        
+        for i in range(GROSOR_LINEA):
+            # Dibujamos una línea desde el extremo izquierdo (0) al derecho (W)
+            # La 'i' hace que si el grosor es > 1, se dibujen líneas una debajo de otra.
+            draw.line([(0, i), (W, i)], fill=rgb_borde, width=1)
+            
+    except: 
+        pass
 
     return img
 # ---------------------------------------------------------
@@ -1798,6 +1807,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
