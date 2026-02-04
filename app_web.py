@@ -795,7 +795,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # 👉 TAMAÑO DE LA IMAGEN FINAL (Ancho, Alto)
     # W=800 es buen ancho para móvil. H=140 es la altura. 
     # Si quieres la tarjeta más alta, cambia 140 por 160 o 180.
-    W, H = 800, 140 
+    W, H = 800, 100 
     
     # Función auxiliar para convertir Hex a RGB (ej: #FF0000 -> (255, 0, 0))
     def hex_to_rgb(hex_color):
@@ -1845,5 +1845,6 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
