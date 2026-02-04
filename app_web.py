@@ -809,7 +809,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # 👉 TANTEA AQUÍ: TRANSPARENCIA DEL FONDO
         # 0 = Invisible | 255 = Sólido.
         # Pon 100-150 para un efecto cristal. Pon 10 para casi invisible.
-        fondo.putalpha(150) 
+        fondo.putalpha(10) 
         
         img = Image.new("RGBA", (W, H), (0,0,0,0))
         img.paste(fondo, (0,0), fondo)
@@ -826,8 +826,8 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     
     # 👉 TANTEA AQUÍ: TAMAÑOS DE TEXTO
     # Sube o baja estos números para cambiar el tamaño de letra
-    SIZE_EQUIPO = 28    # Nombres de clubes
-    SIZE_MARCADOR = 45  # Goles (3 - 1)
+    SIZE_EQUIPO = 18    # Nombres de clubes
+    SIZE_MARCADOR = 40  # Goles (3 - 1)
     SIZE_VS = 40        # Letras VS
 
     font_team = None; font_score = None; font_vs = None
@@ -936,7 +936,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # 👉 TANTEA AQUÍ: GROSOR DEL BORDE
         # width=4 es un borde normal. Pon 1 para muy fino.
         # Dibujamos de 0 a W-1/H-1 para que quede dentro del lienzo.
-        draw.rectangle([0, 0, W-1, H-1], outline=rgb_borde, width=4)
+        draw.rectangle([0, 0, W-1, H-1], outline=rgb_borde, width=1)
     except:
         pass
 
@@ -1834,6 +1834,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
