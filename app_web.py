@@ -793,9 +793,9 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     URL_PLANTILLA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1769117628/Enfrentamientos_zbrqpf.png" 
 
     # 👉 TAMAÑO DE LA IMAGEN FINAL (Ancho, Alto)
-    # W=800 es buen ancho para móvil. H=120 es la altura. 
+    # W=800 es buen ancho para móvil. H=140 es la altura. 
     # Si quieres la tarjeta más alta, cambia 140 por 160 o 180.
-    W, H = 800, 120 
+    W, H = 800, 140 
     
     # Función auxiliar para convertir Hex a RGB (ej: #FF0000 -> (255, 0, 0))
     def hex_to_rgb(hex_color):
@@ -813,7 +813,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # 210 es el nivel de opacidad (0=Invisible, 255=Sólido/Sin transparencia).
         # - Baja a 150 para que sea muy "fantasmal".
         # - Sube a 255 para que se vea la imagen metálica sólida.
-        fondo.putalpha(210) 
+        fondo.putalpha(10) 
         
         img = Image.new("RGBA", (W, H), (0,0,0,0))
         img.paste(fondo, (0,0), fondo) # Pegamos el fondo semitransparente
@@ -821,7 +821,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     except:
         # Fallback: Fondo gris oscuro translúcido si falla la imagen
         # (40, 44, 52) es el color RGB gris azulado. 200 es la transparencia.
-        img = Image.new('RGBA', (W, H), (40, 44, 52, 400))
+        img = Image.new('RGBA', (W, H), (40, 44, 52, 200))
 
     draw = ImageDraw.Draw(img)
 
@@ -848,8 +848,8 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     # 👉 TANTEA AQUÍ: TAMAÑOS DE LETRA
     # Cambia estos números para hacer las letras más grandes o chicas.
     SIZE_EQUIPO = 25    # Tamaño de nombres (Local/Visita)
-    SIZE_MARCADOR = 45  # Tamaño de los goles (ej: 3 - 1)
-    SIZE_VS = 45        # Tamaño de las letras "VS"
+    SIZE_MARCADOR = 35  # Tamaño de los goles (ej: 3 - 1)
+    SIZE_VS = 35        # Tamaño de las letras "VS"
 
     for fuente in FUENTES_A_PROBAR:
         try:
@@ -939,7 +939,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # [350, 30, 450, 110] son las coordenadas [Izq, Arr, Der, Abajo] de la caja central.
         # fill=(0, 0, 0, 160) -> Negro con 160 de opacidad.
         # - Baja 160 a 100 para hacer la caja más transparente.
-        d_ov.rectangle([350, 30, 450, 10], fill=(0, 0, 0, 100))
+        d_ov.rectangle([350, 30, 450, 110], fill=(0, 0, 0, 5))
         
         img = Image.alpha_composite(img, overlay)
         draw = ImageDraw.Draw(img) # Reiniciar pincel
@@ -1855,6 +1855,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
