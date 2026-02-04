@@ -794,8 +794,8 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     COLOR_VS = (150, 150, 150, 200)     # Gris para el "VS"
     COLOR_SCORE = (255, 215, 0, 255)    # Dorado para resultado final
     
-    TAMANO_FUENTE_EQUIPO = 100           # Tamaño grande para nombres
-    TAMANO_FUENTE_MARCADOR = 120         # Tamaño gigante para goles
+    TAMANO_FUENTE_EQUIPO = 200           # Tamaño grande para nombres
+    TAMANO_FUENTE_MARCADOR = 220         # Tamaño gigante para goles
     # ==========================================
 
     # 1. Crear Lienzo (RGBA para permitir transparencia)
@@ -803,63 +803,106 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     draw = ImageDraw.Draw(img)
 
     # 2. Cargar Fuentes
+    @st.cache_data(show_spinner=False)
+def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
+    """
+    Genera la tarjeta usando la PLANTILLA "VS" METÁLICA como base.
+    """
+    # URL DE TU PLANTILLA (¡PON AQUÍ EL LINK REAL DE LA IMAGEN QUE SUBISTE!)
+    # Si no tienes link aun, usa este placeholder temporal o sube la tuya
+    URL_PLANTILLA = "https://i.imgur.com/tu_imagen_subida.jpg" # <--- CAMBIA ESTO
+
+    # 1. Cargar la Plantilla Base
     try:
-        # INTENTA cargar tu fuente Oswald si tienes el archivo en la carpeta
-        # Si no tienes el archivo, descarga 'Oswald-Bold.ttf' y ponlo junto al script
-        font_team = ImageFont.truetype("Oswald-Bold.ttf", TAMANO_FUENTE_EQUIPO)
-        font_score = ImageFont.truetype("Oswald-Bold.ttf", TAMANO_FUENTE_MARCADOR)
+        response = requests.get(URL_PLANTILLA, timeout=3)
+        img = Image.open(BytesIO(response.content)).convert("RGBA")
     except:
-        # Si falla, carga la fuente por defecto pero trata de hacerla grande
-        try:
-            font_team = ImageFont.truetype("arial.ttf", TAMANO_FUENTE_EQUIPO)
-            font_score = ImageFont.truetype("arial.ttf", TAMANO_FUENTE_MARCADOR)
-        except:
-            font_team = ImageFont.load_default()
-            font_score = ImageFont.load_default()
+        # Fallback si falla la carga: Crea un fondo negro
+        img = Image.new('RGBA', (800, 150), (20, 20, 30, 255))
+
+    # Redimensionamos la plantilla a un tamaño estándar para calcular bien las coordenadas
+    W, H = 800, 140
+    img = img.resize((W, H))
+    draw = ImageDraw.Draw(img)
+
+    # 2. Configurar Fuentes (Grandes y Claras)
+    # Intenta usar una fuente Bold si la tienes, si no, usa default
+    try:
+        font_team = ImageFont.truetype("arialbd.ttf", 35) # Arial Bold
+        font_score = ImageFont.truetype("arialbd.ttf", 50) # Score Gigante
+    except:
+        font_team = ImageFont.load_default()
+        font_score = ImageFont.load_default()
 
     # 3. Procesar Escudos
-    def cargar_escudo(url):
+    def procesar_logo(url):
         try:
             if not url: return None
-            response = requests.get(url, timeout=2)
-            im = Image.open(BytesIO(response.content)).convert("RGBA")
-            # Redimensionar manteniendo calidad (ANTIALIAS ahora es LANCZOS o Resampling.LANCZOS)
-            im.thumbnail((110, 110), Image.Resampling.LANCZOS) 
+            resp = requests.get(url, timeout=2)
+            im = Image.open(BytesIO(resp.content)).convert("RGBA")
+            # Los círculos de la plantilla parecen de unos 90-100px
+            im.thumbnail((90, 90), Image.Resampling.LANCZOS)
             return im
         except: return None
 
-    esc_l = cargar_escudo(url_escudo_l)
-    esc_v = cargar_escudo(url_escudo_v)
+    esc_l = procesar_logo(url_escudo_l)
+    esc_v = procesar_logo(url_escudo_v)
 
-    # 4. Posicionamiento (Calculado dinámicamente)
-    centro_x = ANCHO // 2
-    centro_y = ALTO // 2
-
+    # 4. Posicionamiento (Ajustado a tu imagen metálica)
+    # Basado en la imagen: Círculos en los extremos, Nombres en las barras grises
+    
     # --- ESCUDOS ---
-    # Pegamos escudos a los costados del centro
+    # Círculo Izquierdo (aprox 30px del borde)
     if esc_l:
-        # Posición: Un poco a la izquierda del centro
-        img.paste(esc_l, (centro_x - 180, centro_y - 55), esc_l)
-    
+        # Centramos el escudo en el círculo izquierdo
+        pos_x = 35 
+        pos_y = (H - esc_l.height) // 2 
+        img.paste(esc_l, (pos_x, pos_y), esc_l)
+
+    # Círculo Derecho (aprox 30px del borde derecho)
     if esc_v:
-        # Posición: Un poco a la derecha del centro
-        img.paste(esc_v, (centro_x + 70, centro_y - 55), esc_v)
+        pos_x = W - 35 - esc_v.width
+        pos_y = (H - esc_v.height) // 2
+        img.paste(esc_v, (pos_x, pos_y), esc_v)
 
-    # --- MARCADOR CENTRAL ---
-    # Calculamos el tamaño del texto para centrarlo perfecto
-    bbox = draw.textbbox((0, 0), marcador, font=font_score)
-    w_text = bbox[2] - bbox[0]
-    h_text = bbox[3] - bbox[1]
-    
-    col_score = COLOR_SCORE if "-" in marcador else COLOR_VS
-    draw.text((centro_x - w_text/2, centro_y - h_text/1.5), marcador, font=font_score, fill=col_score)
+    # --- TEXTOS (NOMBRES) ---
+    color_texto = (255, 255, 255) # Blanco
+    # Sombra negra para legibilidad
+    color_sombra = (0, 0, 0)
 
-    # --- NOMBRES DE EQUIPOS ---
-    # Equipo Local (Alineado a la Derecha del bloque izquierdo)
-    draw.text((centro_x - 200, centro_y - 20), local[:12], font=font_team, fill=COLOR_TEXTO, anchor="rm") 
+    # Nombre Local (Centrado en la barra izquierda)
+    # Coordenadas aprox: Entre el escudo (130px) y el VS central (380px)
+    w_text_l = draw.textlength(local[:12], font=font_team)
+    x_text_l = 140 + (240 - w_text_l) / 2  # Centrado en su caja
     
-    # Equipo Visitante (Alineado a la Izquierda del bloque derecho)
-    draw.text((centro_x + 200, centro_y - 20), visita[:12], font=font_team, fill=COLOR_TEXTO, anchor="lm")
+    draw.text((x_text_l+2, 52), local[:12], font=font_team, fill=color_sombra) # Sombra
+    draw.text((x_text_l, 50), local[:12], font=font_team, fill=color_texto)
+
+    # Nombre Visitante (Centrado en la barra derecha)
+    # Coordenadas aprox: Entre el VS (420px) y el escudo derecho (670px)
+    w_text_v = draw.textlength(visita[:12], font=font_team)
+    x_text_v = 420 + (240 - w_text_v) / 2
+
+    draw.text((x_text_v+2, 52), visita[:12], font=font_team, fill=color_sombra) # Sombra
+    draw.text((x_text_v, 50), visita[:12], font=font_team, fill=color_texto)
+
+    # --- MARCADOR (Sobre el VS Metálico) ---
+    # Si hay marcador (no es VS), dibujamos un parche oscuro encima del logo "VS" 
+    # para que se lean los números
+    if "-" in marcador:
+        # Dibujar caja semitransparente sobre el logo VS central
+        # El centro es 400. Caja de 350 a 450
+        overlay = Image.new('RGBA', img.size, (0,0,0,0))
+        draw_ov = ImageDraw.Draw(overlay)
+        # Caja negra al 80% de opacidad sobre el VS
+        draw_ov.rectangle([340, 30, 460, 110], fill=(0, 0, 0, 200)) 
+        img = Image.alpha_composite(img, overlay)
+        draw = ImageDraw.Draw(img) # Reiniciar draw sobre la nueva imagen compuesta
+
+        # Escribir marcador dorado
+        bbox = draw.textbbox((0, 0), marcador, font=font_score)
+        w_score = bbox[2] - bbox[0]
+        draw.text(((W - w_score)/2, 40), marcador, font=font_score, fill=(255, 215, 0))
 
     return img
 ##FIN PROVISIONAL
@@ -1252,11 +1295,12 @@ def render_torneo(id_torneo):
                         else:
                             rival_pref = p['pref_l']; rival_cel = p['cel_l']
 
-                        # --- GENERACIÓN DE IMAGEN (Tu diseño elegante) ---
+                        # Definir texto marcador
                         txt_score = "VS"
                         if p['estado'] == 'Finalizado':
-                             txt_score = f"{int(p['goles_l'])} - {int(p['goles_v'])}"
+                             txt_score = f"{int(p['goles_l'])}-{int(p['goles_v'])}"
                         
+                        # Generar la imagen con la NUEVA función (Plantilla Metálica)
                         img_card = generar_tarjeta_imagen(
                             local=p['nombre_local'],
                             visita=p['nombre_visitante'],
@@ -1265,7 +1309,7 @@ def render_torneo(id_torneo):
                             marcador=txt_score
                         )
                         
-                        # Mostramos la imagen ocupando todo el ancho
+                        # Renderizar imagen
                         st.image(img_card, use_container_width=True)
 
                         # --- BOTONERA DE ACCIONES (Corregida) ---
@@ -1751,6 +1795,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
