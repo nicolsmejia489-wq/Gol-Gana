@@ -575,7 +575,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         except: pass
 
                     # Renderizado Visual (Aquí ocurre la magia)
-                    html_tarjeta = renderizar_tarjeta_partido(
+                    html_tarjeta = generar_tarjeta_imagen(
                         local=row['local'],
                         visita=row['visitante'],
                         escudo_l=row['escudo_l'],
@@ -1720,6 +1720,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
