@@ -885,7 +885,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
    # 👉 TANTEA AQUÍ: ANCHURA DEL ESCUDO
     # Esto define dónde termina el escudo para saber dónde empezar a escribir.
     ANCHO_ESCUDO_REAL = 95 
-    MARGIN_LATERAL = 35 # Distancia del escudo al borde de la imagen
+    MARGIN_LATERAL = 15 # Distancia del escudo al borde de la imagen
 
     # 👉 TANTEA AQUÍ: SEPARACIÓN (GAP)
     # Cuántos píxeles de aire quieres entre el escudo y el texto.
@@ -935,7 +935,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
         # Overlay oscuro
         overlay = Image.new('RGBA', img.size, (0,0,0,0))
         d_ov = ImageDraw.Draw(overlay)
-        d_ov.rectangle([350, 30, 450, 110], fill=(0, 0, 0, 160)) 
+        d_ov.rectangle([350, 30, 450, 110], fill=(0, 0, 0, 0)) 
         img = Image.alpha_composite(img, overlay)
         draw = ImageDraw.Draw(img)
 
