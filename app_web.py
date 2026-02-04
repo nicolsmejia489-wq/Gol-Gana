@@ -820,39 +820,34 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
     draw = ImageDraw.Draw(img)
 
     # ------------------------------------------------------------
-    # 2. FUENTES (DESCARGA AUTOMÁTICA DE OSWALD)
+    # 2. FUENTES (MÉTODO LOCAL SEGURO - DEJAVU / ARIAL)
     # ------------------------------------------------------------
-    # URL directa a la fuente Oswald Bold en los servidores de Google
-    URL_FUENTE_OSWALD = "https://github.com/google/fonts/raw/main/ofl/oswald/Oswald-Bold.ttf"
+    # 👉 TANTEA AQUÍ: TAMAÑOS DE LETRA (Ajusta estos números a tu gusto)
+    # Como ahora sí funcionan, prueba con estos valores grandes:
+    SIZE_EQUIPO = 23    # Nombres de clubes
+    SIZE_MARCADOR = 25  # Goles (3 - 1)
+    SIZE_VS = 25        # Letras VS
 
-    # 👉 TANTEA AQUÍ: TAMAÑOS DE LETRA (Oswald es una fuente "alta", quizás requiera menos tamaño)
-    SIZE_EQUIPO = 280    # Nombres de clubes
-    SIZE_MARCADOR = 50  # Goles
-    SIZE_VS = 40        # Letras VS
+    # Lista de fuentes que el servidor buscará localmente
+    FUENTES_SISTEMA = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
+    
+    font_team = None; font_score = None; font_vs = None
 
-    try:
-        # 1. Descargamos la fuente a la memoria RAM
-        resp_font = requests.get(URL_FUENTE_OSWALD, timeout=3)
-        font_bytes = BytesIO(resp_font.content)
-        
-        # 2. Creamos los objetos de fuente con los tamaños deseados
-        # IMPORTANTE: Usamos 'font_bytes' como si fuera el archivo .ttf
-        font_team = ImageFont.truetype(font_bytes, SIZE_EQUIPO)
-        
-        # Rebobinamos el archivo en memoria para volver a leerlo (necesario para crear otra fuente)
-        font_bytes.seek(0)
-        font_score = ImageFont.truetype(font_bytes, SIZE_MARCADOR)
-        
-        font_bytes.seek(0)
-        font_vs = ImageFont.truetype(font_bytes, SIZE_VS)
+    # Intentamos cargar una fuente del sistema que permita redimensionar
+    for f_nombre in FUENTES_SISTEMA:
+        try:
+            font_team = ImageFont.truetype(f_nombre, SIZE_EQUIPO)
+            font_score = ImageFont.truetype(f_nombre, SIZE_MARCADOR)
+            font_vs = ImageFont.truetype(f_nombre, SIZE_VS)
+            break # Si carga una, salimos del bucle
+        except:
+            continue
 
-    except Exception as e:
-        # Si falla internet o la descarga, usamos la default por seguridad
-        print(f"Error cargando Oswald: {e}")
+    # Si todo falla, el fallback a default (pero con el bucle anterior es casi imposible que falle)
+    if font_team is None:
         font_team = ImageFont.load_default()
         font_score = ImageFont.load_default()
         font_vs = ImageFont.load_default()
-
     # ------------------------------------------------------------
     # 3. ESCUDOS
     # ------------------------------------------------------------
@@ -1861,6 +1856,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
