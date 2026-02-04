@@ -715,7 +715,7 @@ def generar_calendario(id_torneo):
 
 
   # =========================================================
-         ESTETICA DE PARTIDOS - RENDERIZAR 
+       ##  ESTETICA DE PARTIDOS - RENDERIZAR 
  # =========================================================
 
 def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema):
@@ -1661,6 +1661,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
