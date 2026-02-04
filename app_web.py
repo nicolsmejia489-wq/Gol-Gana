@@ -1112,90 +1112,104 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-        # 2. CALENDARIO (Solo sus partidos)
+        # 2. CALENDARIO (Solo sus partidos - CORREGIDO CON JOIN)
         with tabs[1]:
             if t_fase == "inscripcion":
-                mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu calendario.")
-              
+                mostrar_bot("El balón aún no rueda, Profe. Cuando inicie el torneo, aquí verás tu fixture.")
+                st.image("https://cdn-icons-png.flaticon.com/512/3363/3363697.png", width=100)
             else:
                 st.subheader(f"📅 Calendario de {st.session_state.nombre_equipo}")
                 
                 try:
                     with conn.connect() as db:
-                        # Buscamos partidos donde el equipo sea Local O Visitante
+                        # -----------------------------------------------------------
+                        # QUERY MAESTRA CON JOINS (Igual que en Admin y Espectador)
+                        # -----------------------------------------------------------
+                        # Buscamos partidos donde local_id O visitante_id sea MI EQUIPO
+                        # Usamos 'el' (Equipo Local) y 'ev' (Equipo Visitante) como alias
                         q_cal = text("""
-                            SELECT * FROM partidos 
-                            WHERE id_torneo = :id 
-                            AND (local = :n OR visitante = :n)
-                            ORDER BY jornada ASC, id ASC
+                            SELECT 
+                                p.id, p.jornada, p.goles_l, p.goles_v, p.estado,
+                                el.nombre as nombre_local, el.escudo as escudo_l,
+                                ev.nombre as nombre_visitante, ev.escudo as escudo_v
+                            FROM partidos p
+                            JOIN equipos_globales el ON p.local_id = el.id
+                            JOIN equipos_globales ev ON p.visitante_id = ev.id
+                            WHERE p.id_torneo = :id 
+                            AND (p.local_id = :my_id OR p.visitante_id = :my_id)
+                            ORDER BY p.jornada ASC, p.id ASC
                         """)
-                        df_cal = pd.read_sql_query(q_cal, db, params={"id": id_torneo, "n": st.session_state.nombre_equipo})
+                        
+                        # Pasamos el ID del equipo (st.session_state.id_equipo), NO el nombre
+                        df_cal = pd.read_sql_query(q_cal, db, params={
+                            "id": id_torneo, 
+                            "my_id": st.session_state.id_equipo
+                        })
                     
                     if df_cal.empty:
                         st.info("Aún no se han programado tus partidos.")
                     else:
-                        # Agrupamos por Jornada para que se vea ordenado
-                        jornadas = df_cal['jornada'].unique()
+                        # Agrupamos por Jornada
+                        jornadas = sorted(df_cal['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
                         
                         for j in jornadas:
-                            # Título de la Jornada o Fase
-                            lbl_jornada = f"Jornada {j}" if str(j).isdigit() else j
+                            lbl_jornada = f"Jornada {j}" if str(j).isdigit() else str(j)
                             st.markdown(f"##### 📍 {lbl_jornada}")
                             
-                            # Filtramos los partidos de esta jornada
                             df_j = df_cal[df_cal['jornada'] == j]
                             
-                            for _, p in df_j.iterrows():
-                                with st.container(border=True):
-                                    # Diseño de Tarjeta de Partido
-                                    c_loc, c_vs, c_vis = st.columns([2, 0.5, 2], vertical_alignment="center")
-                                    
-                                    # Equipo Local
-                                    with c_loc:
-                                        st.markdown(f"<div style='text-align:right; font-weight:bold;'>{p['local']}</div>", unsafe_allow_html=True)
-                                        if p['goles_l'] is not None:
-                                            st.markdown(f"<div style='text-align:right; font-size:20px; color:{t_color};'>{int(p['goles_l'])}</div>", unsafe_allow_html=True)
-                                    
-                                    # VS
-                                    with c_vs:
-                                        st.markdown("<div style='text-align:center; color:#888;'>vs</div>", unsafe_allow_html=True)
-                                    
-                                    # Equipo Visitante
-                                    with c_vis:
-                                        st.markdown(f"<div style='text-align:left; font-weight:bold;'>{p['visitante']}</div>", unsafe_allow_html=True)
-                                        if p['goles_v'] is not None:
-                                            st.markdown(f"<div style='text-align:left; font-size:20px; color:{t_color};'>{int(p['goles_v'])}</div>", unsafe_allow_html=True)
-                                    
-                                    st.divider()
-                                    
-                                    # ESTADO Y ACCIONES
-                                    c_status, c_action = st.columns([2, 1], vertical_alignment="center")
-                                    
-                                    with c_status:
-                                        if p['estado'] == 'Finalizado':
-                                            st.caption("✅ Finalizado")
-                                        else:
-                                            st.caption("⏳ Pendiente / En Juego")
-                                    
-                                    with c_action:
-                                        # Solo permitimos subir foto si NO está finalizado aún (o para corregir)
-                                        # Usamos un key único por partido
-                                        key_up = f"evidencia_{p['id']}"
-                                        
-                                        # Popover para subir la evidencia sin salir de la pantalla
-                                        with st.popover("📸 Reportar"):
-                                            st.markdown("Subir foto del marcador final:")
-                                            foto_ev = st.file_uploader("Evidencia", type=['jpg', 'png'], key=f"u_{p['id']}", label_visibility="collapsed")
-                                            
-                                            if foto_ev:
-                                                if st.button("Enviar Resultado", key=f"b_{p['id']}"):
-                                                    # Aquí iría la lógica de OCR o guardado de la imagen para revisión del Admin
-                                                    # Por ahora, simulamos el envío al admin
-                                                    st.success("Evidencia enviada al Admin.")
-                                                    time.sleep(1)
-                                                    # (Opcional) Aquí podrías actualizar un campo 'evidencia_url' en la tabla partidos
-                            
-                            st.write("") # Espacio entre jornadas
+                            for _, row in df_j.iterrows():
+                                # ---------------------------------------------
+                                # RENDERIZADO VISUAL (Usando tu función estética)
+                                # ---------------------------------------------
+                                
+                                # 1. Definir Marcador Texto
+                                txt_marcador = "VS"
+                                if row['estado'] == 'Finalizado':
+                                    try: 
+                                        txt_marcador = f"{int(row['goles_l'])} - {int(row['goles_v'])}"
+                                    except: pass
+                                
+                                # 2. Definir Escudos (Fallback seguro)
+                                # Si no hay escudo, pasamos None para que la función ponga el Emoji
+                                e_l = row['escudo_l'] if row['escudo_l'] else None
+                                e_v = row['escudo_v'] if row['escudo_v'] else None
+
+                                # 3. Llamar a la función visual
+                                html_tarjeta = renderizar_tarjeta_partido(
+                                    local=row['nombre_local'],      # Usamos el alias del JOIN
+                                    visita=row['nombre_visitante'], # Usamos el alias del JOIN
+                                    escudo_l=e_l,
+                                    escudo_v=e_v,
+                                    marcador_texto=txt_marcador,
+                                    color_tema=t_color
+                                )
+                                st.markdown(html_tarjeta, unsafe_allow_html=True)
+                                
+                                # ---------------------------------------------
+                                # ZONA DE ACCIONES (REPORTAR)
+                                # ---------------------------------------------
+                                # Solo mostramos botón si el partido NO está finalizado
+                                # o si queremos permitir correcciones.
+                                
+                                c_status, c_action = st.columns([2, 1])
+                                with c_status:
+                                    if row['estado'] == 'Finalizado':
+                                        st.caption("✅ Partido Finalizado")
+                                    else:
+                                        st.caption("⏳ Pendiente de Resultado")
+                                
+                                with c_action:
+                                    # Lógica de subir evidencia
+                                    with st.popover("📸 Reportar"):
+                                        st.markdown("Subir foto del marcador:")
+                                        foto = st.file_uploader("Evidencia", type=['jpg', 'png'], key=f"u_{row['id']}")
+                                        if foto:
+                                            if st.button("Enviar", key=f"btn_env_{row['id']}"):
+                                                # Aquí iría tu lógica de subir a Cloudinary y actualizar DB
+                                                st.success("Enviado al Admin")
+                                
+                                st.write("") # Espacio entre tarjetas
 
                 except Exception as e:
                     st.error(f"Error cargando calendario: {e}")
@@ -1634,6 +1648,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
