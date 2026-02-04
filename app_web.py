@@ -464,18 +464,35 @@ def validar_acceso(id_torneo, pin_ingresado):
 def contenido_pestana_torneo(id_torneo, t_color):
     """
     Renderiza la vista pública del torneo.
-    Usa 'escudo_defecto' como fallback para equipos sin imagen.
+    Ajuste: Espacios reducidos entre tarjetas y estética personalizable.
     """
     
+    # ------------------------------------------------------------
+    # 0. AJUSTES DE ESTÉTICA GLOBAL (CSS) - TANTEA AQUÍ
+    # ------------------------------------------------------------
+    # Este bloque controla el espacio "invisible" entre componentes de Streamlit
+    st.markdown(f"""
+        <style>
+        /* 👉 REDUCIR ESPACIO ENTRE TARJETAS (st.image) */
+        [data-testid="stImage"] {{
+            margin-bottom: -15px !important; /* TANTEA: Más negativo = más pegadas */
+            padding-bottom: 0px !important;
+        }}
+        
+        /* 👉 AJUSTE DE TABS (Opcional) */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 10px; /* Espacio entre los botones de las jornadas */
+        }}
+        </style>
+    """, unsafe_allow_html=True)
+
     # 1. CARGA DE DATOS DEL TORNEO
     try:
         with conn.connect() as db:
-            # Traemos formato y el nuevo campo escudo_defecto
             res_t = db.execute(text("SELECT formato, escudo_defecto FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
             t_formato = res_t.formato if res_t else "Liga"
             t_escudo_defecto = res_t.escudo_defecto if res_t and res_t.escudo_defecto else None
 
-            # Consulta de partidos con sus equipos y escudos
             q_master = text("""
                 SELECT 
                     p.jornada, p.goles_l, p.goles_v, p.estado, 
@@ -488,7 +505,6 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 ORDER BY p.jornada ASC, p.id ASC
             """)
             df_partidos = pd.read_sql_query(q_master, db, params={"id": id_torneo})
-
     except Exception as e:
         st.error(f"Error cargando datos: {e}")
         return
@@ -496,11 +512,9 @@ def contenido_pestana_torneo(id_torneo, t_color):
     # 2. CONFIGURACIÓN DE PESTAÑAS
     titulos_tabs = []
     tiene_tabla = t_formato in ["Liga", "Grupos y Cruces", "Liga y Playoff"]
-    
     if tiene_tabla: titulos_tabs.append("📊 Clasificación")
 
     if not df_partidos.empty:
-        # Ordenar jornadas
         jornadas_unicas = sorted(df_partidos['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
         for j in jornadas_unicas:
             lbl = f"Jornada {j}" if str(j).isdigit() else str(j)
@@ -523,7 +537,6 @@ def contenido_pestana_torneo(id_torneo, t_color):
             if df_fin.empty:
                 st.info("La tabla se actualizará al finalizar el primer partido.")
             else:
-                # Cálculo de Estadísticas
                 equipos_set = set(df_partidos['local']).union(set(df_partidos['visitante']))
                 stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
                 
@@ -543,18 +556,41 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
                 df_f.insert(0, 'POS', range(1, len(df_f) + 1))
                 
-                # Mapa de escudos para la tabla
                 mapa_escudos = dict(zip(df_partidos['local'], df_partidos['escudo_l']))
                 mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
 
-                # Estética de la Tabla
-                estilo = f"""<style>.t-pro {{width:100%; border-collapse:collapse; background:rgba(0,0,0,0.5); font-family:'Oswald'; border:1px solid {t_color};}} .t-pro th {{background:#111; color:#fff; font-size:11px; text-align:center; border-bottom:2px solid {t_color};}} .t-pro td {{color:#fff; font-size:13px; text-align:center; border-bottom:1px solid #333; padding:4px;}}</style>"""
-                html = f'{estilo}<table class="t-pro"><thead><tr><th width="10%">POS</th><th width="45%" style="text-align:left">EQUIPO</th><th width="10%">PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
+                # 👉 TANTEA AQUÍ: ESTÉTICA DE LA TABLA
+                estilo = f"""
+                <style>
+                .t-pro {{
+                    width:100%; 
+                    border-collapse:collapse; 
+                    background:rgba(0,0,0,0.5); /* Fondo oscuro translúcido */
+                    font-family:'Oswald', sans-serif; 
+                    border:1px solid {t_color};
+                }} 
+                .t-pro th {{
+                    background:#111; 
+                    color:#fff; 
+                    font-size:12px; /* Tamaño encabezados */
+                    text-align:center; 
+                    border-bottom:2px solid {t_color};
+                    padding: 8px;
+                }} 
+                .t-pro td {{
+                    color:#fff; 
+                    font-size:14px; /* Tamaño nombres equipos */
+                    text-align:center; 
+                    border-bottom:1px solid #333; 
+                    padding:6px;
+                }}
+                </style>
+                """
+                html = f'{estilo}<table class="t-pro"><thead><tr><th>POS</th><th style="text-align:left">EQUIPO</th><th>PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
                 
                 for _, r in df_f.iterrows():
-                    # Fallback de escudo en la tabla
                     esc_url = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
-                    img_tag = f'<img src="{esc_url}" width="25" style="vertical-align:middle; margin-right:5px">' if esc_url else '<span style="margin-right:5px">🛡️</span>'
+                    img_tag = f'<img src="{esc_url}" width="25" style="vertical-align:middle; margin-right:8px">' if esc_url else '<span style="margin-right:8px">🛡️</span>'
                     html += f'<tr><td>{r["POS"]}</td><td style="text-align:left; font-weight:bold">{img_tag}{r["EQ"]}</td><td style="color:{t_color}; font-weight:bold">{r["PTS"]}</td><td>{r["PJ"]}</td><td style="color:#aaa">{r["DG"]}</td></tr>'
                 st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
         idx_tab += 1
@@ -563,23 +599,24 @@ def contenido_pestana_torneo(id_torneo, t_color):
     for jornada_actual in jornadas_unicas:
         with tabs[idx_tab]:
             df_j = df_partidos[df_partidos['jornada'] == jornada_actual]
-            st.markdown(f"**{titulos_tabs[idx_tab]}**")
+            
+            # 👉 TANTEA AQUÍ: Título de Jornada
+            # Puedes usar st.subheader o un markdown con color
+            st.markdown(f"#### 📅 {titulos_tabs[idx_tab]}")
             
             if df_j.empty:
                 st.info("Sin partidos programados.")
             else:
+                # Contenedor para agrupar imágenes y que el CSS afecte mejor
                 for _, row in df_j.iterrows():
-                    # Marcador o VS
                     txt = "VS"
                     if row['estado'] == 'Finalizado':
                         try: txt = f"{int(row['goles_l'])} - {int(row['goles_v'])}"
                         except: pass
 
-                    # Lógica de Escudos con Fallback al campo 'escudo_defecto'
                     url_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
                     url_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
 
-                    # Generación de la Tarjeta Visual
                     img_tarjeta = generar_tarjeta_imagen(
                         local=row['local'],
                         visita=row['visitante'],
@@ -589,7 +626,8 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         color_tema=t_color
                     )
                     
-                    # Muestra la imagen directamente
+                    # 👉 TANTEA AQUÍ: El parámetro 'use_container_width'
+                    # Si quieres que las tarjetas sean más pequeñas, puedes meterlas en columnas.
                     st.image(img_tarjeta, use_container_width=True)
                     
         idx_tab += 1
@@ -1807,6 +1845,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
