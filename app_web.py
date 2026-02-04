@@ -840,7 +840,7 @@ def render_torneo(id_torneo):
     # 1. DATOS MAESTROS Y CONFIGURACIÓN VISUAL
     # ---------------------------------------------------------
     try:
-        query = text("SELECT nombre, organizador, color_primario, url_portada, fase FROM torneos WHERE id = :id")
+        query = text("SELECT nombre, organizador, color_primario, url_portada, fase, escudo_defecto FROM torneos WHERE id = :id")
         with conn.connect() as db:
             t = db.execute(query, {"id": id_torneo}).fetchone()
         
@@ -1748,6 +1748,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
