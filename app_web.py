@@ -462,22 +462,6 @@ def validar_acceso(id_torneo, pin_ingresado):
 def contenido_pestana_torneo(id_torneo, t_color):
     """
     Función auxiliar para renderizar la tabla de posiciones o cruces.
-    Se puede llamar desde cualquier rol (Admin, DT, Espectador).
-    """
-    # 1. Validar el formato del torneo
-    try:
-        with conn.connect() as db:
-            res_fmt = db.execute(text("SELECT formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
-            t_formato = res_fmt[0] if res_fmt else "Liga"
-    except:
-        t_formato = "Liga" # Fallback
-
-    # ------------------------------------------
-    # CASO A: FORMATOS CON TABLA (Liga / Grupos)
-    # ------------------------------------------
-   def contenido_pestana_torneo(id_torneo, t_color):
-    """
-    Función auxiliar para renderizar la tabla de posiciones o cruces.
     CORREGIDA: Usa JOINs para traducir local_id -> Nombre del equipo.
     """
     # 1. Validar el formato del torneo
@@ -1576,6 +1560,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
