@@ -1411,7 +1411,7 @@ def render_torneo(id_torneo):
             # ------------------------------------------------------------
             T_ALTO_BTN = "36px"      # Altura (px)
             T_ANCHO_BTN = "50%"      # 👉 TANTEA AQUÍ: 100% = Ancho total, 70% = Más delgados
-            T_FONT_BTN = "10px"      # Tamaño letra
+            T_FONT_BTN = "5px"      # Tamaño letra
             T_GAP_COL = "0px"        # Espacio entre columnas
 
             st.markdown(f"""
@@ -1978,6 +1978,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
