@@ -775,66 +775,97 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 
 
 
-#EN PRUEBA
+    # ---------------------------------------------------------
+##EN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
+    # ---------------------------------------------------------
 @st.cache_data(show_spinner=False)
-def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
+def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, color_tema):
     """
-    Genera tarjeta usando plantilla metálica y fuentes del sistema RESIZABLES.
+    Genera tarjeta con:
+    1. Fondo Translúcido (Elegante).
+    2. Borde del color del torneo.
+    3. VS o Marcador según estado.
     """
     # ------------------------------------------------------------
-    # 1. CONFIGURACIÓN
+    # 1. CONFIGURACIÓN DEL LIENZO Y FONDO TRANSLÚCIDO
     # ------------------------------------------------------------
-    # Usamos la imagen metálica que subiste (Link temporal de hosting de img)
-    # Si tienes tu propio link de Cloudinary, cámbialo aquí.
-    URL_PLANTILLA = "https://i.imgur.com/8Q5QX7s.jpeg"  # Placeholder de tu imagen
+    # URL de tu plantilla metálica
+    URL_PLANTILLA = "https://i.imgur.com/8Q5QX7s.jpeg" 
+
+    W, H = 800, 140
+    
+    # Función auxiliar para convertir Hex a RGB (ej: #FF0000 -> (255, 0, 0))
+    def hex_to_rgb(hex_color):
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
     try:
+        # Intentamos cargar la plantilla
         response = requests.get(URL_PLANTILLA, timeout=3)
-        img = Image.open(BytesIO(response.content)).convert("RGBA")
+        fondo = Image.open(BytesIO(response.content)).convert("RGBA")
+        fondo = fondo.resize((W, H))
+        
+        # --- APLICAR TRANSPARENCIA AL FONDO ---
+        # Creamos una copia para manipular la opacidad (Alpha)
+        # 210 es el nivel de opacidad (0=Invisible, 255=Sólido). 
+        # Bajamos un poco para que sea translúcido.
+        fondo.putalpha(210) 
+        
+        img = Image.new("RGBA", (W, H), (0,0,0,0))
+        img.paste(fondo, (0,0), fondo) # Pegamos el fondo semitransparente
+        
     except:
-        # Si falla la imagen, creamos un fondo gris oscuro (pero del tamaño correcto)
-        img = Image.new('RGBA', (800, 140), (40, 44, 52, 255))
+        # Fallback: Fondo gris oscuro translúcido si falla la imagen
+        img = Image.new('RGBA', (W, H), (40, 44, 52, 200))
 
-    # Forzamos tamaño exacto para evitar errores de coordenadas
-    W, H = 800, 140
-    img = img.resize((W, H))
     draw = ImageDraw.Draw(img)
 
     # ------------------------------------------------------------
-    # 2. FUENTES (EL CAMBIO CLAVE)
+    # 2. DIBUJAR EL BORDE DE MARCA (COLOR DEL TORNEO)
     # ------------------------------------------------------------
-    # Intentamos cargar fuentes del sistema que SÍ permiten cambiar tamaño.
-    # DejaVuSans suele estar en todos los servidores Linux (Streamlit Cloud).
+    try:
+        rgb_borde = hex_to_rgb(color_tema)
+        # Dibujamos un rectángulo en el borde (grosor 4)
+        draw.rectangle([0, 0, W-1, H-1], outline=rgb_borde, width=4)
+    except:
+        pass # Si falla el color, sin borde
+
+    # ------------------------------------------------------------
+    # 3. FUENTES (TAMAÑOS AJUSTABLES)
+    # ------------------------------------------------------------
     FUENTES_A_PROBAR = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
     
     font_team = None
     font_score = None
+    font_vs = None
     
-    SIZE_EQUIPO = 35  # Tamaño grande
-    SIZE_MARCADOR = 55 # Tamaño gigante
+    # TAMAÑOS
+    SIZE_EQUIPO = 35  
+    SIZE_MARCADOR = 55 
+    SIZE_VS = 45      # Tamaño para el "VS"
 
     for fuente in FUENTES_A_PROBAR:
         try:
             font_team = ImageFont.truetype(fuente, SIZE_EQUIPO)
             font_score = ImageFont.truetype(fuente, SIZE_MARCADOR)
-            break # ¡Éxito! Salimos del bucle
-        except:
-            continue
+            font_vs = ImageFont.truetype(fuente, SIZE_VS)
+            break 
+        except: continue
     
-    # Si NINGUNA funciona (caso extremo), usamos default (se verá pequeña, pero es raro que pase)
     if font_team is None:
         font_team = ImageFont.load_default()
         font_score = ImageFont.load_default()
+        font_vs = ImageFont.load_default()
 
     # ------------------------------------------------------------
-    # 3. PROCESAR ESCUDOS
+    # 4. PROCESAR ESCUDOS
     # ------------------------------------------------------------
     def procesar_logo(url):
         try:
             if not url: return None
             resp = requests.get(url, timeout=2)
             im = Image.open(BytesIO(resp.content)).convert("RGBA")
-            im.thumbnail((95, 95)) # Un poco más grandes
+            im.thumbnail((95, 95)) 
             return im
         except: return None
 
@@ -842,44 +873,40 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
     esc_v = procesar_logo(url_escudo_v)
 
     # ------------------------------------------------------------
-    # 4. PINTAR SOBRE LA PLANTILLA
+    # 5. PINTAR CONTENIDO
     # ------------------------------------------------------------
     
-    # --- ESCUDOS (Coordenadas ajustadas a la barra metálica) ---
-    # Izquierdo (Círculo)
+    # --- ESCUDOS ---
     if esc_l:
         pos_y = (H - esc_l.height) // 2 
         img.paste(esc_l, (35, pos_y), esc_l)
 
-    # Derecho (Círculo)
     if esc_v:
         pos_y = (H - esc_v.height) // 2
         img.paste(esc_v, (W - 35 - esc_v.width, pos_y), esc_v)
 
-    # --- NOMBRES (Color Blanco con Sombra) ---
+    # --- NOMBRES ---
     color_texto = (255, 255, 255)
     color_sombra = (0, 0, 0)
     OFFSET_Y = 50
 
-    # Local (Izquierda) - Centrado en el espacio disponible
+    # Local
     w_text_l = draw.textlength(local[:12], font=font_team)
-    # El espacio útil es entre px 140 y 380
     x_text_l = 140 + (240 - w_text_l) / 2
-    
     draw.text((x_text_l+2, OFFSET_Y+2), local[:12], font=font_team, fill=color_sombra)
     draw.text((x_text_l, OFFSET_Y), local[:12], font=font_team, fill=color_texto)
 
-    # Visitante (Derecha)
+    # Visitante
     w_text_v = draw.textlength(visita[:12], font=font_team)
-    # Espacio útil entre px 420 y 660
     x_text_v = 420 + (240 - w_text_v) / 2
-
     draw.text((x_text_v+2, OFFSET_Y+2), visita[:12], font=font_team, fill=color_sombra)
     draw.text((x_text_v, OFFSET_Y), visita[:12], font=font_team, fill=color_texto)
 
-    # --- MARCADOR ---
+    # --- LÓGICA CENTRAL: ¿VS O MARCADOR? ---
+    
+    # Caso 1: Hay Goles (ej: "3 - 1")
     if "-" in marcador:
-        # Parche negro semitransparente sobre el VS metálico para que se lea el numero
+        # Parche oscuro translúcido para que resalte el número
         overlay = Image.new('RGBA', img.size, (0,0,0,0))
         d_ov = ImageDraw.Draw(overlay)
         d_ov.rectangle([350, 30, 450, 110], fill=(0, 0, 0, 160))
@@ -890,9 +917,23 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador):
         bbox = draw.textbbox((0, 0), marcador, font=font_score)
         w_sc = bbox[2] - bbox[0]
         draw.text(((W - w_sc)/2, 35), marcador, font=font_score, fill=(255, 215, 0))
+    
+    # Caso 2: Partido Programado (Texto "VS")
+    else:
+        # Texto Plateado/Gris con sombra fuerte
+        txt_vs = "VS"
+        bbox = draw.textbbox((0, 0), txt_vs, font=font_vs)
+        w_vs = bbox[2] - bbox[0]
+        
+        # Sombra negra
+        draw.text(((W - w_vs)/2 + 2, 42), txt_vs, font=font_vs, fill=(0,0,0))
+        # VS Plateado
+        draw.text(((W - w_vs)/2, 40), txt_vs, font=font_vs, fill=(200, 200, 200))
 
     return img
-##FIN PROVISIONAL
+    # ---------------------------------------------------------
+##FIN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
+    # ---------------------------------------------------------
 
 
 
@@ -1293,7 +1334,8 @@ def render_torneo(id_torneo):
                             visita=p['nombre_visitante'],
                             url_escudo_l=p['escudo_l'],
                             url_escudo_v=p['escudo_v'],
-                            marcador=txt_score
+                            marcador=txt_score,
+                            color_tema=t_color
                         )
                         
                         # Renderizar imagen
@@ -1782,6 +1824,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
