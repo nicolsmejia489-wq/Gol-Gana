@@ -1182,7 +1182,8 @@ def render_torneo(id_torneo):
                                     escudo_l=e_l,
                                     escudo_v=e_v,
                                     marcador_texto=txt_marcador,
-                                    color_tema=t_color
+                                    color_tema=t_color,
+                                    url_fondo=URL_FONDO
                                 )
                                 st.markdown(html_tarjeta, unsafe_allow_html=True)
                                 
@@ -1648,6 +1649,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
