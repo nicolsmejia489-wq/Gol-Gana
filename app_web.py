@@ -840,7 +840,7 @@ def render_torneo(id_torneo):
     # 1. DATOS MAESTROS Y CONFIGURACIÓN VISUAL
     # ---------------------------------------------------------
     try:
-        query = text("SELECT nombre, organizador, color_primario, url_portada, fase, escudo_defecto FROM torneos WHERE id = :id")
+        query = text("SELECT nombre, organizador, color_primario, url_portada, fase FROM torneos WHERE id = :id")
         with conn.connect() as db:
             t = db.execute(query, {"id": id_torneo}).fetchone()
         
@@ -889,7 +889,7 @@ def render_torneo(id_torneo):
         
         # BOTÓN SALIR (Arriba a la derecha para consistencia)
         c_vacio, c_salir = st.columns([6, 1])
-        if c_salir.button("🔴 Salir", key="btn_salir_admin", use_container_width=True):
+        if c_salir.button("🔴 Cerrar sesión Admin", key="btn_salir_admin", use_container_width=True):
             st.session_state.clear(); st.rerun()
 
         tabs = st.tabs(["🏆 Torneo", "⚙️ Control de Torneo"])
@@ -1120,35 +1120,6 @@ def render_torneo(id_torneo):
                 
                 st.divider()
 
-
-                # 2. Escudo del Torneo (Default)
-                st.write("")
-                st.markdown("###### 🛡️ Escudo Oficial del Torneo")
-    
-    # Mostramos el escudo actual si existe (asegúrate de traerlo en el SELECT inicial)
-                if 't_escudo' in locals() and t_escudo:
-                    st.image(t_escudo, width=80)
-    
-                archivo_escudo = st.file_uploader("Cargar escudo por defecto", type=['png', 'jpg', 'jpeg'], key="up_esc_torneo")
-    
-                if archivo_escudo:
-                    if st.button("🚀 Procesar y Guardar", use_container_width=True):
-                        with st.spinner("Subiendo a Cloudinary y eliminando fondo..."):
-                # Usamos tu función: procesar_y_subir_escudo
-                            url_cloudinary = procesar_y_subir_escudo(archivo_escudo)
-                
-                            if url_cloudinary:
-                                with conn.connect() as db:
-                                    db.execute(text("UPDATE torneos SET escudo = :esc WHERE id = :id"), 
-                                               {"esc": url_cloudinary, "id": id_torneo})
-                                    db.commit()
-                                st.success("Escudo del torneo guardado.")
-                                time.sleep(1); st.rerun()
-                            else:
-                                st.error("No pudimos procesar la imagen.")
-
-                st.divider()
-
                 # Control de Fases
                 st.markdown(f"##### 🚀 Fase Actual: `{t_fase.upper()}`")
                 
@@ -1182,6 +1153,7 @@ def render_torneo(id_torneo):
                             st.rerun()
                 else:
                     mostrar_bot("🏆 **Torneo en curso.** Los equipos están jugando por la gloria. Tú tienes el control del silbato.")
+
 
 
 
@@ -1748,6 +1720,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
