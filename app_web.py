@@ -460,7 +460,7 @@ def validar_acceso(id_torneo, pin_ingresado):
         
 
  # ------------------------------------------------------------
-FUNCION DE PESTAÑA TORNEO
+#FUNCION DE PESTAÑA TORNEO
  # ------------------------------------------------------------
 def contenido_pestana_torneo(id_torneo, t_color):
     """
@@ -1854,6 +1854,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
