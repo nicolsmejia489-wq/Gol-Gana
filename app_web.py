@@ -459,46 +459,61 @@ def validar_acceso(id_torneo, pin_ingresado):
 
         
 
-
+ # ------------------------------------------------------------
+FUNCION DE PESTAÑA TORNEO
+ # ------------------------------------------------------------
 def contenido_pestana_torneo(id_torneo, t_color):
     """
     Renderiza la vista pública del torneo.
-    Incluye inyector de CSS para reducir espacios entre tarjetas de partidos.
+    Ajuste: Control total de espacios y estética detallada.
     """
     
     # ------------------------------------------------------------
-    # 1. ESTÉTICA GLOBAL (Inyección de CSS)
+    # 1. ESTÉTICA GLOBAL (CSS) - TANTEA AQUÍ
     # ------------------------------------------------------------
+    # 👉 Aquí es donde reducimos el espacio entre los partidos (imágenes)
+    ESPACIO_ENTRE_TARJETAS = "-10px" # TANTEA: -10px (poco) a -40px (muy pegadas)
+    OPACIDAD_TABLA = "0.5"           # TANTEA: 0.1 (transparente) a 1.0 (sólido)
+    TAMANO_LETRA_TABLA = "14px"      # TANTEA: 12px a 18px
+    
     st.markdown(f"""
         <style>
-        /* 👉 REDUCIR ESPACIO VERTICAL ENTRE TARJETAS */
-        /* Ajusta el margin-bottom: -15px para que se peguen más o menos */
+        /* 📦 REDUCTOR DE ESPACIO ENTRE PARTIDOS */
         [data-testid="stImage"] {{
-            margin-bottom: -15px !important; 
+            margin-bottom: {ESPACIO_ENTRE_TARJETAS} !important; 
             padding-bottom: 0px !important;
+            filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3)); /* TANTEA: Sombra de la tarjeta */
         }}
 
-        /* 👉 ESTILO DE LA TABLA DE POSICIONES */
+        /* 📊 ESTÉTICA DE LA TABLA DE CLASIFICACIÓN */
         .tabla-GG {{
             width: 100%;
             border-collapse: collapse;
-            font-family: 'Oswald', sans-serif;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid {t_color};
+            font-family: 'Oswald', sans-serif; /* Fuente principal */
+            background: rgba(0,0,0,{OPACIDAD_TABLA});
+            border: 1px solid {t_color}; /* Borde del color del torneo */
+            border-radius: 8px;
+            overflow: hidden;
         }}
         .tabla-GG th {{
-            background-color: #111;
+            background-color: #111; /* Fondo encabezado (Negro puro) */
             color: white;
-            padding: 10px;
-            font-size: 12px;
+            padding: 12px;
+            font-size: 11px;
+            text-transform: uppercase; /* Encabezados en mayúsculas */
             border-bottom: 2px solid {t_color};
+            text-align: center;
         }}
         .tabla-GG td {{
             color: white;
-            padding: 8px;
-            font-size: 14px;
+            padding: 10px;
+            font-size: {TAMANO_LETRA_TABLA};
             text-align: center;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #333; /* Línea divisoria entre equipos */
+        }}
+        /* Fila de cebra (Opcional: comenta para quitar) */
+        .tabla-GG tr:nth-child(even) {{
+            background: rgba(255,255,255,0.05); 
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -508,12 +523,10 @@ def contenido_pestana_torneo(id_torneo, t_color):
     # ------------------------------------------------------------
     try:
         with conn.connect() as db:
-            # Traemos datos del torneo
             res_t = db.execute(text("SELECT formato, escudo_defecto FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
             t_formato = res_t.formato if res_t else "Liga"
             t_escudo_defecto = res_t.escudo_defecto if res_t and res_t.escudo_defecto else None
 
-            # Consulta maestra de partidos
             q_master = text("""
                 SELECT 
                     p.jornada, p.goles_l, p.goles_v, p.estado, 
@@ -526,13 +539,12 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 ORDER BY p.jornada ASC, p.id ASC
             """)
             df_partidos = pd.read_sql_query(q_master, db, params={"id": id_torneo})
-
     except Exception as e:
-        st.error(f"Error en la base de datos: {e}")
+        st.error(f"Error DB: {e}")
         return
 
     # ------------------------------------------------------------
-    # 3. CONFIGURACIÓN DE PESTAÑAS (TABS)
+    # 3. LÓGICA DE PESTAÑAS (TABS)
     # ------------------------------------------------------------
     titulos_tabs = []
     tiene_tabla = t_formato in ["Liga", "Grupos y Cruces", "Liga y Playoff"]
@@ -540,32 +552,29 @@ def contenido_pestana_torneo(id_torneo, t_color):
     if tiene_tabla: titulos_tabs.append("📊 Clasificación")
 
     if not df_partidos.empty:
-        # Ordenar jornadas (numérico o texto)
         jornadas_unicas = sorted(df_partidos['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
         for j in jornadas_unicas:
-            lbl = f"Jornada {j}" if str(j).isdigit() else str(j)
-            titulos_tabs.append(lbl)
+            titulos_tabs.append(f"Jornada {j}" if str(j).isdigit() else str(j))
     else:
         jornadas_unicas = []
 
     if not titulos_tabs:
-        mostrar_bot("El torneo está configurado. ¡Pronto verás aquí la acción!")
+        mostrar_bot("Torneo listo. Esperando el pitazo inicial.")
         return
 
     tabs = st.tabs(titulos_tabs)
     idx_tab = 0 
 
-    # --- A. TABLA DE POSICIONES ---
+    # --- A. RENDER TABLA DE POSICIONES ---
     if tiene_tabla:
         with tabs[idx_tab]:
             df_fin = df_partidos[df_partidos['estado'] == 'Finalizado']
             if df_fin.empty:
-                st.info("La tabla se actualizará tras el pitazo final del primer partido.")
+                st.info("La tabla se actualizará tras los primeros resultados.")
             else:
-                # Lógica de cálculo de puntos
+                # (Lógica interna de puntos omitida para brevedad, igual a la anterior)
                 equipos_set = set(df_partidos['local']).union(set(df_partidos['visitante']))
                 stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
-                
                 for _, f in df_fin.iterrows():
                     l, v = f['local'], f['visitante']
                     gl, gv = int(f['goles_l']), int(f['goles_v'])
@@ -585,40 +594,39 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 mapa_escudos = dict(zip(df_partidos['local'], df_partidos['escudo_l']))
                 mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
 
-                # HTML de la tabla
+                # 👉 TANTEA AQUÍ: HTML DE LA TABLA
                 html = f'<table class="tabla-GG"><thead><tr><th>POS</th><th style="text-align:left">EQUIPO</th><th>PTS</th><th>PJ</th><th>DG</th></tr></thead><tbody>'
-                
                 for _, r in df_f.iterrows():
-                    # Fallback de escudo en tabla (Torneo o Emoji)
                     esc_t = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
-                    img_t = f'<img src="{esc_t}" width="25" style="vertical-align:middle; margin-right:8px">' if esc_t else '🛡️ '
+                    # 👉 TANTEA AQUÍ: Tamaño del mini escudo en la tabla (width="25")
+                    img_t = f'<img src="{esc_t}" width="25" style="vertical-align:middle; margin-right:10px">' if esc_t else '🛡️ '
                     html += f'<tr><td>{r["POS"]}</td><td style="text-align:left; font-weight:bold">{img_t}{r["EQ"]}</td><td style="color:{t_color}; font-weight:bold">{r["PTS"]}</td><td>{r["PJ"]}</td><td>{r["DG"]}</td></tr>'
                 st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
         idx_tab += 1
 
-    # --- B. JORNADAS ---
-    for jornada_actual in jornadas_unicas:
+    # --- B. RENDER JORNADAS (PARTIDOS) ---
+    for j_actual in jornadas_unicas:
         with tabs[idx_tab]:
-            df_j = df_partidos[df_partidos['jornada'] == jornada_actual]
+            df_j = df_partidos[df_partidos['jornada'] == j_actual]
             
-            # Encabezado sutil
-            st.markdown(f"##### 📅 {titulos_tabs[idx_tab]}")
+            # 👉 TANTEA AQUÍ: Título de la jornada (Color y tamaño)
+            st.markdown(f"<h5 style='color:{t_color}; margin-bottom:10px;'>📅 {titulos_tabs[idx_tab]}</h5>", unsafe_allow_html=True)
             
             if df_j.empty:
-                st.info("No hay partidos registrados en esta jornada.")
+                st.info("Sin partidos.")
             else:
                 for _, row in df_j.iterrows():
-                    # Marcador Texto
+                    # 1. Marcador
                     txt_m = "VS"
                     if row['estado'] == 'Finalizado':
                         try: txt_m = f"{int(row['goles_l'])} - {int(row['goles_v'])}"
                         except: pass
 
-                    # Lógica de Fallback de Escudos (Prioridad: Equipo -> Torneo -> None)
+                    # 2. Escudos Fallback
                     u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
                     u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
 
-                    # Generar imagen
+                    # 3. Llamar a la función de imagen
                     img_partido = generar_tarjeta_imagen(
                         local=row['local'],
                         visita=row['visitante'],
@@ -628,7 +636,8 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         color_tema=t_color
                     )
                     
-                    # Mostrar (El CSS inyectado arriba hará que el espacio inferior sea pequeño)
+                    # 4. Mostrar imagen
+                    # 👉 El CSS de arriba afectará este componente reduciendo su margen inferior.
                     st.image(img_partido, use_container_width=True)
                     
         idx_tab += 1
@@ -1845,6 +1854,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
