@@ -775,7 +775,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 
 
 
-   @st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, color_tema):
     """
     Genera tarjeta con diseño CENTRALIZADO:
@@ -1793,6 +1793,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
