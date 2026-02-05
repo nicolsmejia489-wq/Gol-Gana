@@ -1532,177 +1532,187 @@ def render_torneo(id_torneo):
                 st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=100)
             
             # --- LÓGICA DE EDICIÓN ROBUSTA ---
-            with sub_tabs[1]:
-                id_eq = st.session_state.id_equipo
-                
-                try:
-                    with conn.connect() as db:
-                        # Traemos el registro específico de ESTE torneo
-                        q_me = text("SELECT * FROM equipos_globales WHERE id = :id")
-                        me = db.execute(q_me, {"id": id_eq}).fetchone()
+        with sub_tabs[1]:
+            id_eq = st.session_state.id_equipo
+            
+            try:
+                with conn.connect() as db:
+                    # Traemos el registro específico de ESTE torneo
+                    q_me = text("SELECT * FROM equipos_globales WHERE id = :id")
+                    me = db.execute(q_me, {"id": id_eq}).fetchone()
 
-                    if me:
-                        # 1. Recuperar datos actuales de la DB
-                        p1 = me.prefijo_dt1 if me.prefijo_dt1 else "+57"
-                        n1 = me.celular_dt1 if me.celular_dt1 else ""
-                        p2 = me.prefijo_dt2 if me.prefijo_dt2 else "+57"
-                        n2 = me.celular_dt2 if me.celular_dt2 else ""
+                if me:
+                    # 1. Recuperar datos actuales de la DB
+                    p1 = me.prefijo_dt1 if me.prefijo_dt1 else "+57"
+                    n1 = me.celular_dt1 if me.celular_dt1 else ""
+                    p2 = me.prefijo_dt2 if me.prefijo_dt2 else "+57"
+                    n2 = me.celular_dt2 if me.celular_dt2 else ""
+                    
+                    # ¿Tiene dos números registrados válidos?
+                    tiene_dos = (len(str(n1)) > 5 and len(str(n2)) > 5)
+
+                    with st.form("form_mi_equipo"):
                         
-                        # ¿Tiene dos números registrados válidos?
-                        tiene_dos = (len(str(n1)) > 5 and len(str(n2)) > 5)
-
-                        with st.form("form_mi_equipo"):
+                        # ==========================================
+                        # A. SELECTOR DE CAPITÁN (Lógica Torneo)
+                        # ==========================================
+                        sel_capitan = "Unico" # Valor por defecto
+                        if tiene_dos:
+                            st.markdown(f"#### ©️ Contacto Visible (Capitán del Torneo)")
+                            st.caption("¿A quién deben llamar los rivales y el Admin **en este torneo**?")
                             
-                            # ==========================================
-                            # A. SELECTOR DE CAPITÁN (Lógica Torneo)
-                            # ==========================================
-                            if tiene_dos:
-                                st.markdown(f"#### ©️ Contacto Visible (Capitán del Torneo)")
-                                st.caption("¿A quién deben llamar los rivales y el Admin **en este torneo**?")
-                                
-                                # Opciones claras
-                                lbl_opt1 = f"👑 DT Principal ({p1} {n1})"
-                                lbl_opt2 = f"🤝 Co-DT ({p2} {n2})"
-                                
-                                # Pre-selección inteligente:
-                                # Si el número guardado como 'capitán' coincide con el DT2, marcamos el 2.
-                                # Si no, marcamos el 1 (Principal).
-                                idx_activo = 1 if me.celular_capitan == n2 else 0
-                                
-                                sel_capitan = st.radio("Selecciona el responsable activo:", 
-                                                     [lbl_opt1, lbl_opt2], 
-                                                     index=idx_activo, 
-                                                     horizontal=True)
-                                st.divider()
+                            # Opciones claras
+                            lbl_opt1 = f"👑 DT Principal ({p1} {n1})"
+                            lbl_opt2 = f"🤝 Co-DT ({p2} {n2})"
+                            
+                            # Pre-selección inteligente
+                            idx_activo = 1 if me.celular_capitan == n2 else 0
+                            
+                            sel_capitan = st.radio("Selecciona el responsable activo:", 
+                                                 [lbl_opt1, lbl_opt2], 
+                                                 index=idx_activo, 
+                                                 horizontal=True)
+                            st.divider()
+
+                        # ==========================================
+                        # B. EDICIÓN DE DATOS GLOBALES
+                        # ==========================================
+                        st.subheader("✏️ Datos del Club")
+                        
+                        # IDENTIDAD
+                        with st.container(border=True):
+                            st.markdown("**🪪 Identidad**")
+                            c_id1, c_id2 = st.columns([2, 1])
+                            with c_id1:
+                                new_nom = st.text_input("Nombre", value=me.nombre).strip().upper()
+                            with c_id2:
+                                new_pin = st.text_input("PIN", value=me.pin_equipo, type="password", max_chars=6).strip().upper()
+                            
+                            c_esc1, c_esc2 = st.columns([1, 4], vertical_alignment="center")
+                            with c_esc1:
+                                if me.escudo: st.image(me.escudo, width=50)
+                                else: st.write("🛡️")
+                            with c_esc2:
+                                new_escudo = st.file_uploader("Nuevo Escudo", type=['png', 'jpg'], label_visibility="collapsed")
+
+                        # Lista Países
+                        paises = {
+                            "Argentina": "+54", "Belice": "+501", "Bolivia": "+591", "Brasil": "+55",
+                            "Chile": "+56", "Colombia": "+57", "Costa Rica": "+506", "Ecuador": "+593",
+                            "EEUU/CANADA": "+1", "El Salvador": "+503", "Guatemala": "+502", 
+                            "Guayana Fran": "+594", "Guyana": "+592", "Honduras": "+504", "México": "+52",
+                            "Nicaragua": "+505", "Panamá": "+507", "Paraguay": "+595", "Perú": "+51",
+                            "Surinam": "+597", "Uruguay": "+598", "Venezuela": "+58"
+                        }
+                        l_paises = [f"{k} ({paises[k]})" for k in sorted(paises.keys())]
+
+                        # DT 1
+                        with st.container(border=True):
+                            st.markdown("**👤 DT Principal**")
+                            c_dt1_p, c_dt1_n = st.columns([1.5, 2])
+                            try: 
+                                current_val = next((k for k, v in paises.items() if v == p1), "Colombia")
+                                idx_p1 = sorted(paises.keys()).index(current_val)
+                            except: idx_p1 = 0
+                            
+                            s_p1 = c_dt1_p.selectbox("P-DT1", l_paises, index=idx_p1, label_visibility="collapsed")
+                            val_p1 = s_p1.split('(')[-1].replace(')', '')
+                            val_n1 = c_dt1_n.text_input("N-DT1", value=n1, label_visibility="collapsed")
+
+                        # DT 2
+                        with st.container(border=True):
+                            st.markdown("**👥 Co-DT (Opcional)**")
+                            c_dt2_p, c_dt2_n = st.columns([1.5, 2])
+                            try: 
+                                current_val2 = next((k for k, v in paises.items() if v == p2), "Colombia")
+                                idx_p2 = sorted(paises.keys()).index(current_val2)
+                            except: idx_p2 = 0
+                            
+                            s_p2 = c_dt2_p.selectbox("P-DT2", l_paises, index=idx_p2, label_visibility="collapsed")
+                            val_p2 = s_p2.split('(')[-1].replace(')', '')
+                            val_n2 = c_dt2_n.text_input("N-DT2", value=n2, label_visibility="collapsed")
+
+                        st.write("")
+                        
+                        # ==========================================
+                        # C. PROCESADO Y GUARDADO
+                        # ==========================================
+                        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
+                            
+                            # 1. Escudo
+                            url_final = me.escudo
+                            if new_escudo:
+                                url_final = procesar_y_subir_escudo(new_escudo, new_nom, id_torneo)
+                            
+                            # 2. Lógica: ¿Quién es el capitán HOY?
+                            if tiene_dos and sel_capitan and ("Co-DT" in sel_capitan) and len(val_n2) > 5:
+                                pub_cel = val_n2
+                                pub_pref = val_p2
                             else:
-                                sel_capitan = "Unico" # Marcador interno
+                                pub_cel = val_n1
+                                pub_pref = val_p1
 
-                            # ==========================================
-                            # B. EDICIÓN DE DATOS GLOBALES
-                            # ==========================================
-                            st.subheader("✏️ Datos del Club")
-                            
-                            # IDENTIDAD
-                            with st.container(border=True):
-                                st.markdown("**🪪 Identidad**")
-                                c_id1, c_id2 = st.columns([2, 1])
-                                with c_id1:
-                                    new_nom = st.text_input("Nombre", value=me.nombre).strip().upper()
-                                with c_id2:
-                                    new_pin = st.text_input("PIN", value=me.pin_equipo, type="password", max_chars=6).strip().upper()
-                                
-                                c_esc1, c_esc2 = st.columns([1, 4], vertical_alignment="center")
-                                with c_esc1:
-                                    if me.escudo: st.image(me.escudo, width=50)
-                                    else: st.write("🛡️ Subir escudo (Opcional)")
-                                with c_esc2:
-                                    new_escudo = st.file_uploader("Nuevo Escudo", type=['png', 'jpg'], label_visibility="collapsed")
-
-                            # Lista Países
-                            paises = {
-                                "Argentina": "+54", "Belice": "+501", "Bolivia": "+591", "Brasil": "+55",
-                                "Chile": "+56", "Colombia": "+57", "Costa Rica": "+506", "Ecuador": "+593",
-                                "EEUU/CANADA": "+1", "El Salvador": "+503", "Guatemala": "+502", 
-                                "Guayana Fran": "+594", "Guyana": "+592", "Honduras": "+504", "México": "+52",
-                                "Nicaragua": "+505", "Panamá": "+507", "Paraguay": "+595", "Perú": "+51",
-                                "Surinam": "+597", "Uruguay": "+598", "Venezuela": "+58"
-                            }
-                            l_paises = [f"{k} ({paises[k]})" for k in sorted(paises.keys())]
-
-                            # DT 1
-                            with st.container(border=True):
-                                st.markdown("**👤 DT Principal**")
-                                c_dt1_p, c_dt1_n = st.columns([1.5, 2])
-                                try: 
-                                    current_val = next((k for k, v in paises.items() if v == p1), "Colombia")
-                                    idx_p1 = sorted(paises.keys()).index(current_val)
-                                except: idx_p1 = 0
-                                
-                                s_p1 = c_dt1_p.selectbox("P-DT1", l_paises, index=idx_p1, label_visibility="collapsed")
-                                val_p1 = s_p1.split('(')[-1].replace(')', '')
-                                val_n1 = c_dt1_n.text_input("N-DT1", value=n1, label_visibility="collapsed")
-
-                            # DT 2
-                            with st.container(border=True):
-                                st.markdown("**👥 Co-DT (Opcional)**")
-                                c_dt2_p, c_dt2_n = st.columns([1.5, 2])
-                                try: 
-                                    current_val2 = next((k for k, v in paises.items() if v == p2), "Colombia")
-                                    idx_p2 = sorted(paises.keys()).index(current_val2)
-                                except: idx_p2 = 0
-                                
-                                s_p2 = c_dt2_p.selectbox("P-DT2", l_paises, index=idx_p2, label_visibility="collapsed")
-                                val_p2 = s_p2.split('(')[-1].replace(')', '')
-                                val_n2 = c_dt2_n.text_input("N-DT2", value=n2, label_visibility="collapsed")
-
-                            st.write("")
-                            
-                            # ==========================================
-                            # C. PROCESADO Y GUARDADO
-                            # ==========================================
-                            if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-                                
-                                # 1. Escudo
-                                url_final = me.escudo
-                                if new_escudo:
-                                    url_final = procesar_y_subir_escudo(new_escudo, new_nom, id_torneo)
-                                
-                                # 2. Lógica: ¿Quién es el capitán HOY?
-                                # Si tiene 2 números Y seleccionó la opción que contiene "Co-DT"
-                                if tiene_dos and sel_capitan and ("Co-DT" in sel_capitan) and len(val_n2) > 5:
-                                    pub_cel = val_n2
-                                    pub_pref = val_p2
-                                else:
-                                    # Por defecto (o si seleccionó DT Principal)
-                                    pub_cel = val_n1
-                                    pub_pref = val_p1
-
-                                try:
-                                    with conn.connect() as db:
-                                        # 3. UPDATE GLOBAL (Identidad y Contactos Base)
-                                        # Actualizamos los datos "fuente" (DT1 y DT2) en TODAS las inscripciones de este PIN
-                                        db.execute(text("""
-                                            UPDATE equipos_globales 
-                                            SET nombre=:n, pin_equipo=:new_pin, escudo=:e, 
-                                                celular_dt1=:c1, prefijo_dt1=:p1,
-                                                celular_dt2=:c2, prefijo_dt2=:p2
-                                            WHERE pin_equipo=:old_pin
-                                        """), {
-                                            "n": new_nom, "new_pin": new_pin, "e": url_final,
-                                            "c1": val_n1, "p1": val_p1,
-                                            "c2": val_n2, "p2": val_p2,
-                                            "old_pin": me.pin_equipo
-                                        })
-                                        
-                                        # 4. UPDATE LOCAL (Capitán del Torneo)
-                                        # Aquí guardamos QUIÉN es el visible PARA ESTE TORNEO (id)
-                                        db.execute(text("""
-                                            UPDATE equipos_globales 
-                                            SET celular_capitan=:cp, prefijo=:pp
-                                            WHERE id=:id
-                                        """), {
-                                            "cp": pub_cel, "pp": pub_pref, "id": id_eq
-                                        })
-
-                                        # 5. SINCRONIZACIÓN PARTIDOS (Protegida)
-                                        if new_nom != me.nombre:
-                                            try:
-                                                db.execute(text("UPDATE partidos SET local=:n WHERE local=:old AND id_torneo=:idt"), {"n": new_nom, "old": me.nombre, "idt": id_torneo})
-                                                db.execute(text("UPDATE partidos SET visitante=:n WHERE visitante=:old AND id_torneo=:idt"), {"n": new_nom, "old": me.nombre, "idt": id_torneo})
-                                            except Exception as e_match:
-                                                print(f"Warning partidos: {e_match}")
-                                        
-                                        st.session_state.nombre_equipo = new_nom
-                                        db.commit()
+                            try:
+                                with conn.connect() as db:
+                                    # 3. UPDATE GLOBAL (Identidad y Contactos Base)
+                                    # Actualizamos ESTE equipo por ID para asegurar precisión
+                                    db.execute(text("""
+                                        UPDATE equipos_globales 
+                                        SET nombre=:n, pin_equipo=:new_pin, escudo=:e, 
+                                            celular_dt1=:c1, prefijo_dt1=:p1,
+                                            celular_dt2=:c2, prefijo_dt2=:p2
+                                        WHERE id=:id_eq
+                                    """), {
+                                        "n": new_nom, "new_pin": new_pin, "e": url_final,
+                                        "c1": val_n1, "p1": val_p1,
+                                        "c2": val_n2, "p2": val_p2,
+                                        "id_eq": id_eq
+                                    })
                                     
-                                    st.toast("✅ Datos actualizados correctamente")
-                                    time.sleep(1.5); st.rerun()
-                                
-                                except Exception as e_main:
-                                    st.error(f"Error guardando datos: {e_main}")
+                                    # PROPAGACIÓN POR PIN (OPCIONAL PERO RECOMENDADO)
+                                    # Si quieres que el cambio de nombre/escudo aplique a futuros torneos
+                                    db.execute(text("""
+                                        UPDATE equipos_globales 
+                                        SET nombre=:n, escudo=:e, pin_equipo=:new_pin
+                                        WHERE pin_equipo=:old_pin
+                                    """), {
+                                        "n": new_nom, "e": url_final, "new_pin": new_pin, "old_pin": me.pin_equipo
+                                    })
+                                    
+                                    # 4. UPDATE LOCAL (Capitán del Torneo)
+                                    db.execute(text("""
+                                        UPDATE equipos_globales 
+                                        SET celular_capitan=:cp, prefijo=:pp
+                                        WHERE id=:id
+                                    """), {
+                                        "cp": pub_cel, "pp": pub_pref, "id": id_eq
+                                    })
 
-                except Exception as e_load:
-                    st.error(f"Error cargando perfil: {e_load}")
+                                    # 5. SINCRONIZACIÓN PARTIDOS (CRÍTICO PARA FIXTURE)
+                                    # Si el nombre cambió, debemos actualizar la tabla partidos
+                                    if new_nom != me.nombre:
+                                        try:
+                                            # Actualizamos local usando el ID del equipo
+                                            db.execute(text("UPDATE partidos SET local=:n WHERE local_id=:id_eq"), 
+                                                       {"n": new_nom, "id_eq": id_eq})
+                                            # Actualizamos visitante usando el ID del equipo
+                                            db.execute(text("UPDATE partidos SET visitante=:n WHERE visitante_id=:id_eq"), 
+                                                       {"n": new_nom, "id_eq": id_eq})
+                                        except Exception as e_match:
+                                            print(f"Warning partidos: {e_match}")
+                                    
+                                    # Finalizar
+                                    st.session_state.nombre_equipo = new_nom
+                                    db.commit()
+                                
+                                st.toast("✅ Datos actualizados correctamente")
+                                time.sleep(1.5); st.rerun()
+                            
+                            except Exception as e_main:
+                                st.error(f"Error guardando datos: {e_main}")
+
+            except Exception as e_load:
+                st.error(f"Error cargando perfil: {e_load}")
                     
 
 
@@ -1953,6 +1963,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
