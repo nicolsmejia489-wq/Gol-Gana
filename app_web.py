@@ -216,152 +216,155 @@ def mostrar_bot(mensaje):
 
 
 # ------------------------------------------------------------
-# 1. HELPER: CARGA DE MOTOR (Singleton)
+# 1. HELPERS
 # ------------------------------------------------------------
 @st.cache_resource(show_spinner="Iniciando motor de visión...")
 def cargar_motor_ia():
-    # 'gpu=False' es CRÍTICO para Streamlit Cloud (evita crasheos)
     return easyocr.Reader(['en'], gpu=False)
 
-# ------------------------------------------------------------
-# 2. HELPER: TEXTO Y SIMILITUD
-# ------------------------------------------------------------
 def limpiar_texto_ocr(t):
-    # Deja solo letras y números, quita basura
-    return re.sub(r'[^A-Z0-9-]', '', t.upper())
+    # Solo alfanumérico mayúsculas
+    return re.sub(r'[^A-Z0-9]', '', t.upper())
 
 def similitud(a, b):
-    # Compara qué tan parecidas son dos palabras (0.0 a 1.0)
+    # Retorna % de parecido (0.0 a 1.0)
     return SequenceMatcher(None, a, b).ratio()
 
 # ------------------------------------------------------------
-# 3. FUNCIÓN MAESTRA: LEER MARCADOR
+# 2. FUNCIÓN DE VISIÓN (MODO ESTRICTO)
 # ------------------------------------------------------------
 def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     """
-    Combina:
-    1. Optimización de imagen (Resize 800px) para velocidad.
-    2. Lógica de 'Anclaje': Busca los nombres de los equipos para triangular los goles.
+    Analiza la imagen buscando:
+    1. Coincidencia de identidad (¿Es este el partido correcto?)
+    2. Marcador numérico.
     """
     try:
-        # ---------------------------------------------------------
-        # A. CARGA Y REDIMENSIONAMIENTO (Salva la RAM)
-        # ---------------------------------------------------------
+        # --- A. CARGA Y OPTIMIZACIÓN ---
         imagen_bytes.seek(0)
         file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        
-        if img is None: return None, "Error: Imagen ilegible"
+        if img is None: return None, "Imagen corrupta"
 
-        # Si la imagen es gigante (>800px), la reducimos. 
-        # Esto baja el consumo de RAM de 500MB a 50MB.
+        # Resize a 800px (Balance perfecto RAM/Calidad)
         alto, ancho = img.shape[:2]
         if ancho > 800:
             escala = 800 / ancho
             img = cv2.resize(img, (800, int(alto * escala)))
 
-        # ---------------------------------------------------------
-        # B. PRE-PROCESAMIENTO DE IMAGEN
-        # ---------------------------------------------------------
+        # Pre-procesamiento
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # CLAHE: Ecualización adaptativa (Mejora contraste en pantallas brillantes)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         gray = clahe.apply(gray)
         
-        # Recorte: Solo miramos el 60% superior (evita leer publicidad o pasto)
+        # Recorte (65% superior)
         alto_zona = int(gray.shape[0] * 0.65)
         zona_interes = gray[0:alto_zona, :]
 
-        # ---------------------------------------------------------
-        # C. LECTURA OCR
-        # ---------------------------------------------------------
+        # --- B. LECTURA OCR ---
         reader = cargar_motor_ia()
-        # detail=1 nos da coordenadas [[x1,y1]...], texto, confianza
         resultados = reader.readtext(zona_interes, detail=1, paragraph=False)
 
-        # ---------------------------------------------------------
-        # D. LÓGICA DE ANCLAJE (Recuperada)
-        # ---------------------------------------------------------
-        candidatos_local = []  # Coordenadas X donde parece decir "Local"
-        candidatos_visita = [] # Coordenadas X donde parece decir "Visita"
-        candidatos_goles = []  # Números encontrados
+        # --- C. PREPARACIÓN DE SEGURIDAD (ANTIFRAUDE) ---
+        # Palabras genéricas a ignorar para evitar falsos positivos
+        STOP_WORDS = {"FC", "CD", "CLUB", "DEPORTIVO", "ATHLETIC", "UNITED", "CITY", "REAL", "ATLETICO", "INTER"}
+        
+        def obtener_tokens(nombre_equipo):
+            # Limpia, divide y filtra palabras cortas o genéricas
+            raw_tokens = limpiar_texto_ocr(nombre_equipo).split()
+            # Nos quedamos con palabras de > 3 letras que no sean stop words
+            # Si el equipo es solo "FC B", nos quedamos con "FCB" o lo que haya.
+            tokens = [t for t in raw_tokens if len(t) > 3 and t not in STOP_WORDS]
+            # Fallback: Si el filtro borró todo (ej: "Real FC"), usamos el nombre original sin filtrar
+            return tokens if tokens else raw_tokens
 
-        # Palabras clave para buscar (Ej: "REAL MADRID" -> ["REAL", "MADRID"])
-        keys_l = limpiar_texto_ocr(local_real).split()
-        keys_v = limpiar_texto_ocr(visitante_real).split()
+        keys_l = obtener_tokens(local_real)
+        keys_v = obtener_tokens(visitante_real)
+        
+        # Variables de Rastreo
+        match_local = False
+        match_visita = False
+        
+        coord_local_x = 0
+        coord_visita_x = ancho # Por defecto a la derecha
+        
+        candidatos_goles = []
 
+        # --- D. BARRIDO DE RESULTADOS ---
         for (bbox, texto, prob) in resultados:
             txt = limpiar_texto_ocr(texto)
-            if prob < 0.3: continue # Descartar lecturas muy malas
+            if prob < 0.4: continue # Subimos la exigencia de confianza
 
-            # Calculamos el centro X de este texto
             centro_x = (bbox[0][0] + bbox[1][0]) / 2
 
-            # 1. ¿Es un Marcador directo? (Ej: "3-1")
-            match_directo = re.search(r'^(\d+)[-](\d+)$', txt)
-            if match_directo:
-                return (int(match_directo.group(1)), int(match_directo.group(2))), "Marcador Directo Detectado"
+            # 1. ¿Es Texto de Equipo? (Búsqueda Fuzzy)
+            # Verificamos Local
+            if not match_local:
+                for k in keys_l:
+                    if similitud(k, txt) > 0.8: # 80% de coincidencia mínima
+                        match_local = True
+                        coord_local_x = centro_x
+                        break
+            
+            # Verificamos Visita
+            if not match_visita:
+                for k in keys_v:
+                    if similitud(k, txt) > 0.8:
+                        match_visita = True
+                        coord_visita_x = centro_x
+                        break
 
-            # 2. ¿Es un Número suelto (posible gol)?
+            # 2. ¿Es un Número (Gol)?
             if txt.isdigit():
                 val = int(txt)
-                # Filtro: Menor a 25 goles. Evita leer minutos como '45' o '90'
-                if val < 25: 
-                    candidatos_goles.append({'val': val, 'x': centro_x, 'conf': prob})
-                continue
+                if val < 20: # Filtro anti-minutos
+                    candidatos_goles.append({'v': val, 'x': centro_x})
 
-            # 3. ¿Es el nombre del LOCAL? (Fuzzy Match)
-            # Si el texto se parece a alguna palabra del equipo local
-            if any(similitud(k, txt) > 0.75 for k in keys_l):
-                candidatos_local.append(centro_x)
-            
-            # 4. ¿Es el nombre de la VISITA?
-            if any(similitud(k, txt) > 0.75 for k in keys_v):
-                candidatos_visita.append(centro_x)
+        # --- E. VALIDACIÓN DE IDENTIDAD (EL FILTRO) ---
+        # Regla: Debemos encontrar AL MENOS UNO de los dos nombres.
+        # Si no encontramos ninguno, la foto es sospechosa o no tiene nombres.
+        if not (match_local or match_visita):
+            return None, f"⚠️ No detecté los nombres de '{local_real}' o '{visitante_real}' en la imagen. Sube una foto más clara donde se vean los equipos."
 
-        # ---------------------------------------------------------
-        # E. TRIANGULACIÓN / DECISIÓN FINAL
-        # ---------------------------------------------------------
+        # --- F. EXTRACCIÓN DE GOLES ---
         if len(candidatos_goles) < 2:
-            return None, "No encontré suficientes números claros."
+            return None, "Identifiqué los equipos, pero los números de los goles no son claros."
 
-        # Ordenamos los goles de Izquierda a Derecha
+        # Ordenar números de izquierda a derecha
         candidatos_goles.sort(key=lambda k: k['x'])
-
-        # ESTRATEGIA 1: Si encontramos los nombres, usémoslos como fronteras
-        if candidatos_local and candidatos_visita:
-            x_l = np.mean(candidatos_local) # Promedio posición local
-            x_v = np.mean(candidatos_visita) # Promedio posición visita
-            
-            # Buscamos goles que estén geográficamente cerca de sus equipos
-            # O simplemente tomamos los dos números que estén ENTRE los nombres
-            
-            # Caso ideal: NombreL ... GolL ... GolV ... NombreV (o variantes)
-            # Simplemente tomamos el número más cercano al nombre L y el más cercano al V
-            pass # (La lógica simple de abajo suele ser más robusta que fronteras estrictas)
-
-        # ESTRATEGIA 2 (ROBUSTA): Tomar los 2 números más "centrales" o claros
-        # Asumimos que el marcador siempre es: Local (Izquierda) - Visita (Derecha)
         
-        # Filtramos números duplicados muy cercanos (ej: la IA leyó el mismo número dos veces)
-        goles_unicos = []
+        # LÓGICA DE GEOMETRÍA:
+        # Buscamos el mejor par de números.
+        # Si encontramos la posición de los equipos, usamos eso para filtrar.
+        
+        goles_filtrados = []
         for g in candidatos_goles:
-            if not goles_unicos or abs(g['x'] - goles_unicos[-1]['x']) > 20:
-                goles_unicos.append(g)
-        
-        if len(goles_unicos) >= 2:
-            # Tomamos el primero (Local) y el segundo (Visita)
-            # Asumiendo orden de lectura occidental (Izq -> Der)
-            gl = goles_unicos[0]['val']
-            gv = goles_unicos[1]['val']
-            return (gl, gv), "Lectura por Posición"
+            # Si encontramos el nombre local, el gol local debería estar a su derecha (o cerca)
+            # Si encontramos el nombre visita, el gol visita debería estar a su izquierda (o cerca)
+            # Esta es una heurística simple: Ignorar números que estén MUY a la izquierda del local o MUY a la derecha de la visita
+            if match_local and g['x'] < (coord_local_x - 50): continue
+            if match_visita and g['x'] > (coord_visita_x + 50): continue
+            goles_filtrados.append(g)
 
-        return None, "Detecté números pero no pude ordenarlos."
+        # Si el filtro fue muy agresivo, volvemos a los originales
+        if len(goles_filtrados) < 2: goles_filtrados = candidatos_goles
+
+        # Tomamos los dos más centrales/probables
+        gl = goles_filtrados[0]['v']
+        gv = goles_filtrados[1]['v']
+
+        # EXTRA: Validación cruzada de nombres vs posición
+        # Si detectamos ambos nombres, verificamos que el Local esté a la izquierda de la Visita
+        if match_local and match_visita:
+            if coord_local_x > coord_visita_x:
+                # Caso Raro: Nombres invertidos en pantalla (Visita - Local)
+                # Invertimos los goles para que coincidan
+                return (gv, gl), "Equipos invertidos detectados"
+
+        return (gl, gv), "Validación Exitosa"
 
     except Exception as e:
         return None, f"Error Visión: {str(e)}"
-
 
 
 
@@ -2061,6 +2064,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
