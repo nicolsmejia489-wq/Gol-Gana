@@ -1470,7 +1470,7 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN ULTRA-COMPACTA MÓVIL
+# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN GOL BOT INTEGRADO
         with tabs[1]:
             # ------------------------------------------------------------
             # 0. CSS PARA FORZAR BOTONES LADO A LADO EN MÓVIL
@@ -1488,6 +1488,7 @@ def render_torneo(id_torneo):
                     height: 40px !important;
                     padding: 0px !important;
                     font-size: 13px !important;
+                    width: 100% !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -1517,8 +1518,14 @@ def render_torneo(id_torneo):
                     if mis.empty:
                         st.info("No tienes partidos asignados aún.")
                     
+                    ultima_jornada_vista = -1
+
                     for _, p in mis.iterrows():
                         # --- INFO DEL PARTIDO ---
+                        if p['jornada'] != ultima_jornada_vista:
+                            st.markdown(f"##### 📍 Jornada {p['jornada']}")
+                            ultima_jornada_vista = p['jornada']
+
                         es_local = (p['local_id'] == st.session_state.id_equipo)
                         rival_pref = p['pref_v'] if es_local else p['pref_l']
                         rival_cel = p['cel_v'] if es_local else p['cel_l']
@@ -1538,7 +1545,7 @@ def render_torneo(id_torneo):
                         with c1:
                             if rival_pref and rival_cel:
                                 num = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
-                                st.link_button("📞 WhatsApp", f"https://wa.me/{num}", use_container_width=True)
+                                st.link_button("📞 Contactar", f"https://wa.me/{num}", use_container_width=True)
                             else:
                                 st.button("🚫 Sin Tel.", disabled=True, use_container_width=True)
 
@@ -1553,32 +1560,74 @@ def render_torneo(id_torneo):
                             elif p['estado'] == 'Revision':
                                 st.button("⚠️ En Revisión", disabled=True, use_container_width=True)
                             else:
-                                # Botón que activa el área de carga (Lógica de Estado)
+                                # Botón Toggle para abrir/cerrar cámara
                                 if st.button("📸 Subir", key=f"btn_show_{p['id']}", type="primary", use_container_width=True):
-                                    st.session_state[f"show_up_{p['id']}"] = True
+                                    if st.session_state.get(f"show_up_{p['id']}"):
+                                        del st.session_state[f"show_up_{p['id']}"]
+                                    else:
+                                        st.session_state[f"show_up_{p['id']}"] = True
+                                    st.rerun()
 
-                        # --- ÁREA DE CARGA CONDICIONAL (Sustituye al Popover) ---
+                        # --- ÁREA DE CARGA CONDICIONAL ---
                         if st.session_state.get(f"show_up_{p['id']}"):
                             with st.container(border=True):
                                 st.markdown("##### 📸 Escanear Resultado")
-                                foto = st.file_uploader("Selecciona la foto del marcador", type=['jpg','png','jpeg'], key=f"file_{p['id']}")
+                                foto = st.file_uploader("Sube la foto del marcador", type=['jpg','png','jpeg'], key=f"file_{p['id']}")
                                 
-                                col_ca, col_ok = st.columns(2)
-                                if col_ca.button("Cancelar", key=f"can_{p['id']}", use_container_width=True):
-                                    del st.session_state[f"show_up_{p['id']}"]; st.rerun()
-                                
-                                if foto and col_ok.button("Escanear", key=f"go_{p['id']}", type="primary", use_container_width=True):
-                                    with st.spinner("IA procesando..."):
-                                        res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
-                                        if res_ia:
-                                            gl, gv = res_ia
-                                            with conn.connect() as db:
-                                                db.execute(text("UPDATE partidos SET goles_l=:gl, goles_v=:gv, estado='Finalizado', metodo_registro='IA' WHERE id=:id"),
-                                                           {"gl": gl, "gv": gv, "id": p['id']})
-                                                db.commit()
-                                            st.success(f"Detectado: {gl}-{gv}"); time.sleep(1); st.rerun()
-                                        else:
-                                            st.error(msg_ia)
+                                # Botón de Procesar
+                                if foto:
+                                    if st.button("🚀 Analizar con IA", key=f"go_{p['id']}", type="primary", use_container_width=True):
+                                        with st.spinner("Gol Bot está analizando la jugada..."):
+                                            # LLAMADA A LA FUNCIÓN MAESTRA
+                                            res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
+                                            
+                                            # CASO A: ÉXITO ROTUNDO
+                                            if res_ia:
+                                                gl, gv = res_ia
+                                                st.success(msg_ia) # Mensaje Verde de Gol Bot
+                                                
+                                                # Guardado Automático
+                                                with conn.connect() as db:
+                                                    db.execute(text("""
+                                                        UPDATE partidos 
+                                                        SET goles_l=:gl, goles_v=:gv, estado='Finalizado', metodo_registro='IA', fecha_registro=CURRENT_TIMESTAMP 
+                                                        WHERE id=:id
+                                                    """), {"gl": gl, "gv": gv, "id": p['id']})
+                                                    db.commit()
+                                                
+                                                time.sleep(2)
+                                                del st.session_state[f"show_up_{p['id']}"] # Limpiamos
+                                                st.rerun()
+                                            
+                                            # CASO B: FALLO DETECTADO
+                                            else:
+                                                st.error(msg_ia) # Mensaje Rojo de Gol Bot
+                                                st.session_state[f"error_ia_{p['id']}"] = True # Activamos modo rescate
+
+                                # --- MODO RESCATE (Solo si falló la IA) ---
+                                if st.session_state.get(f"error_ia_{p['id']}"):
+                                    st.divider()
+                                    st.caption("¿Qué quieres hacer?")
+                                    col_r1, col_r2 = st.columns(2)
+                                    
+                                    # Opción 1: Reintentar (Limpia todo para subir otra foto)
+                                    if col_r1.button("🔄 Reintentar", key=f"retry_{p['id']}", use_container_width=True):
+                                        del st.session_state[f"error_ia_{p['id']}"]
+                                        st.rerun()
+                                    
+                                    # Opción 2: Enviar a Revisión (Manual)
+                                    if col_r2.button("📩 Enviar a Admin", key=f"manual_{p['id']}", use_container_width=True):
+                                        with conn.connect() as db:
+                                            # Marcamos como 'Revision' para que el Admin lo vea y decida
+                                            # (Opcional: Podrías guardar la URL de la foto si tuviéramos storage, 
+                                            # por ahora solo marcamos el estado para alertar al admin)
+                                            db.execute(text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id"), {"id": p['id']})
+                                            db.commit()
+                                        
+                                        st.info("Enviado a revisión manual.")
+                                        del st.session_state[f"show_up_{p['id']}"]
+                                        del st.session_state[f"error_ia_{p['id']}"]
+                                        time.sleep(1); st.rerun()
 
                         st.markdown("<br>", unsafe_allow_html=True) # Espacio entre partidos
 
@@ -2043,6 +2092,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
