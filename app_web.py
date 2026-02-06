@@ -1531,26 +1531,26 @@ def render_torneo(id_torneo):
                 mostrar_bot("Estoy recopilando los datos. Pronto verás aquí tu rendimiento.")
                 st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=100)
             
-        # --- LÓGICA DE EDICIÓN (CORREGIDA PARA TU ESTRUCTURA REAL) ---
+        # --- LÓGICA DE EDICIÓN CON VALIDACIÓN DE NEGOCIO ---
         with sub_tabs[1]:
             id_eq = st.session_state.id_equipo
             
             # PASO 1: INSTANTÁNEA (SNAPSHOT)
             try:
                 with conn.connect() as db:
-                    # Traemos el registro usando el ID de sesión
                     q_me = text("SELECT * FROM equipos_globales WHERE id = :id")
                     me = db.execute(q_me, {"id": id_eq}).fetchone()
             except Exception as e_load:
-                st.error(f"Error cargando perfil: {e_load}")
+                mostrar_bot(f"Error técnico cargando perfil: {e_load}")
                 st.stop()
 
             if me:
-                # 2. Guardamos variables de control
+                # Variables de control
                 PIN_ANTERIOR = me.pin_equipo
                 ESCUDO_ANTERIOR = me.escudo
+                NOMBRE_ANTERIOR = me.nombre
                 
-                # Datos de contacto actuales
+                # Datos de contacto
                 p1 = me.prefijo_dt1 if me.prefijo_dt1 else "+57"
                 n1 = me.celular_dt1 if me.celular_dt1 else ""
                 p2 = me.prefijo_dt2 if me.prefijo_dt2 else "+57"
@@ -1560,24 +1560,18 @@ def render_torneo(id_torneo):
 
                 with st.form("form_mi_equipo"):
                     
-                    # ==========================================
-                    # A. SELECTOR DE CAPITÁN
-                    # ==========================================
+                    # A. CAPITÁN
                     sel_capitan = "Unico"
                     if tiene_dos:
                         st.markdown(f"#### ©️ Contacto Visible")
                         st.caption("¿A quién llamar en este torneo?")
-                        
                         lbl_opt1 = f"👑 DT Principal ({p1} {n1})"
                         lbl_opt2 = f"🤝 Co-DT ({p2} {n2})"
-                        
                         idx_activo = 1 if me.celular_capitan == n2 else 0
                         sel_capitan = st.radio("Responsable activo:", [lbl_opt1, lbl_opt2], index=idx_activo, horizontal=True)
                         st.divider()
 
-                    # ==========================================
                     # B. DATOS DEL CLUB
-                    # ==========================================
                     st.subheader("✏️ Datos del Club")
                     
                     with st.container(border=True):
@@ -1606,10 +1600,9 @@ def render_torneo(id_torneo):
                     }
                     l_paises = [f"{k} ({paises[k]})" for k in sorted(paises.keys())]
 
-                    # DTs
+                    # Cuerpo Técnico
                     with st.container(border=True):
                         st.markdown("**👤 Cuerpo Técnico**")
-                        
                         # DT1
                         c_dt1_p, c_dt1_n = st.columns([1.5, 2])
                         try: idx_p1 = sorted(paises.keys()).index(next((k for k, v in paises.items() if v == p1), "Colombia"))
@@ -1630,16 +1623,54 @@ def render_torneo(id_torneo):
                     st.write("")
                     
                     # ==========================================
-                    # C. GUARDADO (SIN ERROR SQL)
+                    # C. VALIDACIÓN Y GUARDADO
                     # ==========================================
                     if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                         
-                        # 1. Escudo
+                        # VALIDACIÓN 1: Integridad Básica
+                        if len(new_nom) < 3:
+                            mostrar_bot("¡Epa Profe! El nombre del equipo es muy corto.")
+                            st.stop()
+                        if len(new_pin) < 4:
+                            mostrar_bot("El PIN debe tener al menos 4 caracteres para ser seguro.")
+                            st.stop()
+
+                        # ------------------------------------------------
+                        # VALIDACIÓN 2: DUPLICIDAD EN BASE DE DATOS
+                        # ------------------------------------------------
+                        try:
+                            with conn.connect() as db:
+                                # A. Chequear Nombre Duplicado
+                                # Buscamos si existe ESE nombre en OTRO equipo (id != id_eq)
+                                if new_nom != NOMBRE_ANTERIOR:
+                                    res_name = db.execute(text("SELECT count(*) FROM equipos_globales WHERE nombre = :n AND id != :my_id"), 
+                                                        {"n": new_nom, "my_id": id_eq}).scalar()
+                                    if res_name > 0:
+                                        mostrar_bot(f"✋ ¡Alto ahí! El nombre **'{new_nom}'** ya está registrado por otro club. Debes elegir uno original.")
+                                        st.stop()
+
+                                # B. Chequear PIN Duplicado
+                                # El PIN es la llave del club, no puede repetirse en otro club distinto
+                                if new_pin != PIN_ANTERIOR:
+                                    res_pin = db.execute(text("SELECT count(*) FROM equipos_globales WHERE pin_equipo = :p AND id != :my_id"), 
+                                                       {"p": new_pin, "my_id": id_eq}).scalar()
+                                    if res_pin > 0:
+                                        mostrar_bot("⚠️ Ese PIN ya está en uso por otro Club. Por seguridad, elige uno diferente.")
+                                        st.stop()
+
+                        except Exception as e_val:
+                            mostrar_bot(f"Error verificando disponibilidad: {e_val}")
+                            st.stop()
+
+                        # ------------------------------------------------
+                        # SI PASAMOS AQUÍ, TODO ESTÁ LIMPIO -> EJECUTAMOS
+                        # ------------------------------------------------
+                        
+                        # Preparar Escudo y Capitán
                         url_final = ESCUDO_ANTERIOR
                         if new_escudo:
                             url_final = procesar_y_subir_escudo(new_escudo, new_nom, id_torneo)
                         
-                        # 2. Capitán
                         if tiene_dos and sel_capitan and ("Co-DT" in sel_capitan) and len(val_n2) > 5:
                             pub_cel = val_n2; pub_pref = val_p2
                         else:
@@ -1647,11 +1678,10 @@ def render_torneo(id_torneo):
 
                         try:
                             with conn.connect() as db:
-                                transaccion = db.begin() # Transacción explícita
+                                transaccion = db.begin()
                                 try:
-                                    # 3. UPDATE TABLA MADRE (EQUIPOS)
-                                    # Al actualizar aquí, el fixture se arregla solo gracias a los IDs
-                                    res_upd = db.execute(text("""
+                                    # 1. UPDATE TABLA MADRE
+                                    db.execute(text("""
                                         UPDATE equipos_globales 
                                         SET nombre=:n, pin_equipo=:new_pin, escudo=:e, 
                                             celular_dt1=:c1, prefijo_dt1=:p1,
@@ -1664,7 +1694,7 @@ def render_torneo(id_torneo):
                                         "id_eq": id_eq
                                     })
                                     
-                                    # 4. PROPAGACIÓN POR PIN (Para otros torneos)
+                                    # 2. PROPAGACIÓN POR PIN (Sincronizar futuros torneos)
                                     if PIN_ANTERIOR:
                                         db.execute(text("""
                                             UPDATE equipos_globales 
@@ -1675,34 +1705,28 @@ def render_torneo(id_torneo):
                                             "old_pin": PIN_ANTERIOR, "id_eq": id_eq
                                         })
                                     
-                                    # 5. UPDATE LOCAL (Rol Capitán)
+                                    # 3. UPDATE ROL CAPITÁN
                                     db.execute(text("""
                                         UPDATE equipos_globales 
                                         SET celular_capitan=:cp, prefijo=:pp
                                         WHERE id=:id
                                     """), {"cp": pub_cel, "pp": pub_pref, "id": id_eq})
-
-                                    # NOTA: Eliminamos el UPDATE a 'partidos' porque esa tabla
-                                    # no tiene columna 'local' (texto), solo 'local_id' (número).
-                                    # El cambio de nombre es automático por relación.
                                     
                                     transaccion.commit()
                                     
                                     st.session_state.nombre_equipo = new_nom
                                     
-                                    if res_upd.rowcount > 0:
-                                        st.toast("✅ Datos guardados exitosamente")
-                                        time.sleep(1.5)
-                                        st.rerun()
-                                    else:
-                                        st.error("⚠️ No se realizaron cambios (verifica el ID).")
+                                    # FEEDBACK GOL BOT
+                                    mostrar_bot("✅ ¡Datos actualizados correctamente, Profe! La ficha del club está al día.")
+                                    time.sleep(2)
+                                    st.rerun()
 
                                 except Exception as e_sql:
                                     transaccion.rollback()
-                                    st.error(f"Error SQL: {e_sql}")
+                                    mostrar_bot(f"❌ Error guardando en base de datos: {e_sql}")
 
                         except Exception as e_main:
-                            st.error(f"Error conexión: {e_main}")
+                            mostrar_bot(f"❌ Error de conexión: {e_main}")
                     
 
 
@@ -1953,6 +1977,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
