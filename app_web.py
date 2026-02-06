@@ -246,7 +246,7 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         if img is None: 
-            return None, "🤖 Gol Bot: ¡Tarjeta Roja! La imagen está corrupta o no es válida."
+            return None, "🤖 : ¡Tarjeta Roja! La imagen está corrupta o no es válida."
 
         # Resize inteligente a 800px para velocidad
         alto, ancho = img.shape[:2]
@@ -313,11 +313,11 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         
         # CASO 1: NO SE VEN LOS EQUIPOS (Riesgo de fraude o mala foto)
         if not (match_local or match_visita):
-            return None, f"🤖 Gol Bot: **¡VAR en curso!** No logro leer los nombres de **{local_real}** o **{visitante_real}**. Asegúrate de que los nombres sean visibles."
+            return None, f"🤖 : **¡Problemas!** No logro leer los nombres de **{local_real}** o **{visitante_real}**. ¿Puedes darme una mejor foto del marcador? O puedes dejarla para que el Admin la vea personalmente"
 
         # CASO 2: SE VEN EQUIPOS, PERO NO LOS GOLES
         if len(candidatos_goles) < 2:
-            return None, "🤖 Gol Bot: **¡Jugada confusa!** Identifiqué a los equipos, pero los números del marcador no son claros."
+            return None, "🤖 : **¡Jugada confusa!** No indentifico bien los equipos o los números del marcador no son claros. ¿Puedes darme una mejor foto del marcador? O puedes dejarla para que el Admin la vea personalmente"
 
         # CASO 3: ÉXITO (TRIANGULACIÓN)
         candidatos_goles.sort(key=lambda k: k['x'])
@@ -338,9 +338,9 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         # Detección de Inversión (Si detectó ambos y están al revés en pantalla)
         if match_local and match_visita and coord_local_x > coord_visita_x:
             # Si el Local está a la derecha del Visitante en la foto, invertimos los goles
-            return (gv, gl), "🤖 Gol Bot: **¡Ojo!** Equipos invertidos detectados. Marcador ajustado."
+            return (gv, gl), "🤖 :Marcador recibido."
 
-        return (gl, gv), "🤖 Gol Bot: **¡Golazo!** Marcador detectado correctamente."
+        return (gl, gv), "🤖 Gol Bot: Marcador actualizado correctamente."
 
     except Exception as e:
         return None, f"🤖 Gol Bot: Error técnico en la jugada ({str(e)})."
@@ -1576,7 +1576,7 @@ def render_torneo(id_torneo):
                                 
                                 # Botón de Procesar
                                 if foto:
-                                    if st.button("🚀 Analizar con IA", key=f"go_{p['id']}", type="primary", use_container_width=True):
+                                    if st.button("🤖 Leer marcador", key=f"go_{p['id']}", type="primary", use_container_width=True):
                                         with st.spinner("Gol Bot está analizando la jugada..."):
                                             # LLAMADA A LA FUNCIÓN MAESTRA
                                             res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
@@ -2092,6 +2092,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
