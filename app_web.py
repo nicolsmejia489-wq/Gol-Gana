@@ -1531,16 +1531,14 @@ def render_torneo(id_torneo):
                 mostrar_bot("Estoy recopilando los datos. Pronto verás aquí tu rendimiento.")
                 st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=100)
             
-        # --- LÓGICA DE EDICIÓN ROBUSTA ---
-        # --- LÓGICA DE EDICIÓN ROBUSTA Y BLINDADA ---
+        # --- LÓGICA DE EDICIÓN (CORREGIDA PARA TU ESTRUCTURA REAL) ---
         with sub_tabs[1]:
             id_eq = st.session_state.id_equipo
             
-            # PASO 1: INSTANTÁNEA (SNAPSHOT) DE LA VERDAD
-            # Leemos los datos ANTES de pintar el formulario para tener valores de referencia
+            # PASO 1: INSTANTÁNEA (SNAPSHOT)
             try:
                 with conn.connect() as db:
-                    # Traemos el registro específico de ESTE torneo
+                    # Traemos el registro usando el ID de sesión
                     q_me = text("SELECT * FROM equipos_globales WHERE id = :id")
                     me = db.execute(q_me, {"id": id_eq}).fetchone()
             except Exception as e_load:
@@ -1548,8 +1546,7 @@ def render_torneo(id_torneo):
                 st.stop()
 
             if me:
-                # 2. Guardamos variables de control (Snapshot)
-                NOMBRE_ANTERIOR = me.nombre
+                # 2. Guardamos variables de control
                 PIN_ANTERIOR = me.pin_equipo
                 ESCUDO_ANTERIOR = me.escudo
                 
@@ -1559,38 +1556,30 @@ def render_torneo(id_torneo):
                 p2 = me.prefijo_dt2 if me.prefijo_dt2 else "+57"
                 n2 = me.celular_dt2 if me.celular_dt2 else ""
                 
-                # ¿Tiene dos números registrados válidos?
                 tiene_dos = (len(str(n1)) > 5 and len(str(n2)) > 5)
 
                 with st.form("form_mi_equipo"):
                     
                     # ==========================================
-                    # A. SELECTOR DE CAPITÁN (Lógica Torneo)
+                    # A. SELECTOR DE CAPITÁN
                     # ==========================================
-                    sel_capitan = "Unico" # Valor por defecto
+                    sel_capitan = "Unico"
                     if tiene_dos:
-                        st.markdown(f"#### ©️ Contacto Visible (Capitán del Torneo)")
-                        st.caption("¿A quién deben llamar los rivales y el Admin **en este torneo**?")
+                        st.markdown(f"#### ©️ Contacto Visible")
+                        st.caption("¿A quién llamar en este torneo?")
                         
-                        # Opciones claras
                         lbl_opt1 = f"👑 DT Principal ({p1} {n1})"
                         lbl_opt2 = f"🤝 Co-DT ({p2} {n2})"
                         
-                        # Pre-selección inteligente
                         idx_activo = 1 if me.celular_capitan == n2 else 0
-                        
-                        sel_capitan = st.radio("Selecciona el responsable activo:", 
-                                             [lbl_opt1, lbl_opt2], 
-                                             index=idx_activo, 
-                                             horizontal=True)
+                        sel_capitan = st.radio("Responsable activo:", [lbl_opt1, lbl_opt2], index=idx_activo, horizontal=True)
                         st.divider()
 
                     # ==========================================
-                    # B. EDICIÓN DE DATOS GLOBALES
+                    # B. DATOS DEL CLUB
                     # ==========================================
                     st.subheader("✏️ Datos del Club")
                     
-                    # IDENTIDAD
                     with st.container(border=True):
                         st.markdown("**🪪 Identidad**")
                         c_id1, c_id2 = st.columns([2, 1])
@@ -1617,28 +1606,23 @@ def render_torneo(id_torneo):
                     }
                     l_paises = [f"{k} ({paises[k]})" for k in sorted(paises.keys())]
 
-                    # DT 1
+                    # DTs
                     with st.container(border=True):
-                        st.markdown("**👤 DT Principal**")
-                        c_dt1_p, c_dt1_n = st.columns([1.5, 2])
-                        try: 
-                            current_val = next((k for k, v in paises.items() if v == p1), "Colombia")
-                            idx_p1 = sorted(paises.keys()).index(current_val)
-                        except: idx_p1 = 0
+                        st.markdown("**👤 Cuerpo Técnico**")
                         
+                        # DT1
+                        c_dt1_p, c_dt1_n = st.columns([1.5, 2])
+                        try: idx_p1 = sorted(paises.keys()).index(next((k for k, v in paises.items() if v == p1), "Colombia"))
+                        except: idx_p1 = 0
                         s_p1 = c_dt1_p.selectbox("P-DT1", l_paises, index=idx_p1, label_visibility="collapsed")
                         val_p1 = s_p1.split('(')[-1].replace(')', '')
                         val_n1 = c_dt1_n.text_input("N-DT1", value=n1, label_visibility="collapsed")
 
-                    # DT 2
-                    with st.container(border=True):
-                        st.markdown("**👥 Co-DT (Opcional)**")
+                        # DT2
+                        st.caption("Asistente (Opcional)")
                         c_dt2_p, c_dt2_n = st.columns([1.5, 2])
-                        try: 
-                            current_val2 = next((k for k, v in paises.items() if v == p2), "Colombia")
-                            idx_p2 = sorted(paises.keys()).index(current_val2)
+                        try: idx_p2 = sorted(paises.keys()).index(next((k for k, v in paises.items() if v == p2), "Colombia"))
                         except: idx_p2 = 0
-                        
                         s_p2 = c_dt2_p.selectbox("P-DT2", l_paises, index=idx_p2, label_visibility="collapsed")
                         val_p2 = s_p2.split('(')[-1].replace(')', '')
                         val_n2 = c_dt2_n.text_input("N-DT2", value=n2, label_visibility="collapsed")
@@ -1646,7 +1630,7 @@ def render_torneo(id_torneo):
                     st.write("")
                     
                     # ==========================================
-                    # C. PROCESADO Y GUARDADO (CON DEBUG)
+                    # C. GUARDADO (SIN ERROR SQL)
                     # ==========================================
                     if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
                         
@@ -1655,21 +1639,18 @@ def render_torneo(id_torneo):
                         if new_escudo:
                             url_final = procesar_y_subir_escudo(new_escudo, new_nom, id_torneo)
                         
-                        # 2. Lógica: ¿Quién es el capitán HOY?
+                        # 2. Capitán
                         if tiene_dos and sel_capitan and ("Co-DT" in sel_capitan) and len(val_n2) > 5:
-                            pub_cel = val_n2
-                            pub_pref = val_p2
+                            pub_cel = val_n2; pub_pref = val_p2
                         else:
-                            pub_cel = val_n1
-                            pub_pref = val_p1
+                            pub_cel = val_n1; pub_pref = val_p1
 
                         try:
                             with conn.connect() as db:
-                                # INICIO TRANSACCIÓN EXPLÍCITA
-                                transaccion = db.begin()
+                                transaccion = db.begin() # Transacción explícita
                                 try:
-                                    # 3. UPDATE GLOBAL (Identidad y Contactos Base)
-                                    # Usamos id_eq (ID de sesión) para asegurar precisión
+                                    # 3. UPDATE TABLA MADRE (EQUIPOS)
+                                    # Al actualizar aquí, el fixture se arregla solo gracias a los IDs
                                     res_upd = db.execute(text("""
                                         UPDATE equipos_globales 
                                         SET nombre=:n, pin_equipo=:new_pin, escudo=:e, 
@@ -1683,8 +1664,7 @@ def render_torneo(id_torneo):
                                         "id_eq": id_eq
                                     })
                                     
-                                    # PROPAGACIÓN POR PIN (OPCIONAL)
-                                    # Solo si el PIN sigue siendo el mismo o cambió a uno válido
+                                    # 4. PROPAGACIÓN POR PIN (Para otros torneos)
                                     if PIN_ANTERIOR:
                                         db.execute(text("""
                                             UPDATE equipos_globales 
@@ -1695,44 +1675,34 @@ def render_torneo(id_torneo):
                                             "old_pin": PIN_ANTERIOR, "id_eq": id_eq
                                         })
                                     
-                                    # 4. UPDATE LOCAL (Capitán del Torneo)
+                                    # 5. UPDATE LOCAL (Rol Capitán)
                                     db.execute(text("""
                                         UPDATE equipos_globales 
                                         SET celular_capitan=:cp, prefijo=:pp
                                         WHERE id=:id
-                                    """), {
-                                        "cp": pub_cel, "pp": pub_pref, "id": id_eq
-                                    })
+                                    """), {"cp": pub_cel, "pp": pub_pref, "id": id_eq})
 
-                                    # 5. SINCRONIZACIÓN PARTIDOS (CRÍTICO PARA FIXTURE)
-                                    # Comparamos con la variable snapshot NOMBRE_ANTERIOR
-                                    if new_nom != NOMBRE_ANTERIOR:
-                                        # Actualizamos por ID del equipo, que es lo seguro
-                                        db.execute(text("UPDATE partidos SET local=:n WHERE local_id=:id_eq"), 
-                                                   {"n": new_nom, "id_eq": id_eq})
-                                        db.execute(text("UPDATE partidos SET visitante=:n WHERE visitante_id=:id_eq"), 
-                                                   {"n": new_nom, "id_eq": id_eq})
+                                    # NOTA: Eliminamos el UPDATE a 'partidos' porque esa tabla
+                                    # no tiene columna 'local' (texto), solo 'local_id' (número).
+                                    # El cambio de nombre es automático por relación.
                                     
-                                    # COMMIT FINAL
                                     transaccion.commit()
                                     
-                                    # Actualizar Session State
                                     st.session_state.nombre_equipo = new_nom
                                     
-                                    # Feedback Visual
                                     if res_upd.rowcount > 0:
-                                        st.toast("✅ Datos guardados en Neon")
+                                        st.toast("✅ Datos guardados exitosamente")
                                         time.sleep(1.5)
                                         st.rerun()
                                     else:
-                                        st.error("⚠️ No se detectaron cambios en la base de datos.")
+                                        st.error("⚠️ No se realizaron cambios (verifica el ID).")
 
                                 except Exception as e_sql:
                                     transaccion.rollback()
-                                    st.error(f"Error SQL (Rollback): {e_sql}")
+                                    st.error(f"Error SQL: {e_sql}")
 
                         except Exception as e_main:
-                            st.error(f"Error de conexión: {e_main}")
+                            st.error(f"Error conexión: {e_main}")
                     
 
 
@@ -1983,6 +1953,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
