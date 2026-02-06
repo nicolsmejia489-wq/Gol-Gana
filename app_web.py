@@ -1470,7 +1470,7 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN GOL BOT INTEGRADO
+# 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN FINAL CORREGIDA
         with tabs[1]:
             # ------------------------------------------------------------
             # 0. CSS PARA FORZAR BOTONES LADO A LADO EN MÓVIL
@@ -1502,7 +1502,7 @@ def render_torneo(id_torneo):
                     with conn.connect() as db:
                         q_mis = text("""
                             SELECT 
-                                p.id, p.jornada, p.goles_l, p.goles_v, p.estado,
+                                p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.metodo_registro,
                                 p.local_id, p.visitante_id,
                                 el.nombre as nombre_local, el.escudo as escudo_l, el.prefijo as pref_l, el.celular_capitan as cel_l,
                                 ev.nombre as nombre_visitante, ev.escudo as escudo_v, ev.prefijo as pref_v, ev.celular_capitan as cel_v
@@ -1547,21 +1547,27 @@ def render_torneo(id_torneo):
                                 num = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
                                 st.link_button("📞 Contactar", f"https://wa.me/{num}", use_container_width=True)
                             else:
-                                st.button("🚫 Sin Tel.", disabled=True, use_container_width=True)
+                                st.button("🚫 Sin Tel.", key=f"dt_notel_{p['id']}", disabled=True, use_container_width=True)
 
                         # Botón 2: Acción
                         with c2:
                             if p['estado'] == 'Finalizado':
-                                if st.button("🚩 Reclamar", key=f"rec_{p['id']}", use_container_width=True):
-                                    with conn.connect() as db:
-                                        db.execute(text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id"), {"id": p['id']})
-                                        db.commit()
-                                    st.rerun()
+                                # LÓGICA DE RECLAMO: Solo si fue IA
+                                if p['metodo_registro'] == 'IA':
+                                    if st.button("🚩 Reclamar", key=f"dt_rec_{p['id']}", use_container_width=True):
+                                        with conn.connect() as db:
+                                            db.execute(text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id"), {"id": p['id']})
+                                            db.commit()
+                                        st.rerun()
+                                else:
+                                    # Si fue Admin o Manual, es sagrado
+                                    st.button("🔒 Oficial", key=f"dt_ofi_{p['id']}", disabled=True, use_container_width=True)
+
                             elif p['estado'] == 'Revision':
-                                st.button("⚠️ En Revisión", disabled=True, use_container_width=True)
+                                st.button("⚠️ En Revisión", key=f"dt_rev_{p['id']}", disabled=True, use_container_width=True)
                             else:
                                 # Botón Toggle para abrir/cerrar cámara
-                                if st.button("📸 Subir", key=f"btn_show_{p['id']}", type="primary", use_container_width=True):
+                                if st.button("📸 Subir", key=f"dt_btn_show_{p['id']}", type="primary", use_container_width=True):
                                     if st.session_state.get(f"show_up_{p['id']}"):
                                         del st.session_state[f"show_up_{p['id']}"]
                                     else:
@@ -1572,11 +1578,11 @@ def render_torneo(id_torneo):
                         if st.session_state.get(f"show_up_{p['id']}"):
                             with st.container(border=True):
                                 st.markdown("##### 📸 Escanear Resultado")
-                                foto = st.file_uploader("Sube la foto del marcador", type=['jpg','png','jpeg'], key=f"file_{p['id']}")
+                                foto = st.file_uploader("Sube la foto del marcador", type=['jpg','png','jpeg'], key=f"dt_file_{p['id']}")
                                 
                                 # Botón de Procesar
                                 if foto:
-                                    if st.button("🤖 Leer marcador", key=f"go_{p['id']}", type="primary", use_container_width=True):
+                                    if st.button("🤖 Leer marcador", key=f"dt_go_{p['id']}", type="primary", use_container_width=True):
                                         with st.spinner("Gol Bot está analizando la jugada..."):
                                             # LLAMADA A LA FUNCIÓN MAESTRA
                                             res_ia, msg_ia = leer_marcador_ia(foto, p['nombre_local'], p['nombre_visitante'])
@@ -1611,16 +1617,14 @@ def render_torneo(id_torneo):
                                     col_r1, col_r2 = st.columns(2)
                                     
                                     # Opción 1: Reintentar (Limpia todo para subir otra foto)
-                                    if col_r1.button("🔄 Reintentar", key=f"retry_{p['id']}", use_container_width=True):
+                                    if col_r1.button("🔄 Reintentar", key=f"dt_retry_{p['id']}", use_container_width=True):
                                         del st.session_state[f"error_ia_{p['id']}"]
                                         st.rerun()
                                     
                                     # Opción 2: Enviar a Revisión (Manual)
-                                    if col_r2.button("📩 Enviar a Admin", key=f"manual_{p['id']}", use_container_width=True):
+                                    if col_r2.button("📩 Enviar a Admin", key=f"dt_manual_{p['id']}", use_container_width=True):
                                         with conn.connect() as db:
                                             # Marcamos como 'Revision' para que el Admin lo vea y decida
-                                            # (Opcional: Podrías guardar la URL de la foto si tuviéramos storage, 
-                                            # por ahora solo marcamos el estado para alertar al admin)
                                             db.execute(text("UPDATE partidos SET estado='Revision', conflicto=true WHERE id=:id"), {"id": p['id']})
                                             db.commit()
                                         
@@ -1633,7 +1637,6 @@ def render_torneo(id_torneo):
 
                 except Exception as e:
                     st.error(f"Error: {e}")
-        
 
                     
 
@@ -2092,6 +2095,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
