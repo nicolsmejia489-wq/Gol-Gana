@@ -1493,10 +1493,10 @@ def render_torneo(id_torneo):
         with tabs[0]:
              contenido_pestana_torneo(id_torneo, t_color)
 
-        # 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN FINAL CON CLOUDINARY
+        # 2. CALENDARIO Y GESTIÓN (DT) - VERSIÓN DOBLE FOTO (LOCAL/VISITA)
         with tabs[1]:
             # ------------------------------------------------------------
-            # 0. CSS PARA FORZAR BOTONES LADO A LADO EN MÓVIL
+            # 0. CSS MÓVIL
             # ------------------------------------------------------------
             st.markdown("""
                 <style>
@@ -1515,16 +1515,18 @@ def render_torneo(id_torneo):
             """, unsafe_allow_html=True)
 
             if t_fase == "inscripcion":
-                mostrar_bot("El balón aún no rueda, Profe. Aquí verás tu fixture cuando inicie.")
+                mostrar_bot("El balón aún no rueda, Profe.")
             else:
                 st.subheader(f"📅 Mi Calendario")
                 
                 try:
                     with conn.connect() as db:
+                        # TRAEMOS AMBOS CAMPOS DE FOTO
                         q_mis = text("""
                             SELECT 
                                 p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.metodo_registro,
                                 p.local_id, p.visitante_id,
+                                p.url_foto_l, p.url_foto_v,  -- <--- IMPORTANTE
                                 el.nombre as nombre_local, el.escudo as escudo_l, el.prefijo as pref_l, el.celular_capitan as cel_l,
                                 ev.nombre as nombre_visitante, ev.escudo as escudo_v, ev.prefijo as pref_v, ev.celular_capitan as cel_v
                             FROM partidos p
@@ -1542,17 +1544,21 @@ def render_torneo(id_torneo):
                     ultima_jornada_vista = -1
 
                     for _, p in mis.iterrows():
-                        # --- INFO DEL PARTIDO ---
+                        # --- DETERMINAR ROL ---
+                        soy_local = (p['local_id'] == st.session_state.id_equipo)
+                        
+                        # Definimos en qué columna guardar la foto según quién soy
+                        columna_foto_target = "url_foto_l" if soy_local else "url_foto_v"
+
+                        # --- RENDERIZADO VISUAL ---
                         if p['jornada'] != ultima_jornada_vista:
                             st.markdown(f"##### 📍 Jornada {p['jornada']}")
                             ultima_jornada_vista = p['jornada']
 
-                        es_local = (p['local_id'] == st.session_state.id_equipo)
-                        rival_pref = p['pref_v'] if es_local else p['pref_l']
-                        rival_cel = p['cel_v'] if es_local else p['cel_l']
+                        rival_pref = p['pref_v'] if soy_local else p['pref_l']
+                        rival_cel = p['cel_v'] if soy_local else p['cel_l']
                         txt_score = f"{int(p['goles_l'])}-{int(p['goles_v'])}" if p['estado'] == 'Finalizado' else "VS"
 
-                        # Tarjeta Imagen
                         st.image(generar_tarjeta_imagen(
                             p['nombre_local'], p['nombre_visitante'],
                             p['escudo_l'], p['escudo_v'],
@@ -1561,8 +1567,6 @@ def render_torneo(id_torneo):
 
                         # --- BOTONES ---
                         c1, c2 = st.columns(2)
-                        
-                        # Botón Contacto
                         with c1:
                             if rival_pref and rival_cel:
                                 num = f"{str(rival_pref).replace('+','')}{str(rival_cel).replace(' ','')}"
@@ -1570,7 +1574,6 @@ def render_torneo(id_torneo):
                             else:
                                 st.button("🚫 Sin Tel.", key=f"dt_notel_{p['id']}", disabled=True, use_container_width=True)
 
-                        # Botón Acción
                         with c2:
                             if p['estado'] == 'Finalizado':
                                 if p['metodo_registro'] == 'IA':
@@ -1609,18 +1612,22 @@ def render_torneo(id_torneo):
                                                 gl, gv = res_ia
                                                 st.success(msg_ia)
                                                 
-                                                # 2. SUBIR A CLOUDINARY (Solo si la IA aprobó)
+                                                # 2. SUBIR FOTO A CLOUDINARY
                                                 url_foto = subir_foto_cloudinary(foto, p['id'])
                                                 
-                                                # 3. GUARDAR EN BD
+                                                # 3. GUARDAR EN BD (EN LA COLUMNA CORRECTA)
                                                 with conn.connect() as db:
-                                                    db.execute(text("""
+                                                    # Inyectamos dinámicamente el nombre de la columna (url_foto_l o url_foto_v)
+                                                    # Es seguro porque 'columna_foto_target' lo definimos nosotros arriba con un if/else
+                                                    query_update = text(f"""
                                                         UPDATE partidos 
                                                         SET goles_l=:gl, goles_v=:gv, estado='Finalizado', 
                                                             metodo_registro='IA', fecha_registro=CURRENT_TIMESTAMP,
-                                                            url_foto=:url
+                                                            {columna_foto_target}=:url
                                                         WHERE id=:id
-                                                    """), {
+                                                    """)
+                                                    
+                                                    db.execute(query_update, {
                                                         "gl": gl, "gv": gv, "id": p['id'], 
                                                         "url": url_foto
                                                     })
@@ -1630,7 +1637,7 @@ def render_torneo(id_torneo):
                                                 del st.session_state[f"show_up_{p['id']}"]
                                                 st.rerun()
                                             
-                                            # CASO B: FALLO
+                                            # CASO B: FALLO DETECTADO
                                             else:
                                                 st.error(msg_ia)
                                                 st.session_state[f"error_ia_{p['id']}"] = True
@@ -1645,16 +1652,19 @@ def render_torneo(id_torneo):
                                         st.rerun()
                                     
                                     if col_r2.button("📩 Enviar a Admin", key=f"dt_manual_{p['id']}", use_container_width=True):
-                                        # Subimos la foto aunque la IA haya fallado, para que el admin la vea
                                         with st.spinner("Enviando evidencia al VAR..."):
+                                            # Subimos la foto fallida para que el admin la vea
                                             url_foto_fail = subir_foto_cloudinary(foto, f"{p['id']}_revision")
                                             
                                             with conn.connect() as db:
-                                                db.execute(text("""
+                                                # También guardamos la evidencia fallida en la columna correcta
+                                                query_manual = text(f"""
                                                     UPDATE partidos 
-                                                    SET estado='Revision', conflicto=true, url_foto=:url 
+                                                    SET estado='Revision', conflicto=true, {columna_foto_target}=:url 
                                                     WHERE id=:id
-                                                """), {"id": p['id'], "url": url_foto_fail})
+                                                """)
+                                                
+                                                db.execute(query_manual, {"id": p['id'], "url": url_foto_fail})
                                                 db.commit()
                                         
                                         st.info("Enviado a revisión manual con evidencia.")
@@ -2124,6 +2134,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
