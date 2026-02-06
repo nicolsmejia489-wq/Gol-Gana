@@ -1531,7 +1531,7 @@ def render_torneo(id_torneo):
                 mostrar_bot("Estoy recopilando los datos. Pronto verás aquí tu rendimiento.")
                 st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=100)
             
-            # --- LÓGICA DE EDICIÓN ROBUSTA ---
+        # --- LÓGICA DE EDICIÓN ROBUSTA ---
         with sub_tabs[1]:
             id_eq = st.session_state.id_equipo
             
@@ -1963,6 +1963,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
