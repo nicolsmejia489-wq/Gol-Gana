@@ -437,74 +437,6 @@ def validar_acceso(id_torneo, pin_ingresado):
 
 
 
-@st.dialog("📝 Gestionar Partido")
-def editar_partido_modal(row, id_torneo):
-    # 1. Cabecera Visual
-    c1, c2, c3 = st.columns([1, 0.5, 1], vertical_alignment="center")
-    with c1:
-        st.image(row['escudo_l'] or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png", width=60)
-        st.caption(row['local'])
-    with c2:
-        st.markdown("<h1 style='text-align: center;'>VS</h1>", unsafe_allow_html=True)
-    with c3:
-        st.image(row['escudo_v'] or "https://cdn-icons-png.flaticon.com/512/5329/5329945.png", width=60)
-        st.caption(row['visitante'])
-
-    st.divider()
-
-    # 2. Inputs de Goles (Grandes y Cómodos)
-    st.markdown("##### 🔢 Marcador")
-    c_gol_l, c_gol_v = st.columns(2)
-    
-    val_l = int(row['goles_l']) if pd.notna(row['goles_l']) else 0
-    val_v = int(row['goles_v']) if pd.notna(row['goles_v']) else 0
-
-    with c_gol_l:
-        ngl = st.number_input(f"Goles {row['local']}", value=val_l, min_value=0, key="modal_gl")
-    with c_gol_v:
-        ngv = st.number_input(f"Goles {row['visitante']}", value=val_v, min_value=0, key="modal_gv")
-
-    # 3. Evidencia (Si existe)
-    if row['url_foto_l'] or row['url_foto_v']:
-        st.info("📷 Evidencia disponible")
-        t1, t2 = st.tabs(["Local", "Visitante"])
-        with t1:
-            if row['url_foto_l']: st.image(row['url_foto_l'])
-            else: st.caption("No subió foto")
-        with t2:
-            if row['url_foto_v']: st.image(row['url_foto_v'])
-            else: st.caption("No subió foto")
-
-    st.write("")
-    
-    # 4. Botón de Guardar
-    if st.button("💾 Guardar Resultado Oficial", type="primary", use_container_width=True):
-        try:
-            # Usamos una conexión nueva para asegurar que se guarde al instante
-            engine = create_engine(DATABASE_URL) # Asegúrate de tener DATABASE_URL accesible o usa tu conn global con cuidado
-            with engine.connect() as conn_modal:
-                conn_modal.execute(text("""
-                    UPDATE partidos 
-                    SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=False, metodo_registro='Manual Admin' 
-                    WHERE id=:id
-                """), {"l": ngl, "v": ngv, "id": row['id']})
-                conn_modal.commit()
-            
-            st.toast("✅ Partido actualizado exitosamente")
-            time.sleep(1)
-            st.rerun() # Recarga la página para ver cambios
-        except Exception as e:
-            st.error(f"Error guardando: {e}")
-
-
-
-
-
-
-
-
-
-
     
 # ==============================================================================
 # 3. LÓGICA DEL LOBBY
@@ -1341,22 +1273,41 @@ def render_torneo(id_torneo):
                     except Exception as e:
                         st.error(f"Error cargando lista: {e}")
 
-               # --- CASO B: GESTIÓN DE PARTIDOS (LISTA LIMPIA + MODAL) ---
+                # --- CASO B: GESTIÓN DE PARTIDOS (TABLA INVISIBLE - SIN ESCUDOS) ---
                 else:
-                    mostrar_bot("Revisa la lista. Si necesitas ajustar algo, toca 'Editar' y se abrirá la ventana de gestión.")
+                    mostrar_bot("Vista compacta de gestión. Edita los goles y guarda.")
+                    
+                    # CSS CRÍTICO: 
+                    # 1. Centra los números en los inputs.
+                    # 2. Reduce márgenes para que quepan los nombres largos.
+                    st.markdown("""
+                        <style>
+                        /* Inputs numéricos centrados y negrita */
+                        div[data-testid="stTextInput"] input {
+                            text-align: center;
+                            padding: 0px 5px !important;
+                            font-weight: bold;
+                            font-size: 16px;
+                        }
+                        /* Reducir padding entre columnas */
+                        [data-testid="column"] {
+                            padding: 0px 2px !important;
+                        }
+                        </style>
+                    """, unsafe_allow_html=True)
                     
                     # Filtros
                     filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True, label_visibility="collapsed")
                     
-                    # Query
+                    # Query (Ya no necesitamos traer escudos, pero sí las URLs de fotos)
                     try:
                         with conn.connect() as db:
                             q_gest = text("""
                                 SELECT 
                                     p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.conflicto, 
                                     p.url_foto_l, p.url_foto_v,
-                                    el.nombre as local, el.escudo as escudo_l,
-                                    ev.nombre as visitante, ev.escudo as escudo_v
+                                    el.nombre as local,
+                                    ev.nombre as visitante
                                 FROM partidos p
                                 JOIN equipos_globales el ON p.local_id = el.id
                                 JOIN equipos_globales ev ON p.visitante_id = ev.id
@@ -1367,7 +1318,6 @@ def render_torneo(id_torneo):
                     except Exception as e:
                         df_p = pd.DataFrame(); st.error(f"Error SQL: {e}")
 
-                    # Aplicar Filtros
                     if not df_p.empty:
                         if filtro_partidos == "Conflictos": 
                             df_p = df_p[(df_p['conflicto'] == True) | (df_p['estado'] == 'Revision')]
@@ -1375,7 +1325,7 @@ def render_torneo(id_torneo):
                             df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
 
                     if df_p.empty:
-                        st.info(f"No hay partidos para: {filtro_partidos}")
+                        st.info(f"No hay partidos: {filtro_partidos}")
                     else:
                         jornadas = sorted(df_p['jornada'].unique())
                         tabs_j = st.tabs([f"J{j}" for j in jornadas])
@@ -1385,45 +1335,78 @@ def render_torneo(id_torneo):
                                 df_j = df_p[df_p['jornada'] == jornadas[i]]
                                 
                                 for _, row in df_j.iterrows():
-                                    # TARJETA DE SOLO LECTURA (Muy limpia)
+                                    
+                                    # CONTENEDOR DE FILA
                                     with st.container(border=True):
-                                        # Diseño: Escudo L | Info Central | Escudo V
-                                        c1, c2, c3 = st.columns([1, 3, 1], vertical_alignment="center")
                                         
-                                        # Escudo Local
-                                        with c1:
-                                            if row['escudo_l']: st.image(row['escudo_l'], use_container_width=True)
+                                        # === FILA 1: DATOS DEL PARTIDO ===
+                                        # Distribución: Nombre (3) | Input (1) | - (0.5) | Input (1) | Nombre (3)
+                                        c_nom_l, c_in_l, c_sep, c_in_v, c_nom_v = st.columns([3, 1.2, 0.5, 1.2, 3], vertical_alignment="center")
                                         
-                                        # Centro (Nombres y Resultado)
-                                        with c2:
-                                            # Preparamos el marcador
-                                            if pd.notna(row['goles_l']) and pd.notna(row['goles_v']):
-                                                score = f"{int(row['goles_l'])} - {int(row['goles_v'])}"
-                                                color = "#ffffff" # Blanco
-                                                if row['conflicto']: color = "#ff4b4b" # Rojo si hay lío
+                                        # 1. Nombre Local (Alineado a la derecha)
+                                        with c_nom_l:
+                                            st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:13px; line-height:1.2'>{row['local']}</div>", unsafe_allow_html=True)
+                                        
+                                        # 2. Input Local
+                                        with c_in_l:
+                                            vl = str(int(row['goles_l'])) if pd.notna(row['goles_l']) else ""
+                                            gl = st.text_input("L", value=vl, max_chars=2, label_visibility="collapsed", key=f"gL_{row['id']}")
+                                        
+                                        # 3. Separador
+                                        with c_sep:
+                                            st.markdown("<div style='text-align:center; font-weight:bold;'>-</div>", unsafe_allow_html=True)
+                                        
+                                        # 4. Input Visita
+                                        with c_in_v:
+                                            vv = str(int(row['goles_v'])) if pd.notna(row['goles_v']) else ""
+                                            gv = st.text_input("V", value=vv, max_chars=2, label_visibility="collapsed", key=f"gV_{row['id']}")
+                                        
+                                        # 5. Nombre Visita (Alineado a la izquierda)
+                                        with c_nom_v:
+                                            st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:13px; line-height:1.2'>{row['visitante']}</div>", unsafe_allow_html=True)
+
+                                        st.write("") # Pequeño espacio vertical
+
+                                        # === FILA 2: ACCIONES ===
+                                        c_save, c_evi = st.columns([1, 1])
+                                        
+                                        # Botón Guardar
+                                        with c_save:
+                                            if st.button("💾 Actualizar", key=f"s_{row['id']}", use_container_width=True):
+                                                if gl == "" or gv == "":
+                                                    st.toast("⚠️ Faltan goles")
+                                                elif not (gl.isdigit() and gv.isdigit()):
+                                                    st.toast("⚠️ Solo números")
+                                                else:
+                                                    with conn.connect() as db:
+                                                        db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=False, metodo_registro='Manual Admin' WHERE id=:id"),
+                                                                 {"l":int(gl), "v":int(gv), "id":row['id']})
+                                                        db.commit()
+                                                    st.toast("✅ Guardado"); time.sleep(0.5); st.rerun()
+
+                                        # Botón Evidencia
+                                        with c_evi:
+                                            has_l = bool(row['url_foto_l'])
+                                            has_v = bool(row['url_foto_v'])
+                                            
+                                            # Texto del botón dinámico
+                                            lbl_evi = "📷 Ver Evidencia"
+                                            if not (has_l or has_v):
+                                                st.button("🚫 Sin Evidencia", key=f"no_{row['id']}", disabled=True, use_container_width=True)
                                             else:
-                                                score = "VS"
-                                                color = "#808080" # Gris
-
-                                            st.markdown(f"""
-                                                <div style='text-align: center;'>
-                                                    <div style='font-size: 11px; font-weight: bold; line-height: 1.1;'>{row['local']}</div>
-                                                    <div style='font-size: 24px; font-weight: 900; color: {color}; margin: 2px 0;'>{score}</div>
-                                                    <div style='font-size: 11px; font-weight: bold; line-height: 1.1;'>{row['visitante']}</div>
-                                                </div>
-                                            """, unsafe_allow_html=True)
-
-                                            # Indicadores pequeños (Evidencia / Estado)
-                                            if row['url_foto_l'] or row['url_foto_v']:
-                                                st.markdown("<div style='text-align:center; font-size:10px;'>📷 Hay evidencia</div>", unsafe_allow_html=True)
-                                        
-                                        # Escudo Visita
-                                        with c3:
-                                            if row['escudo_v']: st.image(row['escudo_v'], use_container_width=True)
-                                        
-                                        # BOTÓN DE ACCIÓN (Abre el Modal)
-                                        if st.button("📝 Editar / Revisar", key=f"mod_{row['id']}", use_container_width=True):
-                                            editar_partido_modal(row, id_torneo)
+                                                # Usamos Popover para no desordenar la pantalla
+                                                with st.popover(lbl_evi, use_container_width=True):
+                                                    if has_l and has_v:
+                                                        st.info("Ambos equipos subieron foto:")
+                                                        t1, t2 = st.tabs([row['local'][:10], row['visitante'][:10]])
+                                                        with t1: st.image(row['url_foto_l'])
+                                                        with t2: st.image(row['url_foto_v'])
+                                                    elif has_l:
+                                                        st.caption(f"Evidencia de {row['local']}:")
+                                                        st.image(row['url_foto_l'])
+                                                    elif has_v:
+                                                        st.caption(f"Evidencia de {row['visitante']}:")
+                                                        st.image(row['url_foto_v'])
 
 
 
@@ -2200,6 +2183,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
