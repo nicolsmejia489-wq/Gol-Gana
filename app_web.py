@@ -1267,12 +1267,12 @@ def render_torneo(id_torneo):
 
                 # --- CASO B: COMPETENCIA (Gestión de Partidos) ---
                 else:
-                    mostrar_bot("Aqui puedes revisar y actualizar los resultados de los partidos. Tienes la ultima palabra")
+                    mostrar_bot("Aquí puedes revisar y actualizar los resultados de los partidos. Tienes la última palabra.")
                     
                     # Filtros de Control
                     filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True, label_visibility="collapsed")
                     
-                    # Query con JOIN para traer nombres (usando IDs)
+                    # Query con JOIN para traer nombres (usando IDs) y AMBAS URLs
                     try:
                         with conn.connect() as db:
                             q_gest = text("""
@@ -1303,7 +1303,7 @@ def render_torneo(id_torneo):
                     else:
                         # Pestañas por Jornada
                         jornadas = sorted(df_p['jornada'].unique())
-                        # Manejo seguro de nombres de jornada (Si es número "J1", si es texto se deja igual)
+                        # Manejo seguro de nombres de jornada
                         tabs_j = st.tabs([f"Jornada {j}" if str(j).isdigit() else str(j) for j in jornadas])
                         
                         for i, tab in enumerate(tabs_j):
@@ -1311,12 +1311,13 @@ def render_torneo(id_torneo):
                                 df_j = df_p[df_p['jornada'] == jornadas[i]]
                                 
                                 for _, row in df_j.iterrows():
-                                    # Tarjeta de Partido
+                                    # Tarjeta de Partido (Estilo oscuro con borde de color)
                                     st.markdown(f"""
                                         <div style='background: linear-gradient(180deg, rgba(30,30,30,0.9) 0%, rgba(15,15,15,0.95) 100%); 
                                         border-left: 4px solid {t_color}; border-radius: 8px; padding: 10px; margin-bottom: 15px;'>
-                                    """, unsafe_allow_html=True)
+                                        """, unsafe_allow_html=True)
                                     
+                                    # Layout de la fila (Escudo L | Nombre L | Gol L | - | Gol V | Nombre V | Escudo V)
                                     c_p1 = st.columns([0.5, 2, 0.8, 0.2, 0.8, 2, 0.5], vertical_alignment="center")
                                     
                                     # Local
@@ -1344,8 +1345,10 @@ def render_torneo(id_torneo):
 
                                     st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
                                     
-                                    # Acciones
+                                    # Acciones (Guardar | Ver Evidencia)
                                     c_act = st.columns([1, 1])
+                                    
+                                    # BOTÓN GUARDAR
                                     with c_act[0]:
                                         if st.button("💾 Guardar", key=f"btn_s_{row['id']}", use_container_width=True):
                                             if gl == "" or gv == "": st.toast("⚠️ Faltan goles")
@@ -1356,12 +1359,39 @@ def render_torneo(id_torneo):
                                                              {"l":int(gl), "v":int(gv), "id":row['id']})
                                                     db.commit()
                                                 st.toast("Partido Actualizado"); time.sleep(0.5); st.rerun()
+                                    
+                                    # BOTÓN EVIDENCIA (LOGICA DUAL MEJORADA)
                                     with c_act[1]:
-                                        url_ev = row['url_foto_l'] if row['url_foto_l'] else row['url_foto_v']
-                                        if url_ev: 
-                                            with st.popover("📷 Evidencia"):
-                                                st.image(url_ev)
-                                        else: st.caption("🚫 Sin foto")
+                                        has_l = bool(row['url_foto_l'])
+                                        has_v = bool(row['url_foto_v'])
+
+                                        if has_l or has_v:
+                                            with st.popover("📷 Evidencia", use_container_width=True):
+                                                # Caso 1: Ambos subieron foto -> Usamos Pestañas con Nombres
+                                                if has_l and has_v:
+                                                    st.caption("Ambos equipos enviaron reporte:")
+                                                    # Recortamos nombre si es muy largo para que quepa en el tab
+                                                    tab_l, tab_v = st.tabs([row['local'][:12], row['visitante'][:12]])
+                                                    
+                                                    with tab_l:
+                                                        st.markdown(f"**Reporte de: {row['local']}**")
+                                                        st.image(row['url_foto_l'], use_container_width=True)
+                                                    with tab_v:
+                                                        st.markdown(f"**Reporte de: {row['visitante']}**")
+                                                        st.image(row['url_foto_v'], use_container_width=True)
+                                                
+                                                # Caso 2: Solo Local
+                                                elif has_l:
+                                                    st.markdown(f"**📷 Reporte de: {row['local']}**")
+                                                    st.image(row['url_foto_l'], use_container_width=True)
+                                                
+                                                # Caso 3: Solo Visitante
+                                                elif has_v:
+                                                    st.markdown(f"**📷 Reporte de: {row['visitante']}**")
+                                                    st.image(row['url_foto_v'], use_container_width=True)
+                                        else:
+                                            st.button("🚫 Sin foto", key=f"no_pic_{row['id']}", disabled=True, use_container_width=True)
+
                                     st.markdown("</div>", unsafe_allow_html=True)
 
             # =========================================================
@@ -2134,6 +2164,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
