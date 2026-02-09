@@ -17,7 +17,6 @@ from difflib import SequenceMatcher
 
 
 
-
 # --- CONFIGURACIÓN DE CLOUDINARY CORREGIDA ---
 cloudinary.config( 
     # Accedemos primero a la sección ["cloudinary"] y luego a la clave específica
@@ -1163,47 +1162,71 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
 
 
 
-@st.dialog("📝 Actualizar Partido")
+@st.dialog("📝 Gestión del Partido")
 def modal_edicion_admin(row, id_torneo):
-    st.caption(f"{row['local']} vs {row['visitante']}")
+    # 1. Cabecera Visual (Nombres de Equipos)
+    st.markdown(f"""
+    <div style='text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 15px;'>
+        {row['local']} <span style='color: #888;'>vs</span> {row['visitante']}
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Inputs grandes
-    c1, c2 = st.columns(2)
+    # 2. Inputs de Goles (Grandes y Claros)
+    c1, c_vs, c2 = st.columns([2, 0.5, 2], vertical_alignment="bottom")
+    
     val_l = int(row['goles_l']) if pd.notna(row['goles_l']) else 0
     val_v = int(row['goles_v']) if pd.notna(row['goles_v']) else 0
     
-    with c1: gl = st.number_input(f"Goles {row['local']}", value=val_l, min_value=0)
-    with c2: gv = st.number_input(f"Goles {row['visitante']}", value=val_v, min_value=0)
+    with c1: 
+        gl = st.number_input("Local", value=val_l, min_value=0, key="m_gl")
+    with c_vs:
+        st.markdown("<div style='text-align:center; font-size: 20px; font-weight:bold; margin-bottom: 15px;'>-</div>", unsafe_allow_html=True)
+    with c2: 
+        gv = st.number_input("Visita", value=val_v, min_value=0, key="m_gv")
 
-    # Evidencia
-    if row['url_foto_l'] or row['url_foto_v']:
+    # 3. Sección de Evidencia (Mejorada)
+    # Verificamos si existe alguna URL válida
+    has_l = row['url_foto_l'] and str(row['url_foto_l']) != "None"
+    has_v = row['url_foto_v'] and str(row['url_foto_v']) != "None"
+
+    if has_l or has_v:
         st.divider()
-        st.markdown("##### 📷 Evidencia Enviada")
-        t1, t2 = st.tabs(["Local", "Visita"])
-        with t1:
-            if row['url_foto_l']: st.image(row['url_foto_l'])
-            else: st.info("Sin foto")
-        with t2:
-            if row['url_foto_v']: st.image(row['url_foto_v'])
-            else: st.info("Sin foto")
+        st.markdown("##### 📷 Evidencia Disponible")
+        
+        # Lógica de pestañas inteligente
+        if has_l and has_v:
+            t1, t2 = st.tabs([f"📸 {row['local'][:10]}...", f"📸 {row['visitante'][:10]}..."])
+            with t1: st.image(row['url_foto_l'], use_container_width=True)
+            with t2: st.image(row['url_foto_v'], use_container_width=True)
+        elif has_l:
+            st.caption(f"Evidencia enviada por: {row['local']}")
+            st.image(row['url_foto_l'], use_container_width=True)
+        elif has_v:
+            st.caption(f"Evidencia enviada por: {row['visitante']}")
+            st.image(row['url_foto_v'], use_container_width=True)
+    else:
+        st.info("ℹ️ Ningún equipo ha subido evidencia fotográfica.")
 
-    st.write("")
+    st.write("") # Espacio
+    
+    # 4. Botón de Guardar (Conexión Corregida)
     if st.button("💾 Guardar Resultado Oficial", type="primary", use_container_width=True):
         try:
-            # Conexión directa para update inmediato
-            engine = create_engine(DATABASE_URL)
-            with engine.connect() as conn:
-                conn.execute(text("""
+            # Usamos el objeto 'conn' global directamente. 
+            # Al estar dentro de st.dialog, accede al scope global del script.
+            with conn.connect() as db:
+                db.execute(text("""
                     UPDATE partidos 
                     SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=False, metodo_registro='Manual Admin' 
                     WHERE id=:id
                 """), {"l": gl, "v": gv, "id": row['id']})
-                conn.commit()
-            st.toast("✅ Actualizado correctamente")
+                db.commit()
+            
+            st.toast("✅ Marcador actualizado exitosamente")
             time.sleep(1)
-            st.rerun()
+            st.rerun() # Recarga la página para cerrar el modal y ver cambios
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error al guardar: {e}")
 
 
 
@@ -1323,9 +1346,9 @@ def render_torneo(id_torneo):
                     except Exception as e:
                         st.error(f"Error cargando lista: {e}")
 
-                # --- CASO B: GESTIÓN DE PARTIDOS (ESTRATEGIA IMAGEN GENERADA) ---
+                # --- CASO B: GESTIÓN DE PARTIDOS (TARJETAS IMAGEN + MODAL) ---
                 else:
-                    st.info("Vista de Tarjetas. Pulsa 'Actualizar' para editar el resultado.")
+                    st.info("Vista de Tarjetas. Pulsa 'Actualizar' para ver evidencia y editar.")
                     
                     # Filtros
                     filtro_partidos = st.radio("Filtrar:", ["Todos", "Pendientes", "Conflictos"], horizontal=True, label_visibility="collapsed")
@@ -1347,14 +1370,14 @@ def render_torneo(id_torneo):
                             """)
                             df_p = pd.read_sql_query(q_gest, db, params={"id": id_torneo})
                     except Exception as e:
-                        df_p = pd.DataFrame(); st.error(f"Error: {e}")
+                        df_p = pd.DataFrame(); st.error(f"Error SQL: {e}")
 
                     if not df_p.empty:
                         if filtro_partidos == "Conflictos": df_p = df_p[(df_p['conflicto'] == True) | (df_p['estado'] == 'Revision')]
                         elif filtro_partidos == "Pendientes": df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
 
                     if df_p.empty:
-                        st.info("No hay partidos.")
+                        st.info("No hay partidos bajo este criterio.")
                     else:
                         jornadas = sorted(df_p['jornada'].unique())
                         tabs_j = st.tabs([f"J{j}" for j in jornadas])
@@ -1365,40 +1388,49 @@ def render_torneo(id_torneo):
                                 
                                 for _, row in df_j.iterrows():
                                     
-                                    # 1. PREPARAR DATOS PARA LA IMAGEN
+                                    # 1. PREPARAR DATOS VISUALES
                                     if pd.notna(row['goles_l']) and pd.notna(row['goles_v']):
                                         txt_marcador = f"{int(row['goles_l'])} - {int(row['goles_v'])}"
                                     else:
                                         txt_marcador = "VS"
                                     
-                                    # Color de borde según estado
-                                    c_tema = "#ffffff"
-                                    if row['conflicto']: c_tema = "#ff4b4b" # Rojo
-                                    elif row['estado'] == 'Finalizado': c_tema = "#00ff00" # Verde
-
                                     # 2. GENERAR IMAGEN
-                                    # Esto crea un PNG en memoria, perfecto y estático
+                                    # CORRECCIÓN 1: Siempre usamos t_color para el borde principal
                                     img_card = generar_tarjeta_imagen(
                                         row['local'], row['visitante'],
                                         row['escudo_l'], row['escudo_v'],
-                                        txt_marcador, c_tema
+                                        txt_marcador, t_color  # <--- SIEMPRE EL COLOR DEL TORNEO
                                     )
                                     
-                                    # 3. MOSTRAR IMAGEN
+                                    # 3. MOSTRAR TARJETA
                                     st.image(img_card, use_container_width=True)
                                     
-                                    # 4. BOTÓN DE ACCIÓN (Debajo de la imagen)
-                                    # Usamos columnas para centrar el botón y que no sea gigante, o full width según gusto
-                                    cb1, cb2, cb3 = st.columns([1, 2, 1])
-                                    with cb2:
-                                        label_btn = "✏️ Actualizar Manualmente"
-                                        if row['conflicto']: label_btn = "🔴 Resolver Conflicto"
+                                    # 4. BOTONERA DE ACCIÓN
+                                    # Usamos columnas para centrar y organizar
+                                    c_info, c_btn = st.columns([1.5, 1], vertical_alignment="center")
+                                    
+                                    with c_info:
+                                        # Indicadores de estado visuales debajo de la tarjeta
+                                        info_badges = []
+                                        if row['conflicto']: info_badges.append("🔴 Conflicto")
+                                        if row['url_foto_l'] or row['url_foto_v']: info_badges.append("📷 Hay Fotos")
+                                        if row['estado'] == 'Finalizado': info_badges.append("✅ Listo")
                                         
-                                        if st.button(label_btn, key=f"btn_act_{row['id']}", use_container_width=True):
+                                        if info_badges:
+                                            st.caption(" | ".join(info_badges))
+                                        else:
+                                            st.caption("Pendiente")
+
+                                    with c_btn:
+                                        label_btn = "✏️ Editar / Ver"
+                                        # Destacar botón si hay conflicto
+                                        tipo_btn = "primary" if row['conflicto'] else "secondary"
+                                        
+                                        if st.button(label_btn, key=f"mod_trigger_{row['id']}", type=tipo_btn, use_container_width=True):
                                             modal_edicion_admin(row, id_torneo)
                                     
-                                    # 5. ESPACIO SEPARADOR
-                                    st.markdown("<br>", unsafe_allow_html=True)
+                                    # Separador sutil
+                                    st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
 
             
@@ -2173,6 +2205,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
