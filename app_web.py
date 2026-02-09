@@ -1286,7 +1286,7 @@ def render_torneo(id_torneo):
                         div[data-testid="stHorizontalBlock"] {
                             flex-wrap: nowrap !important; /* 🔴 CRÍTICO: Evita que bajen a la siguiente línea */
                             align-items: center !important;
-                            gap: 2px !important; /* 🔵 Espacio entre columnas (era gap: 1rem) */
+                            gap: 1px !important; /* 🔵 Espacio entre columnas (era gap: 1rem) */
                         }
 
                         /* 2. ELIMINAR MÁRGENES DE LAS COLUMNAS */
@@ -2197,6 +2197,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
