@@ -1273,47 +1273,65 @@ def render_torneo(id_torneo):
                     except Exception as e:
                         st.error(f"Error cargando lista: {e}")
 
-                # --- CASO B: GESTIÓN DE PARTIDOS (ESTILO TABLA HTML HÍBRIDA) ---
+                # --- CASO B: GESTIÓN DE PARTIDOS (TABLA ULTRA-COMPACTA MÓVIL) ---
                 else:
-                    mostrar_bot("Gestiona los resultados en formato tabla.")
+                    mostrar_bot("Modo Editor Rápido: Los goles se editan en la misma línea.")
 
-                    # CSS "MAGIC": Convierte columnas de Streamlit en celdas de tabla
+                    # ==============================================================================
+                    # 🎨 CSS PARA FORZAR FILA HORIZONTAL (NO APILAR)
+                    # ==============================================================================
                     st.markdown("""
                         <style>
-                        /* 1. Elimina el padding horizontal de las columnas para que estén pegadas */
-                        [data-testid="column"] {
-                            padding: 0px 2px !important;
-                            min-width: 0px !important;
-                        }
-                        
-                        /* 2. Estilo de los Inputs para que parezcan celdas */
-                        div[data-testid="stTextInput"] input {
-                            text-align: center;
-                            padding: 0px !important;
-                            height: 35px;
-                            font-size: 16px;
-                            font-weight: bold;
-                            background-color: rgba(255, 255, 255, 0.05);
-                            border: 1px solid #444;
+                        /* 1. FORZAR QUE LAS COLUMNAS NO SE APILEN EN MÓVIL */
+                        div[data-testid="stHorizontalBlock"] {
+                            flex-wrap: nowrap !important; /* 🔴 CRÍTICO: Evita que bajen a la siguiente línea */
+                            align-items: center !important;
+                            gap: 2px !important; /* 🔵 Espacio entre columnas (era gap: 1rem) */
                         }
 
-                        /* 3. Ajuste de botones pequeños */
-                        .stButton button {
-                            height: 35px !important;
-                            padding: 0px !important;
-                            font-size: 12px;
+                        /* 2. ELIMINAR MÁRGENES DE LAS COLUMNAS */
+                        div[data-testid="column"] {
+                            min-width: 0px !important; /* Permite columnas muy angostas */
+                            padding: 0px !important;   /* Sin relleno interno */
+                            flex: 1 1 auto !important; /* Ajuste automático flexible */
+                        }
+
+                        /* 3. CAJITA DE LOS GOLES (INPUTS) */
+                        div[data-testid="stTextInput"] {
+                            width: 35px !important;    /* 🔵 ANCHO DE LA CAJA (Sube o baja este num) */
+                            min-width: 35px !important;
                         }
                         
-                        /* 4. Alineación vertical del contenido */
-                        div[data-testid="stVerticalBlock"] > div {
-                            display: flex;
-                            align-items: center; 
+                        div[data-testid="stTextInput"] input {
+                            padding: 0px !important;
+                            text-align: center !important;
+                            font-size: 14px !important; /* 🔵 TAMAÑO DE LETRA DEL NUMERO */
+                            height: 35px !important;    /* 🔵 ALTURA DE LA CAJA */
+                            min-height: 35px !important;
+                        }
+
+                        /* 4. BOTÓN DE GUARDADO (Pequeño) */
+                        div[data-testid="stButton"] button {
+                            padding: 0px 5px !important;
+                            font-size: 12px !important;
+                            height: 35px !important;
+                            width: 35px !important;     /* 🔵 ANCHO DEL BOTÓN */
+                        }
+
+                        /* 5. TEXTO DE LOS EQUIPOS (Para que no ocupe 2 líneas) */
+                        .team-text {
+                            font-size: 11px;           /* 🔵 TAMAÑO LETRA EQUIPO */
+                            white-space: nowrap;       /* No permitir salto de línea */
+                            overflow: hidden;          /* Ocultar lo que sobra */
+                            text-overflow: ellipsis;   /* Poner '...' si es muy largo */
+                            font-weight: bold;
+                            line-height: 35px;         /* Centrado vertical */
                         }
                         </style>
                     """, unsafe_allow_html=True)
                     
                     # Filtros
-                    filtro_partidos = st.radio("Filtrar por:", ["Todos", "Pendientes", "Conflictos"], horizontal=True, label_visibility="collapsed")
+                    filtro_partidos = st.radio("Filtrar:", ["Todos", "Pendientes", "Conflictos"], horizontal=True, label_visibility="collapsed")
                     
                     try:
                         with conn.connect() as db:
@@ -1321,8 +1339,8 @@ def render_torneo(id_torneo):
                                 SELECT 
                                     p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.conflicto, 
                                     p.url_foto_l, p.url_foto_v,
-                                    el.nombre as local, el.escudo as escudo_l,
-                                    ev.nombre as visitante, ev.escudo as escudo_v
+                                    el.nombre as local,
+                                    ev.nombre as visitante
                                 FROM partidos p
                                 JOIN equipos_globales el ON p.local_id = el.id
                                 JOIN equipos_globales ev ON p.visitante_id = ev.id
@@ -1334,11 +1352,12 @@ def render_torneo(id_torneo):
                         df_p = pd.DataFrame(); st.error(f"Error SQL: {e}")
 
                     if not df_p.empty:
+                        # Lógica de filtros...
                         if filtro_partidos == "Conflictos": df_p = df_p[(df_p['conflicto'] == True) | (df_p['estado'] == 'Revision')]
                         elif filtro_partidos == "Pendientes": df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
 
                     if df_p.empty:
-                        st.info(f"No hay partidos: {filtro_partidos}")
+                        st.info("Sin partidos.")
                     else:
                         jornadas = sorted(df_p['jornada'].unique())
                         tabs_j = st.tabs([f"J{j}" for j in jornadas])
@@ -1347,62 +1366,45 @@ def render_torneo(id_torneo):
                             with tab:
                                 df_j = df_p[df_p['jornada'] == jornadas[i]]
                                 
-                                # ENCABEZADO DE LA TABLA (Visual)
-                                st.markdown(f"""
-                                <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #444; margin-bottom:10px; font-size:10px; color:#888;">
-                                    <div style="width:35%; text-align:right;">LOCAL</div>
-                                    <div style="width:10%;"></div>
-                                    <div style="width:10%; text-align:center;">GL</div>
-                                    <div style="width:5%;"></div>
-                                    <div style="width:10%; text-align:center;">GV</div>
-                                    <div style="width:10%;"></div>
-                                    <div style="width:35%; text-align:left;">VISITA</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
+                                # ENCABEZADO SIMPLE
+                                c_h1, c_h2, c_h3, c_h4, c_h5, c_h6 = st.columns([3, 1, 0.2, 1, 3, 1])
+                                c_h1.caption("Local"); c_h2.caption("GL"); c_h4.caption("GV"); c_h5.caption("Visita")
+
                                 for _, row in df_j.iterrows():
                                     
-                                    # --- FILA DE TABLA HÍBRIDA ---
-                                    # Usamos columnas muy ajustadas.
-                                    # Estructura: NombreL(2.5) | EscudoL(0.7) | Input(1) | - (0.3) | Input(1) | EscudoV(0.7) | NombreV(2.5) | Botones(1.3)
-                                    c_nl, c_el, c_il, c_sep, c_iv, c_ev, c_nv, c_btn = st.columns([2.5, 0.7, 1, 0.3, 1, 0.7, 2.5, 1.3], vertical_alignment="center")
+                                    # ==============================================================================
+                                    # 📐 DISTRIBUCIÓN DE COLUMNAS (PROPORCIONES)
+                                    # Aquí defines qué tan ancho es cada elemento relativo al otro.
+                                    # 3 = Ancho (Nombre), 1 = Angosto (Input), 0.2 = Muy angosto (Guion)
+                                    # ==============================================================================
+                                    c_local, c_inp_l, c_sep, c_inp_v, c_visita, c_btn = st.columns([3, 1, 0.2, 1, 3, 1.2]) 
                                     
-                                    # 1. LOCAL (HTML Texto)
-                                    with c_nl:
-                                        st.markdown(f"<div style='text-align:right; font-weight:bold; font-size:12px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['local']}</div>", unsafe_allow_html=True)
+                                    # 1. NOMBRE LOCAL (Alineado Derecha)
+                                    with c_local:
+                                        # Usamos clase CSS .team-text definida arriba
+                                        st.markdown(f"<div class='team-text' style='text-align:right;'>{row['local']}</div>", unsafe_allow_html=True)
                                     
-                                    # 2. ESCUDO L (HTML Img)
-                                    with c_el:
-                                        if row['escudo_l']: st.markdown(f"<img src='{row['escudo_l']}' style='height:30px; display:block; margin:auto;'>", unsafe_allow_html=True)
-                                    
-                                    # 3. INPUT L (Streamlit Widget)
-                                    with c_il:
+                                    # 2. INPUT LOCAL
+                                    with c_inp_l:
                                         vl = str(int(row['goles_l'])) if pd.notna(row['goles_l']) else ""
-                                        gl = st.text_input("L", value=vl, max_chars=2, label_visibility="collapsed", key=f"tgl_{row['id']}")
+                                        gl = st.text_input("L", value=vl, max_chars=2, label_visibility="collapsed", key=f"gl_{row['id']}")
                                     
-                                    # 4. GUIÓN
+                                    # 3. GUIÓN
                                     with c_sep:
-                                        st.markdown("<div style='text-align:center;'>-</div>", unsafe_allow_html=True)
-
-                                    # 5. INPUT V (Streamlit Widget)
-                                    with c_iv:
+                                        st.markdown("<div style='text-align:center; line-height:35px; font-weight:bold;'>-</div>", unsafe_allow_html=True)
+                                    
+                                    # 4. INPUT VISITA
+                                    with c_inp_v:
                                         vv = str(int(row['goles_v'])) if pd.notna(row['goles_v']) else ""
-                                        gv = st.text_input("V", value=vv, max_chars=2, label_visibility="collapsed", key=f"tgv_{row['id']}")
+                                        gv = st.text_input("V", value=vv, max_chars=2, label_visibility="collapsed", key=f"gv_{row['id']}")
                                     
-                                    # 6. ESCUDO V (HTML Img)
-                                    with c_ev:
-                                        if row['escudo_v']: st.markdown(f"<img src='{row['escudo_v']}' style='height:30px; display:block; margin:auto;'>", unsafe_allow_html=True)
-
-                                    # 7. VISITA (HTML Texto)
-                                    with c_nv:
-                                        st.markdown(f"<div style='text-align:left; font-weight:bold; font-size:12px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{row['visitante']}</div>", unsafe_allow_html=True)
+                                    # 5. NOMBRE VISITA (Alineado Izquierda)
+                                    with c_visita:
+                                        st.markdown(f"<div class='team-text' style='text-align:left;'>{row['visitante']}</div>", unsafe_allow_html=True)
                                     
-                                    # 8. ACCIONES (Botón Guardar)
+                                    # 6. BOTÓN GUARDAR (Icono)
                                     with c_btn:
-                                        # Si hay evidencia, mostramos ícono, si no, botón guardar
-                                        has_evi = bool(row['url_foto_l'] or row['url_foto_v'])
-                                        
-                                        if st.button("💾", key=f"sav_{row['id']}", help="Guardar Marcador"):
+                                        if st.button("💾", key=f"s_{row['id']}"):
                                             if gl.isdigit() and gv.isdigit():
                                                 with conn.connect() as db:
                                                     db.execute(text("UPDATE partidos SET goles_l=:l, goles_v=:v, estado='Finalizado', conflicto=False, metodo_registro='Manual Admin' WHERE id=:id"),
@@ -1411,16 +1413,15 @@ def render_torneo(id_torneo):
                                                 st.toast("✅")
                                                 time.sleep(0.5); st.rerun()
 
-                                    # 9. FILA EXTRA SOLO PARA EVIDENCIA (Si existe)
-                                    # Para no romper la tabla, ponemos la evidencia en una línea fina abajo solo si hay fotos
-                                    if has_evi:
-                                        with st.expander("📷 Ver Evidencia", expanded=False):
-                                            c_ev1, c_ev2 = st.columns(2)
-                                            if row['url_foto_l']: c_ev1.image(row['url_foto_l'], caption="Local")
-                                            if row['url_foto_v']: c_ev2.image(row['url_foto_v'], caption="Visita")
-
-                                    # Línea separadora estilo tabla
-                                    st.markdown("<hr style='margin: 5px 0; border: 0; border-top: 1px solid #333;'>", unsafe_allow_html=True)
+                                    # 7. EVIDENCIA (Solo aparece abajo si existe, para no romper la fila)
+                                    if row['url_foto_l'] or row['url_foto_v']:
+                                        with st.expander("📷", expanded=False):
+                                            cc1, cc2 = st.columns(2)
+                                            if row['url_foto_l']: cc1.image(row['url_foto_l'], caption="Local")
+                                            if row['url_foto_v']: cc2.image(row['url_foto_v'], caption="Visita")
+                                    
+                                    # Línea separadora muy fina
+                                    st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #333;'>", unsafe_allow_html=True)
 
 
 
@@ -2196,6 +2197,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
