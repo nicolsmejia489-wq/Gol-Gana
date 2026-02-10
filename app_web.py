@@ -437,6 +437,241 @@ def validar_acceso(id_torneo, pin_ingresado):
 
 
 
+
+
+
+
+
+    
+# ==============================================================================
+# 3. LÓGICA DEL LOBBY
+# ==============================================================================
+
+def render_lobby():
+    # --- A. PORTADA ---
+    st.image(URL_PORTADA, use_container_width=True)
+    
+    # --- B. SALUDO DEL BOT ---
+    mostrar_bot("Hola, Soy <b>Gol Bot</b>. Guardaré las estadísticas de equipo y apoyaré al admin en la organización de cada torneo.")
+
+    # --- C. SECCIÓN: NOVEDADES (TABS) ---
+    st.markdown(f"<h3 style='text-align:center; color:{COLOR_MARCA}; margin-top:10px; letter-spacing:2px;'>NOVEDADES</h3>", unsafe_allow_html=True)
+    
+    tab_eq, tab_dt, tab_adm = st.tabs(["🛡️ Equipos", "🧠 DTs / Capitanes", "👮 Administradores"])
+    
+    with tab_eq:
+        mostrar_bot("Olvídate de los debates subjetivos; aquí hablamos con datos, no opiniones. Te muestro contra quién compites más, a quién has dominado siempre o quién no has podido vencer nunca. Cada partido, título y victoria forma parte de la historia de Clubes Pro.")
+    
+    with tab_dt:
+        mostrar_bot("Sé que gestionar un equipo es difícil. He simplificado todo para que cada competencia sea más fluida. Te facilitaré el Contacto con rivales, la revisión de marcadores y una actualización Instantánea.")
+        
+    with tab_adm:
+        mostrar_bot("Yo te apoyaré con el trabajo sucio: lectura y proceso de marcadores, actualización de tablas, rondas y estadísticas. Tú tomas las decisiones importantes y defines los colores de tu competición para que tu comunidad resalte sobre las demás.")
+
+    # --- LÍNEA DIVISORIA ---
+    st.markdown("---")
+
+    # ==============================================================================
+    # D. TORNEOS EN CURSO (ESTE ES EL BLOQUE QUE MOVIMOS BAJO NOVEDADES)
+    # ==============================================================================
+    st.subheader("🔥 Torneos en Curso")
+
+    try:
+        if conn:
+            query = text("""
+                SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
+                FROM torneos 
+                WHERE fase != 'Terminado' 
+                ORDER BY fecha_creacion DESC
+            """)
+            df_torneos = pd.read_sql_query(query, conn)
+        else:
+            df_torneos = pd.DataFrame()
+    except:
+        st.error("Conectando al servidor...")
+        df_torneos = pd.DataFrame()
+
+    if not df_torneos.empty:
+        for _, t in df_torneos.iterrows():
+            with st.container():
+                # 1. Diseño Visual de la Tarjeta (HTML)
+                estado_txt = "INSCRIPCIONES ABIERTAS" if t['fase'] == 'inscripcion' else t['fase'].upper()
+                
+                st.markdown(f"""
+                    <div style="border-left: 6px solid {t['color_primario']}; 
+                                background: rgba(255,255,255,0.05); 
+                                padding: 15px; 
+                                border-radius: 0 12px 12px 0; 
+                                margin-bottom: -10px;">
+                        <h3 style="margin:0; color:white;">🏆 {t['nombre']}</h3>
+                        <p style="margin:0; color:{t['color_primario']}; font-weight:bold; font-size:14px;">
+                            ● {estado_txt}
+                        </p>
+                        <p style="margin:5px 0 0 0; opacity:0.7; font-size:14px;">
+                            👮 {t['organizador']} | 🎮 {t['formato']}
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                # 2. Botones de Acción (Nativos)
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button(f"Ver Torneo", key=f"v_{t['id']}", use_container_width=True):
+                        st.query_params["id"] = str(t['id'])
+                        st.rerun()
+                with c2:
+                    if st.button(f"Inscribir mi equipo", key=f"i_{t['id']}", use_container_width=True, type="primary"):
+                        st.query_params["id"] = str(t['id'])
+                        st.query_params["action"] = "inscribir"
+                        st.rerun()
+                st.markdown("<br>", unsafe_allow_html=True)
+    else:
+        st.info("No hay torneos activos actualmente.")
+
+    
+
+   # --- E. CREAR NUEVO TORNEO ---
+    with st.expander("✨ ¿Eres Organizador? Crea tu Torneo", expanded=False):
+        mostrar_bot("Configura tu torneo aquí. <br>Recuerda: <b>El PIN es sagrado</b>, no lo pierdas.")
+        
+        with st.form("form_crear_torneo"):
+            st.markdown("##### 1. Identidad")
+            new_nombre = st.text_input("Nombre de la Competencia", placeholder="Ej: Relámpago Jueves")
+            
+            c_f1, c_f2 = st.columns(2)
+            with c_f1:
+                # CORRECCIÓN AQUÍ: Comilla agregada y nombres estandarizados
+                new_formato = st.selectbox("Formato", [
+                    "Clasificatoria y Cruces", 
+                    "Liga", 
+                    "Liga y Playoff", 
+                    "Eliminación Directa"
+                ])
+            with c_f2: 
+                new_color = st.color_picker("Color de Marca", "#00FF00")
+            
+            st.markdown("##### 2. Admin")
+            c_adm1, c_adm2 = st.columns(2)
+            with c_adm1: new_org = st.text_input("Tu Nombre / Cancha")
+            with c_adm2: new_wa = st.text_input("WhatsApp (Sin +)")
+            
+            st.markdown("##### 3. Seguridad")
+            new_pin = st.text_input("Crea un PIN (4 dígitos)", type="password", max_chars=4)
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # --- BOTÓN DE ENVÍO ---
+            if st.form_submit_button("🚀 Lanzar Torneo", use_container_width=True, type="primary"):
+                if new_nombre and new_pin and new_org:
+                    try:
+                        with conn.connect() as db:
+                            # Insertamos usando RETURNING id para obtener el ID creado al instante
+                            query_crear = text("""
+                                INSERT INTO torneos (nombre, organizador, whatsapp_admin, pin_admin, color_primario, fase, formato)
+                                VALUES (:n, :o, :w, :p, :c, 'inscripcion', :f) 
+                                RETURNING id
+                            """)
+                            
+                            result = db.execute(query_crear, {
+                                "n": new_nombre, 
+                                "o": new_org, 
+                                "w": new_wa, 
+                                "p": new_pin, 
+                                "c": new_color, 
+                                "f": new_formato
+                            })
+                            
+                            # Obtenemos el ID del nuevo torneo
+                            nuevo_id = result.fetchone()[0]
+                            db.commit()
+                        
+                        st.balloons()
+                        st.success(f"¡Torneo '{new_nombre}' creado! Redirigiendo...")
+                        time.sleep(1.5)
+                        
+                        # Redirección automática al nuevo torneo
+                        st.query_params["id"] = str(nuevo_id)
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Error al crear: {e}")
+                else:
+                    st.warning("⚠️ Faltan datos obligatorios (Nombre, Organizador o PIN).")
+
+     # --- F. MANIFIESTO (FOOTER) ---
+    st.markdown(f"""
+        <div class="manifesto-container">
+            <div class="intro-quote">
+                “Mientras otros solo anotan goles, tú construyes una historia”
+            </div>
+            <div class="intro-text">
+                El mundo ha cambiado. La tecnología y la Inteligencia Artificial han redefinido cada industria, y hoy, 
+                ese poder llega finalmente a la comunidad de Clubes Pro. Ya no se trata solo de jugar un partido; 
+                se trata del legado que dejas en cada cancha virtual.
+            </div>
+            <div class="intro-text">
+                En la élite, los equipos más grandes no solo se miden por sus títulos, sino por los datos e indicadores 
+                que respaldan cada trofeo. Por eso, en <b>Gol-Gana</b>, cada victoria, cada rivalidad y cada estadística 
+                forman parte de una historia viva y objetiva. La evolución no se detiene, es momento de dar paso a un 
+                ecosistema inteligente donde la historia de cada club puede ser eterna.
+            </div>
+            <div style="text-align:center; margin-top:15px; font-size:18px; font-weight:600; color:{COLOR_MARCA};">
+                ¿Estás listo para transformar tu comunidad? Únete a los clubes que ya compiten en el futuro.
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+
+
+
+
+# ==============================================================================
+# 4.1 LOGICA DE VALIDACIÓN DE ACCESO
+# ==============================================================================
+def validar_acceso(id_torneo, pin_ingresado):
+    try:
+        with conn.connect() as db:
+            # 1. VERIFICAR ADMIN (Prioridad absoluta)
+            q_admin = text("SELECT nombre FROM torneos WHERE id = :id AND pin_admin = :pin")
+            res_admin = db.execute(q_admin, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
+            if res_admin:
+                return {"rol": "Admin", "id_equipo": None, "nombre_equipo": "Organizador"}
+            
+            # 2. VERIFICAR DT APROBADO (Solo entran los 'aprobado')
+            # Nota: Agregamos explícitamente AND estado = 'aprobado' en el SQL
+            q_ok = text("""
+                SELECT id, nombre 
+                FROM equipos_globales 
+                WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'aprobado'
+            """)
+            res_ok = db.execute(q_ok, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
+            
+            if res_ok:
+                return {"rol": "DT", "id_equipo": res_ok.id, "nombre_equipo": res_ok.nombre}
+            
+            # 3. VERIFICAR SI ESTÁ PENDIENTE (Para dar el aviso correcto)
+            q_pend = text("""
+                SELECT 1 
+                FROM equipos_globales 
+                WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'pendiente'
+            """)
+            # Si existe un pendiente, devolvemos la señal de alerta
+            if db.execute(q_pend, {"id": id_torneo, "pin": pin_ingresado}).fetchone():
+                return "PENDIENTE"
+
+        # Si llegamos aquí, es porque no es Admin, ni DT aprobado, ni pendiente.
+        # (Puede ser estado NULL, 'baja' o PIN incorrecto)
+        return None
+
+    except Exception as e:
+        print(f"Error login: {e}")
+        return None
+
+
+
+
+
+
 def analizar_estado_torneo(id_torneo):
     """
     Revisa si el torneo está listo para avanzar de fase.
@@ -715,234 +950,6 @@ else:
   # =========================================================
 
 
-
-
-    
-# ==============================================================================
-# 3. LÓGICA DEL LOBBY
-# ==============================================================================
-
-def render_lobby():
-    # --- A. PORTADA ---
-    st.image(URL_PORTADA, use_container_width=True)
-    
-    # --- B. SALUDO DEL BOT ---
-    mostrar_bot("Hola, Soy <b>Gol Bot</b>. Guardaré las estadísticas de equipo y apoyaré al admin en la organización de cada torneo.")
-
-    # --- C. SECCIÓN: NOVEDADES (TABS) ---
-    st.markdown(f"<h3 style='text-align:center; color:{COLOR_MARCA}; margin-top:10px; letter-spacing:2px;'>NOVEDADES</h3>", unsafe_allow_html=True)
-    
-    tab_eq, tab_dt, tab_adm = st.tabs(["🛡️ Equipos", "🧠 DTs / Capitanes", "👮 Administradores"])
-    
-    with tab_eq:
-        mostrar_bot("Olvídate de los debates subjetivos; aquí hablamos con datos, no opiniones. Te muestro contra quién compites más, a quién has dominado siempre o quién no has podido vencer nunca. Cada partido, título y victoria forma parte de la historia de Clubes Pro.")
-    
-    with tab_dt:
-        mostrar_bot("Sé que gestionar un equipo es difícil. He simplificado todo para que cada competencia sea más fluida. Te facilitaré el Contacto con rivales, la revisión de marcadores y una actualización Instantánea.")
-        
-    with tab_adm:
-        mostrar_bot("Yo te apoyaré con el trabajo sucio: lectura y proceso de marcadores, actualización de tablas, rondas y estadísticas. Tú tomas las decisiones importantes y defines los colores de tu competición para que tu comunidad resalte sobre las demás.")
-
-    # --- LÍNEA DIVISORIA ---
-    st.markdown("---")
-
-    # ==============================================================================
-    # D. TORNEOS EN CURSO (ESTE ES EL BLOQUE QUE MOVIMOS BAJO NOVEDADES)
-    # ==============================================================================
-    st.subheader("🔥 Torneos en Curso")
-
-    try:
-        if conn:
-            query = text("""
-                SELECT id, nombre, organizador, color_primario, fase, formato, fecha_creacion 
-                FROM torneos 
-                WHERE fase != 'Terminado' 
-                ORDER BY fecha_creacion DESC
-            """)
-            df_torneos = pd.read_sql_query(query, conn)
-        else:
-            df_torneos = pd.DataFrame()
-    except:
-        st.error("Conectando al servidor...")
-        df_torneos = pd.DataFrame()
-
-    if not df_torneos.empty:
-        for _, t in df_torneos.iterrows():
-            with st.container():
-                # 1. Diseño Visual de la Tarjeta (HTML)
-                estado_txt = "INSCRIPCIONES ABIERTAS" if t['fase'] == 'inscripcion' else t['fase'].upper()
-                
-                st.markdown(f"""
-                    <div style="border-left: 6px solid {t['color_primario']}; 
-                                background: rgba(255,255,255,0.05); 
-                                padding: 15px; 
-                                border-radius: 0 12px 12px 0; 
-                                margin-bottom: -10px;">
-                        <h3 style="margin:0; color:white;">🏆 {t['nombre']}</h3>
-                        <p style="margin:0; color:{t['color_primario']}; font-weight:bold; font-size:14px;">
-                            ● {estado_txt}
-                        </p>
-                        <p style="margin:5px 0 0 0; opacity:0.7; font-size:14px;">
-                            👮 {t['organizador']} | 🎮 {t['formato']}
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-                # 2. Botones de Acción (Nativos)
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button(f"Ver Torneo", key=f"v_{t['id']}", use_container_width=True):
-                        st.query_params["id"] = str(t['id'])
-                        st.rerun()
-                with c2:
-                    if st.button(f"Inscribir mi equipo", key=f"i_{t['id']}", use_container_width=True, type="primary"):
-                        st.query_params["id"] = str(t['id'])
-                        st.query_params["action"] = "inscribir"
-                        st.rerun()
-                st.markdown("<br>", unsafe_allow_html=True)
-    else:
-        st.info("No hay torneos activos actualmente.")
-
-    
-
-   # --- E. CREAR NUEVO TORNEO ---
-    with st.expander("✨ ¿Eres Organizador? Crea tu Torneo", expanded=False):
-        mostrar_bot("Configura tu torneo aquí. <br>Recuerda: <b>El PIN es sagrado</b>, no lo pierdas.")
-        
-        with st.form("form_crear_torneo"):
-            st.markdown("##### 1. Identidad")
-            new_nombre = st.text_input("Nombre de la Competencia", placeholder="Ej: Relámpago Jueves")
-            
-            c_f1, c_f2 = st.columns(2)
-            with c_f1:
-                # CORRECCIÓN AQUÍ: Comilla agregada y nombres estandarizados
-                new_formato = st.selectbox("Formato", [
-                    "Clasificatoria y Cruces", 
-                    "Liga", 
-                    "Liga y Playoff", 
-                    "Eliminación Directa"
-                ])
-            with c_f2: 
-                new_color = st.color_picker("Color de Marca", "#00FF00")
-            
-            st.markdown("##### 2. Admin")
-            c_adm1, c_adm2 = st.columns(2)
-            with c_adm1: new_org = st.text_input("Tu Nombre / Cancha")
-            with c_adm2: new_wa = st.text_input("WhatsApp (Sin +)")
-            
-            st.markdown("##### 3. Seguridad")
-            new_pin = st.text_input("Crea un PIN (4 dígitos)", type="password", max_chars=4)
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            # --- BOTÓN DE ENVÍO ---
-            if st.form_submit_button("🚀 Lanzar Torneo", use_container_width=True, type="primary"):
-                if new_nombre and new_pin and new_org:
-                    try:
-                        with conn.connect() as db:
-                            # Insertamos usando RETURNING id para obtener el ID creado al instante
-                            query_crear = text("""
-                                INSERT INTO torneos (nombre, organizador, whatsapp_admin, pin_admin, color_primario, fase, formato)
-                                VALUES (:n, :o, :w, :p, :c, 'inscripcion', :f) 
-                                RETURNING id
-                            """)
-                            
-                            result = db.execute(query_crear, {
-                                "n": new_nombre, 
-                                "o": new_org, 
-                                "w": new_wa, 
-                                "p": new_pin, 
-                                "c": new_color, 
-                                "f": new_formato
-                            })
-                            
-                            # Obtenemos el ID del nuevo torneo
-                            nuevo_id = result.fetchone()[0]
-                            db.commit()
-                        
-                        st.balloons()
-                        st.success(f"¡Torneo '{new_nombre}' creado! Redirigiendo...")
-                        time.sleep(1.5)
-                        
-                        # Redirección automática al nuevo torneo
-                        st.query_params["id"] = str(nuevo_id)
-                        st.rerun()
-                        
-                    except Exception as e:
-                        st.error(f"Error al crear: {e}")
-                else:
-                    st.warning("⚠️ Faltan datos obligatorios (Nombre, Organizador o PIN).")
-
-     # --- F. MANIFIESTO (FOOTER) ---
-    st.markdown(f"""
-        <div class="manifesto-container">
-            <div class="intro-quote">
-                “Mientras otros solo anotan goles, tú construyes una historia”
-            </div>
-            <div class="intro-text">
-                El mundo ha cambiado. La tecnología y la Inteligencia Artificial han redefinido cada industria, y hoy, 
-                ese poder llega finalmente a la comunidad de Clubes Pro. Ya no se trata solo de jugar un partido; 
-                se trata del legado que dejas en cada cancha virtual.
-            </div>
-            <div class="intro-text">
-                En la élite, los equipos más grandes no solo se miden por sus títulos, sino por los datos e indicadores 
-                que respaldan cada trofeo. Por eso, en <b>Gol-Gana</b>, cada victoria, cada rivalidad y cada estadística 
-                forman parte de una historia viva y objetiva. La evolución no se detiene, es momento de dar paso a un 
-                ecosistema inteligente donde la historia de cada club puede ser eterna.
-            </div>
-            <div style="text-align:center; margin-top:15px; font-size:18px; font-weight:600; color:{COLOR_MARCA};">
-                ¿Estás listo para transformar tu comunidad? Únete a los clubes que ya compiten en el futuro.
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-
-
-
-
-
-# ==============================================================================
-# 4.1 LOGICA DE VALIDACIÓN DE ACCESO
-# ==============================================================================
-def validar_acceso(id_torneo, pin_ingresado):
-    try:
-        with conn.connect() as db:
-            # 1. VERIFICAR ADMIN (Prioridad absoluta)
-            q_admin = text("SELECT nombre FROM torneos WHERE id = :id AND pin_admin = :pin")
-            res_admin = db.execute(q_admin, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
-            if res_admin:
-                return {"rol": "Admin", "id_equipo": None, "nombre_equipo": "Organizador"}
-            
-            # 2. VERIFICAR DT APROBADO (Solo entran los 'aprobado')
-            # Nota: Agregamos explícitamente AND estado = 'aprobado' en el SQL
-            q_ok = text("""
-                SELECT id, nombre 
-                FROM equipos_globales 
-                WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'aprobado'
-            """)
-            res_ok = db.execute(q_ok, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
-            
-            if res_ok:
-                return {"rol": "DT", "id_equipo": res_ok.id, "nombre_equipo": res_ok.nombre}
-            
-            # 3. VERIFICAR SI ESTÁ PENDIENTE (Para dar el aviso correcto)
-            q_pend = text("""
-                SELECT 1 
-                FROM equipos_globales 
-                WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'pendiente'
-            """)
-            # Si existe un pendiente, devolvemos la señal de alerta
-            if db.execute(q_pend, {"id": id_torneo, "pin": pin_ingresado}).fetchone():
-                return "PENDIENTE"
-
-        # Si llegamos aquí, es porque no es Admin, ni DT aprobado, ni pendiente.
-        # (Puede ser estado NULL, 'baja' o PIN incorrecto)
-        return None
-
-    except Exception as e:
-        print(f"Error login: {e}")
-        return None
-
-        
 
  # ------------------------------------------------------------
 #FUNCION DE PESTAÑA TORNEO
@@ -1224,7 +1231,7 @@ def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto
 
 
    # ---------------------------------------------------------
-##EN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
+ FUNCION DE TARJETAS DE PARTIDOS
 # ---------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, color_tema):
@@ -1359,7 +1366,7 @@ def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, 
 
     return img
 # ---------------------------------------------------------
-##FIN PRUEBA - FUNCION DE TARJETAS DE PARTIDOS
+#- FUNCION DE TARJETAS DE PARTIDOS
 # ---------------------------------------------------------
 
 
@@ -2470,6 +2477,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
