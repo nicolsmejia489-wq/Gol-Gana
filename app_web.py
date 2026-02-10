@@ -711,13 +711,13 @@ def analizar_estado_torneo(id_torneo):
             # o idealmente filtrar por la fase actual si agregaste esa columna.
             pendientes = db.execute(text("""
                 SELECT COUNT(*) FROM partidos 
-                WHERE id_torneo=:id AND estado != 'Finalizado'
+                WHERE id_torneo=:id AND (estado != 'Finalizado' OR conflicto = true)
             """), {"id": id_torneo}).scalar()
 
             if pendientes > 0:
                 return {
                     "listo": False, 
-                    "mensaje": f"⚠️ Faltan {pendientes} partidos por jugar o finalizar.",
+                    "mensaje": f"Aún faltan <b>{pendientes} partidos</b> por jugar o tienen conflictos pendientes.", 
                     "fase_actual": fase
                 }
 
@@ -1706,55 +1706,37 @@ def render_torneo(id_torneo):
                     st.error(f"Error listando equipos: {e}")
 
             # =========================================================
-            # SUB-TAB 3: CONFIGURACIÓN (CENTRO DE MANDO DEFINITIVO)
+            # SUB-TAB 3: CONFIGURACIÓN (CENTRO DE MANDO)
             # =========================================================
             with sub_tabs[2]:
                 st.subheader("⚙️ Centro de Mando")
-                
-                # ---------------------------------------------------------
-                # 1. PERSONALIZACIÓN VISUAL
-                # ---------------------------------------------------------
-                with st.expander("🎨 Identidad del Torneo", expanded=False):
-                    c_col1, c_col2 = st.columns([1, 2], vertical_alignment="bottom")
-                    new_color = c_col1.color_picker("Color Principal", value=t_color)
-                    if c_col2.button("Guardar Color", use_container_width=True):
-                        with conn.connect() as db:
-                            db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), {"c": new_color, "id": id_torneo})
-                            db.commit()
-                        st.toast("Color actualizado")
-                        time.sleep(1); st.rerun()
-
-                st.divider()
 
                 # ---------------------------------------------------------
-                # 2. CONTROL DE FASES (CEREBRO DEL TORNEO)
+                # 1. CONTROL DE FASES (PRIORIDAD ALTA)
                 # ---------------------------------------------------------
                 st.markdown(f"##### 🚀 Estado Actual: `{t_fase.upper().replace('_', ' ')}`")
                 
-                # A. DIAGNÓSTICO INTELIGENTE
-                # Llamamos a la función global que pegamos al inicio del script
+                # A. DIAGNÓSTICO
                 estado_torneo = analizar_estado_torneo(id_torneo)
                 
                 # B. INTERFAZ DE AVANCE
                 if estado_torneo['listo']:
-                    # CASO VERDE: Todo listo para avanzar
+                    # CASO VERDE: Todo listo
+                    # Usamos un mensaje de éxito estándar para las buenas noticias
                     st.success(estado_torneo['mensaje'], icon="✅")
                     
-                    # Definimos la etiqueta del botón dinámicamente
                     label_accion = estado_torneo['accion_siguiente']
                     
-                    # Botón inicial
                     if st.button(f"⏩ {label_accion}", type="primary", use_container_width=True):
-                        # Activamos bandera de confirmación en sesión
                         st.session_state[f"conf_avance_{id_torneo}"] = True
                     
-                    # C. ZONA DE CONFIRMACIÓN (Aparece solo si se activó la bandera)
+                    # C. ZONA DE CONFIRMACIÓN
                     if st.session_state.get(f"conf_avance_{id_torneo}"):
                         st.markdown("""
                         <div style='background-color: rgba(255, 215, 0, 0.15); padding: 15px; border-radius: 8px; border-left: 5px solid #FFD700; margin: 10px 0;'>
                             <h4 style='margin:0; color: #FFD700;'>⚠️ Atención, Presi</h4>
                             <p style='margin:5px 0 0 0; font-size:14px;'>
-                                Estás a punto de cerrar la fase actual. <b>Gol Bot</b> calculará la tabla, definirá clasificados y generará los nuevos partidos.<br>
+                                Estás a punto de cerrar la fase actual. <b>Gol Bot</b> calculará la tabla y generará los nuevos partidos.<br>
                                 <b>Esta acción no se puede deshacer.</b>
                             </p>
                         </div>
@@ -1762,58 +1744,73 @@ def render_torneo(id_torneo):
                         
                         col_si, col_no = st.columns(2)
                         
-                        # Opción SI
                         if col_si.button("✅ Sí, Ejecutar", key="btn_yes_adv", type="primary", use_container_width=True):
                             with st.spinner("🤖 Gol Bot procesando lógica del torneo..."):
-                                # LLAMADA A LA FUNCIÓN MAESTRA
                                 exito, msg = ejecutar_avance_fase(id_torneo)
-                                
                                 if exito:
                                     st.balloons()
                                     st.success(msg)
-                                    # Limpiamos estado y recargamos
                                     del st.session_state[f"conf_avance_{id_torneo}"]
                                     time.sleep(3)
                                     st.rerun()
                                 else:
                                     st.error(f"Error: {msg}")
                         
-                        # Opción NO
                         if col_no.button("❌ Cancelar", key="btn_no_adv", use_container_width=True):
                             del st.session_state[f"conf_avance_{id_torneo}"]
                             st.rerun()
 
                 else:
-                    # CASO AMARILLO: Faltan requisitos
-                    st.warning(estado_torneo['mensaje'], icon="⏳")
-                    st.button("🚫 Avanzar Fase", disabled=True, use_container_width=True, help="Completa los partidos o requisitos pendientes.")
+                    # CASO NO LISTO: GOL BOT HABLA AQUÍ
+                    # Tomamos el mensaje que viene de la función (ej: "Faltan 2 partidos") y lo dice el Bot
+                    mostrar_bot(f"{estado_torneo['mensaje']} <br>No podemos avanzar hasta resolverlo.")
+                    st.button("🚫 Avanzar Fase", disabled=True, use_container_width=True)
+
+                st.divider()
+
+                # ---------------------------------------------------------
+                # 2. IDENTIDAD DEL TORNEO (PRIORIDAD MEDIA)
+                # ---------------------------------------------------------
+                st.markdown("##### 🎨 Identidad Visual")
+                c_col1, c_col2 = st.columns([1, 2], vertical_alignment="bottom")
+                new_color = c_col1.color_picker("Color Principal", value=t_color)
+                if c_col2.button("Guardar Color", use_container_width=True):
+                    with conn.connect() as db:
+                        db.execute(text("UPDATE torneos SET color_primario = :c WHERE id = :id"), {"c": new_color, "id": id_torneo})
+                        db.commit()
+                    st.toast("Color actualizado")
+                    time.sleep(1); st.rerun()
+
+                st.divider()
+
+                # ---------------------------------------------------------
+                # 3. ZONA DE PELIGRO (CANCELAR TORNEO)
+                # ---------------------------------------------------------
+                st.markdown("##### 💀 Zona de Peligro")
                 
-                # ---------------------------------------------------------
-                # 3. ZONA DE PELIGRO (RESET)
-                # ---------------------------------------------------------
-                st.markdown("<br><br>", unsafe_allow_html=True)
-                with st.expander("💀 Zona de Peligro"):
-                    st.caption("Usa esto solo si cometiste un error grave en la creación.")
+                # Advertencia de GolBot antes de mostrar el botón
+                mostrar_bot("Si decides <b>Cancelar el Torneo</b>, borraré todos los partidos, resultados y fotos. <br><b>Esta acción es irreversible.</b>")
+                
+                if st.button("🚨 Cancelar Torneo Definitivamente", type="secondary", use_container_width=True):
+                     st.session_state.confirm_reset = True
+                
+                if st.session_state.get("confirm_reset"):
+                    st.error("¿ESTÁS TOTALMENTE SEGURO?")
+                    col_r1, col_r2 = st.columns(2)
                     
-                    if st.button("♻️ Resetear Torneo a Cero", type="secondary", use_container_width=True):
-                         st.session_state.confirm_reset = True
-                    
-                    if st.session_state.get("confirm_reset"):
-                        st.error("¿SEGURO? Se borrarán TODOS los partidos, resultados y fotos. Volverás a Inscripción.")
-                        col_r1, col_r2 = st.columns(2)
+                    if col_r1.button("💥 SÍ, BORRAR TODO", type="primary", use_container_width=True):
+                        with conn.connect() as db:
+                            db.execute(text("DELETE FROM partidos WHERE id_torneo=:id"), {"id": id_torneo})
+                            # Lo regresamos a inscripción (o podrías borrarlo de la tabla torneos si prefieres eliminarlo del todo)
+                            db.execute(text("UPDATE torneos SET fase='inscripcion' WHERE id=:id"), {"id": id_torneo})
+                            db.commit()
+                        st.toast("Torneo reseteado")
+                        del st.session_state.confirm_reset
+                        time.sleep(1); st.rerun()
                         
-                        if col_r1.button("💥 SÍ, BORRAR", type="primary", use_container_width=True):
-                            with conn.connect() as db:
-                                db.execute(text("DELETE FROM partidos WHERE id_torneo=:id"), {"id": id_torneo})
-                                db.execute(text("UPDATE torneos SET fase='inscripcion' WHERE id=:id"), {"id": id_torneo})
-                                db.commit()
-                            st.toast("Torneo reseteado")
-                            del st.session_state.confirm_reset
-                            time.sleep(1); st.rerun()
-                            
-                        if col_r2.button("Cancelar", key="cancel_reset", use_container_width=True):
-                            del st.session_state.confirm_reset
-                            st.rerun()
+                    if col_r2.button("Cancelar", key="cancel_reset", use_container_width=True):
+                        del st.session_state.confirm_reset
+                        st.rerun()
 
 
 
@@ -2476,6 +2473,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
