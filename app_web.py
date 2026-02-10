@@ -431,7 +431,288 @@ def validar_acceso(id_torneo, pin_ingresado):
 
 
 
+####FUNCIONES EN PRUEBA  ##############################################################
 
+
+
+
+
+def analizar_estado_torneo(id_torneo):
+    """
+    Revisa si el torneo está listo para avanzar de fase.
+    Retorna un diccionario con:
+    - 'listo': True/False
+    - 'mensaje': Texto para el usuario
+    - 'fase_actual': La fase en la que está ahora
+    - 'accion_siguiente': Qué pasará si avanza (ej: 'Generar Octavos')
+    """
+    try:
+        with conn.connect() as db:
+            # 1. Obtener Info Torneo
+            t = db.execute(text("SELECT fase, formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+            if not t: return {"listo": False, "mensaje": "Torneo no encontrado"}
+            
+            fase = t.fase
+            formato = t.formato
+
+            # CASO 0: INSCRIPCIÓN (Siempre listo si hay equipos)
+            if fase == 'inscripcion':
+                cant = db.execute(text("SELECT COUNT(*) FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).scalar()
+                if cant < 2:
+                    return {"listo": False, "mensaje": f"Solo hay {cant} equipos inscritos. Mínimo 2."}
+                return {
+                    "listo": True, 
+                    "mensaje": "✅ Inscripciones abiertas. ¿Cerrar e Iniciar Torneo?",
+                    "accion_siguiente": "Generar Calendario Inicial",
+                    "fase_actual": fase
+                }
+
+            # CASO 1: VALIDAR PARTIDOS PENDIENTES
+            # Buscamos partidos que NO estén finalizados en la fase actual
+            # Nota: Si tu tabla partidos no tiene columna 'fase', usamos la fecha o estado. 
+            # Asumiré que validamos TODOS los partidos activos del torneo para simplificar, 
+            # o idealmente filtrar por la fase actual si agregaste esa columna.
+            pendientes = db.execute(text("""
+                SELECT COUNT(*) FROM partidos 
+                WHERE id_torneo=:id AND estado != 'Finalizado'
+            """), {"id": id_torneo}).scalar()
+
+            if pendientes > 0:
+                return {
+                    "listo": False, 
+                    "mensaje": f"⚠️ Faltan {pendientes} partidos por jugar o finalizar.",
+                    "fase_actual": fase
+                }
+
+            # CASO 2: LISTO PARA AVANZAR
+            # Aquí determinamos cuál es la siguiente fase según el formato
+            siguiente = "Siguiente Ronda"
+            
+            if formato == "Clasificatoria y Cruces":
+                if fase == 'clasificacion': siguiente = "Generar Eliminatorias (Mata-Mata)"
+                elif fase == 'octavos': siguiente = "Generar Cuartos de Final"
+                elif fase == 'cuartos': siguiente = "Generar Semifinales"
+                elif fase == 'semis': siguiente = "Generar Gran Final"
+                elif fase == 'final': siguiente = "🏆 FINALIZAR TORNEO"
+            
+            elif formato == "Liga":
+                siguiente = "🏆 FINALIZAR TORNEO (Coronar Campeón)"
+
+            return {
+                "listo": True,
+                "mensaje": f"✅ Todo listo en {fase}. Se procederá a: {siguiente}",
+                "accion_siguiente": siguiente,
+                "fase_actual": fase
+            }
+
+    except Exception as e:
+        return {"listo": False, "mensaje": f"Error análisis: {e}"}
+
+
+
+        
+def ejecutar_avance_fase(id_torneo):
+    """
+    Ejecuta la transición de fase: Calcula tablas, genera cruces y actualiza el torneo.
+    """
+    import math
+    
+    # Análisis previo para seguridad
+    estado = analizar_estado_torneo(id_torneo)
+    if not estado['listo']:
+        return False, estado['mensaje']
+
+    fase_act = estado['fase_actual']
+    
+    try:
+        with conn.connect() as db:
+            # Recuperar formato
+            t = db.execute(text("SELECT formato, clasifica_play_off FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+            formato = t.formato
+            
+            # ==============================================================================
+            # 1. DE INSCRIPCIÓN A JUEGO (Generar Calendario)
+            # ==============================================================================
+            if fase_act == 'inscripcion':
+                # Llamamos a tu función existente de generar calendario (ajustada si es necesario)
+                # Nota: Aquí deberías llamar a generar_calendario(id_torneo) que ya tienes.
+                # Simulamos éxito:
+                nueva_fase = 'clasificacion' if formato == 'Clasificatoria y Cruces' else 'regular'
+                db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": nueva_fase, "id": id_torneo})
+                db.commit()
+                return True, f"Torneo iniciado en fase: {nueva_fase}"
+
+            # ==============================================================================
+            # 2. FORMATO: CLASIFICATORIA Y CRUCES
+            # ==============================================================================
+            if formato == 'Clasificatoria y Cruces':
+                
+                # A. DE CLASIFICACIÓN -> ELIMINATORIAS (EL CEREBRO MATEMÁTICO)
+                if fase_act == 'clasificacion':
+                    # 1. Calcular Tabla General
+                    # Traemos todos los equipos y calculamos puntos manualmente o con query compleja.
+                    # Hacemos query de partidos finalizados
+                    partidos = db.execute(text("SELECT local_id, visitante_id, goles_l, goles_v FROM partidos WHERE id_torneo=:id"), {"id": id_torneo}).fetchall()
+                    
+                    stats = {} # {id_equipo: {'pts':0, 'gf':0, 'dg':0}}
+                    
+                    # Inicializar equipos (para incluir los que tienen 0 pts)
+                    eqs = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).fetchall()
+                    for e in eqs: stats[e[0]] = {'pts':0, 'gf':0, 'dg':0, 'id': e[0]}
+
+                    for p in partidos:
+                        lid, vid, gl, gv = p
+                        # Local
+                        stats[lid]['gf'] += gl
+                        stats[lid]['dg'] += (gl - gv)
+                        # Visita
+                        stats[vid]['gf'] += gv
+                        stats[vid]['dg'] += (gv - gl)
+                        # Puntos
+                        if gl > gv: stats[lid]['pts'] += 3
+                        elif gv > gl: stats[vid]['pts'] += 3
+                        else:
+                            stats[lid]['pts'] += 1; stats[vid]['pts'] += 1
+                    
+                    # Ordenar Tabla: PTS DESC, DG DESC, GF DESC
+                    tabla = sorted(stats.values(), key=lambda x: (x['pts'], x['dg'], x['gf']), reverse=True)
+                    
+                    N = len(tabla)
+                    clasificados = []
+                    next_phase_name = ""
+
+                    # Reglas de negocio (Tu lógica de cantidades)
+                    if 8 <= N <= 12:
+                        clasificados = tabla[:4] # Top 4 -> Semis
+                        next_phase_name = 'semis'
+                    elif 13 <= N <= 19:
+                        clasificados = tabla[:8] # Top 8 -> Cuartos
+                        next_phase_name = 'cuartos'
+                    elif 20 <= N <= 32:
+                        clasificados = tabla[:16] # Top 16 -> Octavos
+                        next_phase_name = 'octavos'
+                    else:
+                        # Fallback por si son muy pocos o muchos (ej: top 2 a final)
+                        clasificados = tabla[:2]
+                        next_phase_name = 'final'
+                    
+                    # Generar Cruces (1 vs Último, 2 vs Penúltimo...)
+                    num_clas = len(clasificados)
+                    for i in range(num_clas // 2):
+                        local = clasificados[i]['id']               # El mejor (1º)
+                        visita = clasificados[num_clas - 1 - i]['id'] # El peor clasificado (16º)
+                        
+                        db.execute(text("""
+                            INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado)
+                            VALUES (:id, :l, :v, 99, 'Programado') 
+                        """), {"id": id_torneo, "l": local, "v": visita})
+                        # Nota: jornada 99 o un ID de fase numérica para orden
+
+                    db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_phase_name, "id": id_torneo})
+                    db.commit()
+                    return True, f"¡Clasificación terminada! Se generaron los {next_phase_name}."
+
+                # B. AVANCE DE ELIMINATORIAS (Octavos->Cuartos->Semis->Final)
+                elif fase_act in ['octavos', 'cuartos', 'semis']:
+                    # 1. Obtener ganadores de la fase actual
+                    # Asumimos que la tabla partidos tiene los partidos de esta fase.
+                    # Necesitamos una forma de distinguir los partidos de ESTA fase de los anteriores.
+                    # TRUCO: Los partidos de eliminación creados recientemente tendrán IDs mayores que los de la fase anterior.
+                    # O idealmente, agregamos columna 'fase' a la tabla partidos. 
+                    # Por ahora, usaremos la lógica de "Partidos Finalizados Recientes".
+                    
+                    # Query inteligente: Trae los partidos del torneo ordenados por ID desc.
+                    # Si estamos en Octavos (8 partidos), tomamos los ultimos 8.
+                    limit = 8 if fase_act == 'octavos' else 4 if fase_act == 'cuartos' else 2
+                    
+                    # Buscamos los partidos finalizados
+                    matches = db.execute(text("""
+                        SELECT id, local_id, visitante_id, goles_l, goles_v, penales_l, penales_v 
+                        FROM partidos 
+                        WHERE id_torneo=:id AND estado='Finalizado'
+                        ORDER BY id DESC LIMIT :lim
+                    """), {"id": id_torneo, "lim": limit}).fetchall()
+                    
+                    # Importante: Debemos ordenarlos por ID ASC para mantener el orden de llaves (A vs B, C vs D)
+                    matches = sorted(matches, key=lambda x: x[0])
+                    
+                    ganadores = []
+                    for m in matches:
+                        # Determinar ganador (Goles o Penales)
+                        g_l = m.goles_l + (0 if m.penales_l is None else m.penales_l / 100) # Hack decimal para desempate simple
+                        g_v = m.goles_v + (0 if m.penales_v is None else m.penales_v / 100)
+                        
+                        if g_l > g_v: ganadores.append(m.local_id)
+                        else: ganadores.append(m.visitante_id)
+                    
+                    # Crear Siguiente Ronda
+                    if len(ganadores) < 2:
+                        return False, "Error crítico: No hay suficientes ganadores para la siguiente ronda."
+                        
+                    next_phase = ""
+                    if fase_act == 'octavos': next_phase = 'cuartos'
+                    elif fase_act == 'cuartos': next_phase = 'semis'
+                    elif fase_act == 'semis': next_phase = 'final'
+                    
+                    # Emparejar Llave 1 vs Llave 2
+                    for i in range(0, len(ganadores), 2):
+                        db.execute(text("""
+                            INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado)
+                            VALUES (:id, :l, :v, 100, 'Programado')
+                        """), {"id": id_torneo, "l": ganadores[i], "v": ganadores[i+1]})
+                    
+                    db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_phase, "id": id_torneo})
+                    db.commit()
+                    return True, f"Ronda finalizada. Bienvenidos a {next_phase}."
+
+                # C. FINAL
+                elif fase_act == 'final':
+                    # Lógica de Campeón
+                    db.execute(text("UPDATE torneos SET fase='FINALIZADO', estado='Historial' WHERE id=:id"), {"id": id_torneo})
+                    db.commit()
+                    return True, "🏆 ¡Torneo Finalizado! Felicidades al Campeón."
+
+            # ==============================================================================
+            # 3. OTROS FORMATOS (LIGA, ETC)
+            # ==============================================================================
+            # (Aquí iría la lógica para Liga si la necesitas expandir después)
+            
+            return False, "Formato o fase no reconocida."
+
+    except Exception as e:
+        return False, f"Error ejecutando avance: {e}"
+
+
+
+
+st.subheader("⚙️ Avance del Torneo")
+
+# 1. Diagnóstico
+estado = analizar_estado_torneo(id_torneo)
+
+# 2. Mostrar Estado
+if estado['listo']:
+    st.success(estado['mensaje'])
+    
+    # 3. Botón de Acción
+    if st.button(f"🚀 {estado['accion_siguiente']}", type="primary", use_container_width=True):
+        with st.spinner("Procesando resultados y generando cruces..."):
+            exito, msg = ejecutar_avance_fase(id_torneo)
+            if exito:
+                st.balloons()
+                st.success(msg)
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error(msg)
+else:
+    st.warning(estado['mensaje'])
+    st.button("🚫 Avanzar Fase", disabled=True, help="Completa los partidos pendientes primero.")
+
+
+
+####FIN FUNCIONES EN PRUEBA ##############################################################
+  # =========================================================
 
 
 
@@ -860,288 +1141,7 @@ def contenido_pestana_torneo(id_torneo, t_color):
 
 
 
-####FUNCIONES EN PRUEBA  ##############################################################
 
-
-
-
-
-def analizar_estado_torneo(id_torneo):
-    """
-    Revisa si el torneo está listo para avanzar de fase.
-    Retorna un diccionario con:
-    - 'listo': True/False
-    - 'mensaje': Texto para el usuario
-    - 'fase_actual': La fase en la que está ahora
-    - 'accion_siguiente': Qué pasará si avanza (ej: 'Generar Octavos')
-    """
-    try:
-        with conn.connect() as db:
-            # 1. Obtener Info Torneo
-            t = db.execute(text("SELECT fase, formato FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
-            if not t: return {"listo": False, "mensaje": "Torneo no encontrado"}
-            
-            fase = t.fase
-            formato = t.formato
-
-            # CASO 0: INSCRIPCIÓN (Siempre listo si hay equipos)
-            if fase == 'inscripcion':
-                cant = db.execute(text("SELECT COUNT(*) FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).scalar()
-                if cant < 2:
-                    return {"listo": False, "mensaje": f"Solo hay {cant} equipos inscritos. Mínimo 2."}
-                return {
-                    "listo": True, 
-                    "mensaje": "✅ Inscripciones abiertas. ¿Cerrar e Iniciar Torneo?",
-                    "accion_siguiente": "Generar Calendario Inicial",
-                    "fase_actual": fase
-                }
-
-            # CASO 1: VALIDAR PARTIDOS PENDIENTES
-            # Buscamos partidos que NO estén finalizados en la fase actual
-            # Nota: Si tu tabla partidos no tiene columna 'fase', usamos la fecha o estado. 
-            # Asumiré que validamos TODOS los partidos activos del torneo para simplificar, 
-            # o idealmente filtrar por la fase actual si agregaste esa columna.
-            pendientes = db.execute(text("""
-                SELECT COUNT(*) FROM partidos 
-                WHERE id_torneo=:id AND estado != 'Finalizado'
-            """), {"id": id_torneo}).scalar()
-
-            if pendientes > 0:
-                return {
-                    "listo": False, 
-                    "mensaje": f"⚠️ Faltan {pendientes} partidos por jugar o finalizar.",
-                    "fase_actual": fase
-                }
-
-            # CASO 2: LISTO PARA AVANZAR
-            # Aquí determinamos cuál es la siguiente fase según el formato
-            siguiente = "Siguiente Ronda"
-            
-            if formato == "Clasificatoria y Cruces":
-                if fase == 'clasificacion': siguiente = "Generar Eliminatorias (Mata-Mata)"
-                elif fase == 'octavos': siguiente = "Generar Cuartos de Final"
-                elif fase == 'cuartos': siguiente = "Generar Semifinales"
-                elif fase == 'semis': siguiente = "Generar Gran Final"
-                elif fase == 'final': siguiente = "🏆 FINALIZAR TORNEO"
-            
-            elif formato == "Liga":
-                siguiente = "🏆 FINALIZAR TORNEO (Coronar Campeón)"
-
-            return {
-                "listo": True,
-                "mensaje": f"✅ Todo listo en {fase}. Se procederá a: {siguiente}",
-                "accion_siguiente": siguiente,
-                "fase_actual": fase
-            }
-
-    except Exception as e:
-        return {"listo": False, "mensaje": f"Error análisis: {e}"}
-
-
-
-        
-def ejecutar_avance_fase(id_torneo):
-    """
-    Ejecuta la transición de fase: Calcula tablas, genera cruces y actualiza el torneo.
-    """
-    import math
-    
-    # Análisis previo para seguridad
-    estado = analizar_estado_torneo(id_torneo)
-    if not estado['listo']:
-        return False, estado['mensaje']
-
-    fase_act = estado['fase_actual']
-    
-    try:
-        with conn.connect() as db:
-            # Recuperar formato
-            t = db.execute(text("SELECT formato, clasifica_play_off FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
-            formato = t.formato
-            
-            # ==============================================================================
-            # 1. DE INSCRIPCIÓN A JUEGO (Generar Calendario)
-            # ==============================================================================
-            if fase_act == 'inscripcion':
-                # Llamamos a tu función existente de generar calendario (ajustada si es necesario)
-                # Nota: Aquí deberías llamar a generar_calendario(id_torneo) que ya tienes.
-                # Simulamos éxito:
-                nueva_fase = 'clasificacion' if formato == 'Clasificatoria y Cruces' else 'regular'
-                db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": nueva_fase, "id": id_torneo})
-                db.commit()
-                return True, f"Torneo iniciado en fase: {nueva_fase}"
-
-            # ==============================================================================
-            # 2. FORMATO: CLASIFICATORIA Y CRUCES
-            # ==============================================================================
-            if formato == 'Clasificatoria y Cruces':
-                
-                # A. DE CLASIFICACIÓN -> ELIMINATORIAS (EL CEREBRO MATEMÁTICO)
-                if fase_act == 'clasificacion':
-                    # 1. Calcular Tabla General
-                    # Traemos todos los equipos y calculamos puntos manualmente o con query compleja.
-                    # Hacemos query de partidos finalizados
-                    partidos = db.execute(text("SELECT local_id, visitante_id, goles_l, goles_v FROM partidos WHERE id_torneo=:id"), {"id": id_torneo}).fetchall()
-                    
-                    stats = {} # {id_equipo: {'pts':0, 'gf':0, 'dg':0}}
-                    
-                    # Inicializar equipos (para incluir los que tienen 0 pts)
-                    eqs = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).fetchall()
-                    for e in eqs: stats[e[0]] = {'pts':0, 'gf':0, 'dg':0, 'id': e[0]}
-
-                    for p in partidos:
-                        lid, vid, gl, gv = p
-                        # Local
-                        stats[lid]['gf'] += gl
-                        stats[lid]['dg'] += (gl - gv)
-                        # Visita
-                        stats[vid]['gf'] += gv
-                        stats[vid]['dg'] += (gv - gl)
-                        # Puntos
-                        if gl > gv: stats[lid]['pts'] += 3
-                        elif gv > gl: stats[vid]['pts'] += 3
-                        else:
-                            stats[lid]['pts'] += 1; stats[vid]['pts'] += 1
-                    
-                    # Ordenar Tabla: PTS DESC, DG DESC, GF DESC
-                    tabla = sorted(stats.values(), key=lambda x: (x['pts'], x['dg'], x['gf']), reverse=True)
-                    
-                    N = len(tabla)
-                    clasificados = []
-                    next_phase_name = ""
-
-                    # Reglas de negocio (Tu lógica de cantidades)
-                    if 8 <= N <= 12:
-                        clasificados = tabla[:4] # Top 4 -> Semis
-                        next_phase_name = 'semis'
-                    elif 13 <= N <= 19:
-                        clasificados = tabla[:8] # Top 8 -> Cuartos
-                        next_phase_name = 'cuartos'
-                    elif 20 <= N <= 32:
-                        clasificados = tabla[:16] # Top 16 -> Octavos
-                        next_phase_name = 'octavos'
-                    else:
-                        # Fallback por si son muy pocos o muchos (ej: top 2 a final)
-                        clasificados = tabla[:2]
-                        next_phase_name = 'final'
-                    
-                    # Generar Cruces (1 vs Último, 2 vs Penúltimo...)
-                    num_clas = len(clasificados)
-                    for i in range(num_clas // 2):
-                        local = clasificados[i]['id']               # El mejor (1º)
-                        visita = clasificados[num_clas - 1 - i]['id'] # El peor clasificado (16º)
-                        
-                        db.execute(text("""
-                            INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado)
-                            VALUES (:id, :l, :v, 99, 'Programado') 
-                        """), {"id": id_torneo, "l": local, "v": visita})
-                        # Nota: jornada 99 o un ID de fase numérica para orden
-
-                    db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_phase_name, "id": id_torneo})
-                    db.commit()
-                    return True, f"¡Clasificación terminada! Se generaron los {next_phase_name}."
-
-                # B. AVANCE DE ELIMINATORIAS (Octavos->Cuartos->Semis->Final)
-                elif fase_act in ['octavos', 'cuartos', 'semis']:
-                    # 1. Obtener ganadores de la fase actual
-                    # Asumimos que la tabla partidos tiene los partidos de esta fase.
-                    # Necesitamos una forma de distinguir los partidos de ESTA fase de los anteriores.
-                    # TRUCO: Los partidos de eliminación creados recientemente tendrán IDs mayores que los de la fase anterior.
-                    # O idealmente, agregamos columna 'fase' a la tabla partidos. 
-                    # Por ahora, usaremos la lógica de "Partidos Finalizados Recientes".
-                    
-                    # Query inteligente: Trae los partidos del torneo ordenados por ID desc.
-                    # Si estamos en Octavos (8 partidos), tomamos los ultimos 8.
-                    limit = 8 if fase_act == 'octavos' else 4 if fase_act == 'cuartos' else 2
-                    
-                    # Buscamos los partidos finalizados
-                    matches = db.execute(text("""
-                        SELECT id, local_id, visitante_id, goles_l, goles_v, penales_l, penales_v 
-                        FROM partidos 
-                        WHERE id_torneo=:id AND estado='Finalizado'
-                        ORDER BY id DESC LIMIT :lim
-                    """), {"id": id_torneo, "lim": limit}).fetchall()
-                    
-                    # Importante: Debemos ordenarlos por ID ASC para mantener el orden de llaves (A vs B, C vs D)
-                    matches = sorted(matches, key=lambda x: x[0])
-                    
-                    ganadores = []
-                    for m in matches:
-                        # Determinar ganador (Goles o Penales)
-                        g_l = m.goles_l + (0 if m.penales_l is None else m.penales_l / 100) # Hack decimal para desempate simple
-                        g_v = m.goles_v + (0 if m.penales_v is None else m.penales_v / 100)
-                        
-                        if g_l > g_v: ganadores.append(m.local_id)
-                        else: ganadores.append(m.visitante_id)
-                    
-                    # Crear Siguiente Ronda
-                    if len(ganadores) < 2:
-                        return False, "Error crítico: No hay suficientes ganadores para la siguiente ronda."
-                        
-                    next_phase = ""
-                    if fase_act == 'octavos': next_phase = 'cuartos'
-                    elif fase_act == 'cuartos': next_phase = 'semis'
-                    elif fase_act == 'semis': next_phase = 'final'
-                    
-                    # Emparejar Llave 1 vs Llave 2
-                    for i in range(0, len(ganadores), 2):
-                        db.execute(text("""
-                            INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado)
-                            VALUES (:id, :l, :v, 100, 'Programado')
-                        """), {"id": id_torneo, "l": ganadores[i], "v": ganadores[i+1]})
-                    
-                    db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_phase, "id": id_torneo})
-                    db.commit()
-                    return True, f"Ronda finalizada. Bienvenidos a {next_phase}."
-
-                # C. FINAL
-                elif fase_act == 'final':
-                    # Lógica de Campeón
-                    db.execute(text("UPDATE torneos SET fase='FINALIZADO', estado='Historial' WHERE id=:id"), {"id": id_torneo})
-                    db.commit()
-                    return True, "🏆 ¡Torneo Finalizado! Felicidades al Campeón."
-
-            # ==============================================================================
-            # 3. OTROS FORMATOS (LIGA, ETC)
-            # ==============================================================================
-            # (Aquí iría la lógica para Liga si la necesitas expandir después)
-            
-            return False, "Formato o fase no reconocida."
-
-    except Exception as e:
-        return False, f"Error ejecutando avance: {e}"
-
-
-
-
-st.subheader("⚙️ Avance del Torneo")
-
-# 1. Diagnóstico
-estado = analizar_estado_torneo(id_torneo)
-
-# 2. Mostrar Estado
-if estado['listo']:
-    st.success(estado['mensaje'])
-    
-    # 3. Botón de Acción
-    if st.button(f"🚀 {estado['accion_siguiente']}", type="primary", use_container_width=True):
-        with st.spinner("Procesando resultados y generando cruces..."):
-            exito, msg = ejecutar_avance_fase(id_torneo)
-            if exito:
-                st.balloons()
-                st.success(msg)
-                time.sleep(2)
-                st.rerun()
-            else:
-                st.error(msg)
-else:
-    st.warning(estado['mensaje'])
-    st.button("🚫 Avanzar Fase", disabled=True, help="Completa los partidos pendientes primero.")
-
-
-
-####FIN FUNCIONES EN PRUEBA ##############################################################
-  # =========================================================
        ##  ESTETICA DE PARTIDOS - RENDERIZAR 
  # =========================================================
 
@@ -2470,6 +2470,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
