@@ -671,6 +671,8 @@ def validar_acceso(id_torneo, pin_ingresado):
 
 
 
+#### FUNCIONES DE TORNEO EN PRUEBA ##############################################################
+  # =========================================================
 
 def analizar_estado_torneo(id_torneo):
     """
@@ -922,7 +924,7 @@ def ejecutar_avance_fase(id_torneo):
 
 st.subheader("⚙️ Avance del Torneo")
 
-# 1. Diagnóstico
+# 1. Diagnóstico (Ahora sí funcionará la llamada)
 estado = analizar_estado_torneo(id_torneo)
 
 # 2. Mostrar Estado
@@ -931,11 +933,21 @@ if estado['listo']:
     
     # 3. Botón de Acción
     if st.button(f"🚀 {estado['accion_siguiente']}", type="primary", use_container_width=True):
+        
+        # Confirmación extra para seguridad
+        if 'inscripcion' not in estado['fase_actual']: # Si no es inscripción, pide confirmación doble
+             if not st.session_state.get(f"seguro_{id_torneo}"):
+                 st.warning("⚠️ Esta acción generará nuevos partidos y cerrará la fase actual. ¿Seguro?")
+                 st.session_state[f"seguro_{id_torneo}"] = True
+                 st.rerun()
+        
         with st.spinner("Procesando resultados y generando cruces..."):
             exito, msg = ejecutar_avance_fase(id_torneo)
+            
             if exito:
                 st.balloons()
                 st.success(msg)
+                if f"seguro_{id_torneo}" in st.session_state: del st.session_state[f"seguro_{id_torneo}"]
                 time.sleep(2)
                 st.rerun()
             else:
@@ -943,7 +955,6 @@ if estado['listo']:
 else:
     st.warning(estado['mensaje'])
     st.button("🚫 Avanzar Fase", disabled=True, help="Completa los partidos pendientes primero.")
-
 
 
 ####FIN FUNCIONES EN PRUEBA ##############################################################
@@ -2477,6 +2488,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
