@@ -524,46 +524,72 @@ def render_lobby():
 
     
 
-    # --- E. CREAR NUEVO TORNEO (Sin cambios) ---
+   # --- E. CREAR NUEVO TORNEO ---
     with st.expander("✨ ¿Eres Organizador? Crea tu Torneo", expanded=False):
-        mostrar_bot("Configura tu torneo aquí. <br>Recuerda: <b>El PIN es sagrado</b>.")
+        mostrar_bot("Configura tu torneo aquí. <br>Recuerda: <b>El PIN es sagrado</b>, no lo pierdas.")
+        
         with st.form("form_crear_torneo"):
             st.markdown("##### 1. Identidad")
             new_nombre = st.text_input("Nombre de la Competencia", placeholder="Ej: Relámpago Jueves")
+            
             c_f1, c_f2 = st.columns(2)
-            new_formato = c_f1.selectbox("Formato", ["Clasificatoria + Cruces, "Todos contra Todos", "Eliminación Directa"])
-            with c_f2: new_color = st.color_picker("Color de Marca", "#00FF00")
+            with c_f1:
+                # CORRECCIÓN AQUÍ: Comilla agregada y nombres estandarizados
+                new_formato = st.selectbox("Formato", [
+                    "Clasificatoria y Cruces", 
+                    "Liga", 
+                    "Liga y Playoff", 
+                    "Eliminación Directa"
+                ])
+            with c_f2: 
+                new_color = st.color_picker("Color de Marca", "#00FF00")
             
             st.markdown("##### 2. Admin")
             c_adm1, c_adm2 = st.columns(2)
-            new_org = c_adm1.text_input("Tu Nombre / Cancha")
-            new_wa = c_adm2.text_input("WhatsApp (Sin +)")
+            with c_adm1: new_org = st.text_input("Tu Nombre / Cancha")
+            with c_adm2: new_wa = st.text_input("WhatsApp (Sin +)")
             
             st.markdown("##### 3. Seguridad")
             new_pin = st.text_input("Crea un PIN (4 dígitos)", type="password", max_chars=4)
             st.markdown("<br>", unsafe_allow_html=True)
             
+            # --- BOTÓN DE ENVÍO ---
             if st.form_submit_button("🚀 Lanzar Torneo", use_container_width=True, type="primary"):
-                if new_nombre and new_pin and new_org and conn:
+                if new_nombre and new_pin and new_org:
                     try:
                         with conn.connect() as db:
-                            result = db.execute(text("""
+                            # Insertamos usando RETURNING id para obtener el ID creado al instante
+                            query_crear = text("""
                                 INSERT INTO torneos (nombre, organizador, whatsapp_admin, pin_admin, color_primario, fase, formato)
-                                VALUES (:n, :o, :w, :p, :c, 'inscripcion', :f) RETURNING id
-                            """), {
-                                "n": new_nombre, "o": new_org, "w": new_wa, 
-                                "p": new_pin, "c": new_color, "f": new_formato
+                                VALUES (:n, :o, :w, :p, :c, 'inscripcion', :f) 
+                                RETURNING id
+                            """)
+                            
+                            result = db.execute(query_crear, {
+                                "n": new_nombre, 
+                                "o": new_org, 
+                                "w": new_wa, 
+                                "p": new_pin, 
+                                "c": new_color, 
+                                "f": new_formato
                             })
+                            
+                            # Obtenemos el ID del nuevo torneo
                             nuevo_id = result.fetchone()[0]
                             db.commit()
+                        
                         st.balloons()
-                        time.sleep(1)
+                        st.success(f"¡Torneo '{new_nombre}' creado! Redirigiendo...")
+                        time.sleep(1.5)
+                        
+                        # Redirección automática al nuevo torneo
                         st.query_params["id"] = str(nuevo_id)
                         st.rerun()
+                        
                     except Exception as e:
-                        st.error(f"Error: {e}")
+                        st.error(f"Error al crear: {e}")
                 else:
-                    st.warning("⚠️ Faltan datos.")
+                    st.warning("⚠️ Faltan datos obligatorios (Nombre, Organizador o PIN).")
 
      # --- F. MANIFIESTO (FOOTER) ---
     st.markdown(f"""
@@ -2444,6 +2470,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
