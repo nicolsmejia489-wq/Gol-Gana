@@ -2021,7 +2021,7 @@ def render_torneo(id_torneo):
         # ------------------------------------------------------------------
             # PESTAÑA 1: ESTADÍSTICAS (HISTORIA DEL CLUB)
             # ------------------------------------------------------------------
-            with sub_tabs[0]:
+                with sub_tabs[0]:
                 st.subheader("📊 Historia del Club")
                 
                 # 1. Identificamos al equipo actual
@@ -2539,6 +2539,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
