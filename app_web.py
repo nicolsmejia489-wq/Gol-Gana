@@ -2029,9 +2029,7 @@ def render_torneo(id_torneo):
             with sub_tabs[0]:
                 st.subheader("📊 El Museo del Club")
                 
-                # Seguridad: Obtener ID equipo
-                if 'id_equipo' not in locals() and 'id_equipo' not in globals():
-                    id_equipo = st.session_state.get("dt_id_equipo", None)
+               
 
                 if id_equipo:
                     try:
@@ -2090,8 +2088,7 @@ def render_torneo(id_torneo):
                                 st.error("No se encontraron datos del equipo.")
                     except Exception as e:
                         st.error(f"Error cargando historia: {e}")
-                else:
-                    st.warning("Inicia sesión para ver esto.")
+                
 
             # --------------------------------------------------------
             # SUB-PESTAÑA 2: EDITAR EQUIPO
@@ -2525,6 +2522,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
