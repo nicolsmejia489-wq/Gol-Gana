@@ -746,11 +746,14 @@ def analizar_estado_torneo(id_torneo):
         return {"listo": False, "mensaje": f"Error análisis: {e}"}
 
 
-
+  # ==============================================================================
+            # 00. FUNCION PRINCIPAL AVANCE DE TORNEO
+ # ==============================================================================
         
 def ejecutar_avance_fase(id_torneo):
     """
     Ejecuta la transición de fase: Calcula tablas, genera cruces y actualiza el torneo.
+    AHORA INCLUYE: Guardado de historial y jornadas en texto (Varchar).
     """
     import math
     
@@ -763,7 +766,7 @@ def ejecutar_avance_fase(id_torneo):
     
     try:
         with conn.connect() as db:
-            # Recuperar formato
+            # Recuperar formato y datos clave
             t = db.execute(text("SELECT formato, clasifica_play_off FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
             formato = t.formato
             
@@ -771,98 +774,72 @@ def ejecutar_avance_fase(id_torneo):
             # 1. DE INSCRIPCIÓN A JUEGO (Generar Calendario)
             # ==============================================================================
             if fase_act == 'inscripcion':
-                # Llamamos a tu función existente de generar calendario (ajustada si es necesario)
-                # Nota: Aquí deberías llamar a generar_calendario(id_torneo) que ya tienes.
-                # Simulamos éxito:
-                nueva_fase = 'clasificacion' if formato == 'Clasificatoria y Cruces' else 'regular'
-                db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": nueva_fase, "id": id_torneo})
-                db.commit()
-                return True, f"Torneo iniciado en fase: {nueva_fase}"
+                # Llamamos a tu función externa generar_calendario. 
+                # Asumimos que esa función ya inserta '1', '2', '3' como strings en jornada.
+                if generar_calendario(id_torneo):
+                    nueva_fase = 'clasificacion' if formato == 'Clasificatoria y Cruces' else 'regular'
+                    db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": nueva_fase, "id": id_torneo})
+                    db.commit()
+                    return True, f"¡Balón al centro! Torneo iniciado en fase: {nueva_fase}"
+                else:
+                    return False, "Error generando el calendario inicial."
 
             # ==============================================================================
             # 2. FORMATO: CLASIFICATORIA Y CRUCES
             # ==============================================================================
             if formato == 'Clasificatoria y Cruces':
                 
-                # A. DE CLASIFICACIÓN -> ELIMINATORIAS (EL CEREBRO MATEMÁTICO)
+                # A. DE CLASIFICACIÓN -> PRIMER CRUCE (Octavos/Cuartos/Semi)
                 if fase_act == 'clasificacion':
                     # 1. Calcular Tabla General
-                    # Traemos todos los equipos y calculamos puntos manualmente o con query compleja.
-                    # Hacemos query de partidos finalizados
-                    partidos = db.execute(text("SELECT local_id, visitante_id, goles_l, goles_v FROM partidos WHERE id_torneo=:id"), {"id": id_torneo}).fetchall()
-                    
-                    stats = {} # {id_equipo: {'pts':0, 'gf':0, 'dg':0}}
-                    
-                    # Inicializar equipos (para incluir los que tienen 0 pts)
+                    partidos = db.execute(text("SELECT local_id, visitante_id, goles_l, goles_v FROM partidos WHERE id_torneo=:id AND estado='Finalizado'"), {"id": id_torneo}).fetchall()
                     eqs = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).fetchall()
-                    for e in eqs: stats[e[0]] = {'pts':0, 'gf':0, 'dg':0, 'id': e[0]}
+                    
+                    stats = {e[0]: {'pts':0, 'gf':0, 'dg':0, 'id': e[0]} for e in eqs}
 
                     for p in partidos:
                         lid, vid, gl, gv = p
-                        # Local
-                        stats[lid]['gf'] += gl
-                        stats[lid]['dg'] += (gl - gv)
-                        # Visita
-                        stats[vid]['gf'] += gv
-                        stats[vid]['dg'] += (gv - gl)
-                        # Puntos
+                        stats[lid]['gf'] += gl; stats[lid]['dg'] += (gl - gv)
+                        stats[vid]['gf'] += gv; stats[vid]['dg'] += (gv - gl)
                         if gl > gv: stats[lid]['pts'] += 3
                         elif gv > gl: stats[vid]['pts'] += 3
-                        else:
-                            stats[lid]['pts'] += 1; stats[vid]['pts'] += 1
+                        else: stats[lid]['pts'] += 1; stats[vid]['pts'] += 1
                     
-                    # Ordenar Tabla: PTS DESC, DG DESC, GF DESC
+                    # Ordenar Tabla
                     tabla = sorted(stats.values(), key=lambda x: (x['pts'], x['dg'], x['gf']), reverse=True)
-                    
                     N = len(tabla)
-                    clasificados = []
-                    next_phase_name = ""
-
-                    # Reglas de negocio (Tu lógica de cantidades)
-                    if 8 <= N <= 12:
-                        clasificados = tabla[:4] # Top 4 -> Semis
-                        next_phase_name = 'semis'
-                    elif 13 <= N <= 19:
-                        clasificados = tabla[:8] # Top 8 -> Cuartos
-                        next_phase_name = 'cuartos'
-                    elif 20 <= N <= 32:
-                        clasificados = tabla[:16] # Top 16 -> Octavos
-                        next_phase_name = 'octavos'
-                    else:
-                        # Fallback por si son muy pocos o muchos (ej: top 2 a final)
-                        clasificados = tabla[:2]
-                        next_phase_name = 'final'
                     
-                    # Generar Cruces (1 vs Último, 2 vs Penúltimo...)
+                    # Definir corte y nombre de fase (TEXTO)
+                    if 8 <= N <= 12:
+                        clasificados = tabla[:4]; next_phase_name = 'semis'; jornada_txt = 'Semifinal'
+                    elif 13 <= N <= 19:
+                        clasificados = tabla[:8]; next_phase_name = 'cuartos'; jornada_txt = 'Cuartos'
+                    elif 20 <= N <= 32:
+                        clasificados = tabla[:16]; next_phase_name = 'octavos'; jornada_txt = 'Octavos'
+                    else:
+                        clasificados = tabla[:2]; next_phase_name = 'final'; jornada_txt = 'Final'
+                    
+                    # Generar Cruces (1 vs Último)
                     num_clas = len(clasificados)
                     for i in range(num_clas // 2):
-                        local = clasificados[i]['id']               # El mejor (1º)
-                        visita = clasificados[num_clas - 1 - i]['id'] # El peor clasificado (16º)
+                        loc = clasificados[i]['id']
+                        vis = clasificados[num_clas - 1 - i]['id']
                         
+                        # INSERTAMOS LA JORNADA COMO TEXTO
                         db.execute(text("""
                             INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado)
-                            VALUES (:id, :l, :v, 99, 'Programado') 
-                        """), {"id": id_torneo, "l": local, "v": visita})
-                        # Nota: jornada 99 o un ID de fase numérica para orden
+                            VALUES (:id, :l, :v, :jtxt, 'Programado') 
+                        """), {"id": id_torneo, "l": loc, "v": vis, "jtxt": jornada_txt})
 
                     db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_phase_name, "id": id_torneo})
                     db.commit()
-                    return True, f"¡Clasificación terminada! Se generaron los {next_phase_name}."
+                    return True, f"¡Clasificación terminada! Se generaron los partidos de: {jornada_txt}."
 
                 # B. AVANCE DE ELIMINATORIAS (Octavos->Cuartos->Semis->Final)
                 elif fase_act in ['octavos', 'cuartos', 'semis']:
-                    # 1. Obtener ganadores de la fase actual
-                    # Asumimos que la tabla partidos tiene los partidos de esta fase.
-                    # Necesitamos una forma de distinguir los partidos de ESTA fase de los anteriores.
-                    # TRUCO: Los partidos de eliminación creados recientemente tendrán IDs mayores que los de la fase anterior.
-                    # O idealmente, agregamos columna 'fase' a la tabla partidos. 
-                    # Por ahora, usaremos la lógica de "Partidos Finalizados Recientes".
-                    
-                    # Query inteligente: Trae los partidos del torneo ordenados por ID desc.
-                    # Si estamos en Octavos (8 partidos), tomamos los ultimos 8.
                     limit = 8 if fase_act == 'octavos' else 4 if fase_act == 'cuartos' else 2
                     
-                    # Buscamos los partidos finalizados
+                    # Traer partidos recientes
                     matches = db.execute(text("""
                         SELECT id, local_id, visitante_id, goles_l, goles_v, penales_l, penales_v 
                         FROM partidos 
@@ -870,50 +847,151 @@ def ejecutar_avance_fase(id_torneo):
                         ORDER BY id DESC LIMIT :lim
                     """), {"id": id_torneo, "lim": limit}).fetchall()
                     
-                    # Importante: Debemos ordenarlos por ID ASC para mantener el orden de llaves (A vs B, C vs D)
+                    # Ordenar por ID para mantener llaves
                     matches = sorted(matches, key=lambda x: x[0])
                     
                     ganadores = []
                     for m in matches:
-                        # Determinar ganador (Goles o Penales)
-                        g_l = m.goles_l + (0 if m.penales_l is None else m.penales_l / 100) # Hack decimal para desempate simple
-                        g_v = m.goles_v + (0 if m.penales_v is None else m.penales_v / 100)
+                        # Desempate con penales
+                        pl = m.penales_l if m.penales_l is not None else 0
+                        pv = m.penales_v if m.penales_v is not None else 0
+                        gl = m.goles_l + (0.1 if pl > pv else 0)
+                        gv = m.goles_v + (0.1 if pv > pl else 0)
                         
-                        if g_l > g_v: ganadores.append(m.local_id)
+                        if gl > gv: ganadores.append(m.local_id)
                         else: ganadores.append(m.visitante_id)
                     
-                    # Crear Siguiente Ronda
-                    if len(ganadores) < 2:
-                        return False, "Error crítico: No hay suficientes ganadores para la siguiente ronda."
-                        
-                    next_phase = ""
-                    if fase_act == 'octavos': next_phase = 'cuartos'
-                    elif fase_act == 'cuartos': next_phase = 'semis'
-                    elif fase_act == 'semis': next_phase = 'final'
+                    if len(ganadores) < 2: return False, "Error crítico: No hay suficientes ganadores."
                     
-                    # Emparejar Llave 1 vs Llave 2
+                    # Definir siguiente fase y etiqueta de jornada
+                    next_ph = ""; j_txt = ""
+                    if fase_act == 'octavos': next_ph = 'cuartos'; j_txt = 'Cuartos'
+                    elif fase_act == 'cuartos': next_ph = 'semis'; j_txt = 'Semifinal'
+                    elif fase_act == 'semis': next_ph = 'final'; j_txt = 'Final'
+                    
+                    # Emparejar
                     for i in range(0, len(ganadores), 2):
                         db.execute(text("""
                             INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado)
-                            VALUES (:id, :l, :v, 100, 'Programado')
-                        """), {"id": id_torneo, "l": ganadores[i], "v": ganadores[i+1]})
+                            VALUES (:id, :l, :v, :jtxt, 'Programado')
+                        """), {"id": id_torneo, "l": ganadores[i], "v": ganadores[i+1], "jtxt": j_txt})
                     
-                    db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_phase, "id": id_torneo})
+                    db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_ph, "id": id_torneo})
                     db.commit()
-                    return True, f"Ronda finalizada. Bienvenidos a {next_phase}."
+                    return True, f"Ronda finalizada. Bienvenidos a: {j_txt}."
 
-                # C. FINAL
+                # ==============================================================================
+                # 3. GRAN FINAL -> GUARDADO DE HISTORIA
+                # ==============================================================================
                 elif fase_act == 'final':
-                    # Lógica de Campeón
+                    # A. Determinar al Campeón (Ganador del último partido)
+                    final_match = db.execute(text("""
+                        SELECT local_id, visitante_id, goles_l, goles_v, penales_l, penales_v 
+                        FROM partidos WHERE id_torneo=:id AND estado='Finalizado' ORDER BY id DESC LIMIT 1
+                    """), {"id": id_torneo}).fetchone()
+                    
+                    campeon_id = None
+                    if final_match:
+                        pl = final_match.penales_l if final_match.penales_l is not None else 0
+                        pv = final_match.penales_v if final_match.penales_v is not None else 0
+                        if (final_match.goles_l + (0.1*pl)) > (final_match.goles_v + (0.1*pv)):
+                            campeon_id = final_match.local_id
+                        else:
+                            campeon_id = final_match.visitante_id
+
+                    # B. Recopilar Estadísticas de TODO el torneo para TODOS los equipos
+                    all_matches = db.execute(text("""
+                        SELECT local_id, visitante_id, goles_l, goles_v, penales_l, penales_v 
+                        FROM partidos WHERE id_torneo=:id AND estado='Finalizado'
+                    """), {"id": id_torneo}).fetchall()
+
+                    # Diccionario acumulador {id_equipo: {stats...}}
+                    team_stats = {} 
+
+                    for m in all_matches:
+                        lid, vid = m.local_id, m.visitante_id
+                        gl, gv = m.goles_l, m.goles_v
+                        # Ganador del partido (incluyendo penales para saber quien ganó)
+                        pl = m.penales_l if m.penales_l is not None else 0
+                        pv = m.penales_v if m.penales_v is not None else 0
+                        
+                        # Inicializar si no existen
+                        if lid not in team_stats: team_stats[lid] = {'pj':0, 'pg':0, 'pe':0, 'pp':0, 'gf':0, 'gc':0}
+                        if vid not in team_stats: team_stats[vid] = {'pj':0, 'pg':0, 'pe':0, 'pp':0, 'gf':0, 'gc':0}
+
+                        # Sumar PJ, GF, GC
+                        team_stats[lid]['pj'] += 1; team_stats[lid]['gf'] += gl; team_stats[lid]['gc'] += gv
+                        team_stats[vid]['pj'] += 1; team_stats[vid]['gf'] += gv; team_stats[vid]['gc'] += gl
+
+                        # Definir G/E/P (Consideramos penales como decisivos para PG/PP en historial)
+                        score_l = gl + (0.1 * pl)
+                        score_v = gv + (0.1 * pv)
+
+                        if score_l > score_v:
+                            team_stats[lid]['pg'] += 1
+                            team_stats[vid]['pp'] += 1
+                        elif score_v > score_l:
+                            team_stats[vid]['pg'] += 1
+                            team_stats[lid]['pp'] += 1
+                        else:
+                            team_stats[lid]['pe'] += 1
+                            team_stats[vid]['pe'] += 1
+                    
+                    # C. Escribir en la Tabla Histórica (Upsert Manual)
+                    # Obtenemos identidades (Nombre y PIN)
+                    equipos_participantes = db.execute(text("SELECT id, nombre, pin_equipo FROM equipos_globales WHERE id_torneo=:id"), 
+                                                       {"id": id_torneo}).fetchall()
+                    
+                    for eq in equipos_participantes:
+                        eid = eq.id
+                        enombre = eq.nombre
+                        epin = eq.pin_equipo
+                        
+                        if eid in team_stats:
+                            s = team_stats[eid]
+                            es_campeon = 1 if eid == campeon_id else 0
+                            
+                            # 1. Verificar si ya existe en historial
+                            existe = db.execute(text("SELECT id FROM historia_equipos_res WHERE nombre=:n AND pin=:p"), 
+                                                {"n": enombre, "p": epin}).fetchone()
+                            
+                            if existe:
+                                # UPDATE
+                                db.execute(text("""
+                                    UPDATE historia_equipos_res 
+                                    SET torneos_jugados = torneos_jugados + 1,
+                                        titulos = titulos + :tit,
+                                        partidos_jugados = partidos_jugados + :pj,
+                                        partidos_ganados = partidos_ganados + :pg,
+                                        partidos_empatados = partidos_empatados + :pe,
+                                        partidos_perdidos = partidos_perdidos + :pp,
+                                        goles_favor = goles_favor + :gf,
+                                        goles_contra = goles_contra + :gc,
+                                        ultima_actualizacion = CURRENT_TIMESTAMP
+                                    WHERE id = :hid
+                                """), {
+                                    "tit": es_campeon, "pj": s['pj'], "pg": s['pg'], "pe": s['pe'], 
+                                    "pp": s['pp'], "gf": s['gf'], "gc": s['gc'], "hid": existe.id
+                                })
+                            else:
+                                # INSERT
+                                db.execute(text("""
+                                    INSERT INTO historia_equipos_res 
+                                    (nombre, pin, torneos_jugados, titulos, partidos_jugados, partidos_ganados, partidos_empatados, partidos_perdidos, goles_favor, goles_contra)
+                                    VALUES (:n, :p, 1, :tit, :pj, :pg, :pe, :pp, :gf, :gc)
+                                """), {
+                                    "n": enombre, "p": epin, "tit": es_campeon,
+                                    "pj": s['pj'], "pg": s['pg'], "pe": s['pe'], "pp": s['pp'], "gf": s['gf'], "gc": s['gc']
+                                })
+
+                    # D. Cerrar Torneo
                     db.execute(text("UPDATE torneos SET fase='FINALIZADO', estado='Historial' WHERE id=:id"), {"id": id_torneo})
                     db.commit()
-                    return True, "🏆 ¡Torneo Finalizado! Felicidades al Campeón."
+                    return True, "🏆 ¡Torneo Finalizado! Historia actualizada y Campeón coronado."
 
             # ==============================================================================
-            # 3. OTROS FORMATOS (LIGA, ETC)
+            # 4. OTROS FORMATOS (LIGA, ETC) - Lógica simple por ahora
             # ==============================================================================
-            # (Aquí iría la lógica para Liga si la necesitas expandir después)
-            
             return False, "Formato o fase no reconocida."
 
     except Exception as e:
@@ -930,198 +1008,223 @@ def ejecutar_avance_fase(id_torneo):
 
 
 
- # ------------------------------------------------------------
-#FUNCION DE PESTAÑA TORNEO
- # ------------------------------------------------------------
+# ------------------------------------------------------------
+# FUNCIÓN DE PESTAÑA TORNEO (LÓGICA HÍBRIDA + ORDENAMIENTO)
+# ------------------------------------------------------------
 def contenido_pestana_torneo(id_torneo, t_color):
     """
     Renderiza la vista pública del torneo.
-    Versión: Ingeniería de precisión (Alineación milimétrica y celdas fijas).
+    Estructura: 
+    1. Clasificación/Llaves (Situación actual)
+    2. Partidos (Desglose por Jornadas/Fases en pestañas)
     """
     
     # ------------------------------------------------------------
-    # 1. PARÁMETROS DE INGENIERÍA ESTÉTICA (TANTEA AQUÍ)
+    # 1. ESTILOS CSS (Mantenemos tu ingeniería de precisión)
     # ------------------------------------------------------------
-    # 👉 ESPACIO ENTRE TARJETAS DE PARTIDOS
-    MT_PARTIDOS = "-15px"      # Más negativo = más pegadas las tarjetas del fixture
-
-    # 👉 ESTRUCTURA DE LA TABLA (Clasificación)
-    T_ALTO_FILA = "32px"       # Altura fija de cada registro (Garantiza regularidad)
-    T_PAD_CELDA = "0px 5px"    # Aire interno de la celda (Arriba/Abajo Izquierda/Derecha)
-    T_FONT_SIZE = "13px"       # Tamaño de la fuente
-    
-    # 👉 ALINEACIÓN DE LA COLUMNA "EQUIPO"
-    T_W_ESCUDO_BOX = "30px"    # Ancho del 'contenedor' del escudo (El nombre empezará tras este ancho)
-    T_W_ESCUDO_IMG = "22px"    # Tamaño real del escudo/emoji dentro de su caja
-    T_OPACIDAD = "0.7"         # Transparencia del fondo
-
+    T_OPACIDAD = "0.7"
     st.markdown(f"""
         <style>
-        /* 📦 FIXTURE: RECORTE DE ESPACIO */
-        [data-testid="stImage"] {{
-            margin-bottom: {MT_PARTIDOS} !important;
-            padding: 0px !important;
-        }}
-
-        /* 📊 TABLA: ALINEACIÓN MILIMÉTRICA */
+        /* Ajuste de márgenes para tarjetas */
+        [data-testid="stImage"] {{ margin-bottom: -15px !important; }}
+        
+        /* Tabla de Posiciones */
         .tabla-pro {{
-            width: 100%;
-            border-collapse: collapse;
-            font-family: 'Oswald', sans-serif;
-            background: rgba(0,0,0,{T_OPACIDAD});
-            border: 1px solid {t_color};
+            width: 100%; border-collapse: collapse; font-family: 'Oswald', sans-serif;
+            background: rgba(0,0,0,{T_OPACIDAD}); border: 1px solid {t_color};
         }}
         .tabla-pro th {{
-            background: #000;
-            color: #888;
-            font-size: 10px;
-            text-transform: uppercase;
-            padding: 8px 2px;
-            border-bottom: 2px solid {t_color};
-            text-align: center;
+            background: #000; color: #888; font-size: 10px; text-transform: uppercase;
+            padding: 8px 2px; border-bottom: 2px solid {t_color}; text-align: center;
         }}
         .tabla-pro td {{
-            color: #fff;
-            font-size: {T_FONT_SIZE};
-            padding: {T_PAD_CELDA};
-            height: {T_ALTO_FILA}; /* Altura rígida para regularidad vertical */
-            border-bottom: 1px solid #222;
-            text-align: center;
-            vertical-align: middle;
+            color: #fff; font-size: 13px; padding: 0px 5px; height: 32px;
+            border-bottom: 1px solid #222; text-align: center; vertical-align: middle;
         }}
+        .equipo-wrapper {{ display: flex; align-items: center; width: 100%; }}
+        .escudo-box {{ width: 30px; display: flex; justify-content: center; flex-shrink: 0; }}
+        .escudo-img {{ width: 22px; height: 22px; object-fit: contain; }}
+        .nombre-txt {{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; }}
         
-        /* Contenedor Flex para la columna equipo */
-        .equipo-wrapper {{
-            display: flex;
-            align-items: center; /* Centrado vertical del contenido interno */
-            text-align: left;
-            width: 100%;
-        }}
-        
-        /* Caja fija para el escudo (Invisible pero con ancho) */
-        .escudo-box {{
-            width: {T_W_ESCUDO_BOX};
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-shrink: 0; /* Evita que la caja se encoja */
-        }}
-        
-        .escudo-img {{
-            width: {T_W_ESCUDO_IMG};
-            height: {T_W_ESCUDO_IMG};
-            object-fit: contain;
-        }}
-
-        .nombre-txt {{
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            padding-left: 5px;
+        /* Estilo simple para el Bracket (Columnas) */
+        .bracket-header {{
+            text-align: center; color: {t_color}; font-weight: bold; 
+            border-bottom: 1px solid #333; margin-bottom: 10px; padding-bottom: 5px;
         }}
         </style>
     """, unsafe_allow_html=True)
 
     # ------------------------------------------------------------
-    # 2. CARGA DE DATOS
+    # 2. CARGA DE DATOS INTELIGENTE
     # ------------------------------------------------------------
     try:
         with conn.connect() as db:
+            # Info Torneo
             res_t = db.execute(text("SELECT formato, escudo_defecto FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
-            t_formato = res_t.formato if res_t else "Liga"
-            t_escudo_defecto = res_t.escudo_defecto if res_t and res_t.escudo_defecto else None
+            if not res_t: st.error("Torneo no encontrado"); return
+            
+            t_formato = res_t.formato
+            t_escudo_defecto = res_t.escudo_defecto
 
+            # Traer TODOS los partidos
             q_master = text("""
-                SELECT p.jornada, p.goles_l, p.goles_v, p.estado, 
+                SELECT p.jornada, p.goles_l, p.goles_v, p.estado, p.penales_l, p.penales_v,
                        el.nombre as local, el.escudo as escudo_l,
                        ev.nombre as visitante, ev.escudo as escudo_v
                 FROM partidos p
                 JOIN equipos_globales el ON p.local_id = el.id
                 JOIN equipos_globales ev ON p.visitante_id = ev.id
-                WHERE p.id_torneo = :id ORDER BY p.jornada ASC, p.id ASC
+                WHERE p.id_torneo = :id 
+                ORDER BY p.id ASC
             """)
-            df_partidos = pd.read_sql_query(q_master, db, params={"id": id_torneo})
+            df = pd.read_sql_query(q_master, db, params={"id": id_torneo})
+
     except Exception as e:
-        st.error(f"Error DB: {e}"); return
+        st.error(f"Error cargando datos: {e}"); return
 
-    # 3. PESTAÑAS
-    titulos_tabs = []
-    tiene_tabla = t_formato in ["Liga", "Clasificatoria y Cruces", "Liga y Playoff"]
-    if tiene_tabla: titulos_tabs.append("📊 Clasificación")
-    if not df_partidos.empty:
-        jornadas_unicas = sorted(df_partidos['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
-        for j in jornadas_unicas: titulos_tabs.append(f"Jornada {j}" if str(j).isdigit() else str(j))
-    else: return
+    if df.empty:
+        st.info("🗓️ El calendario aún no se ha generado.")
+        return
 
-    tabs = st.tabs(titulos_tabs)
-    idx_tab = 0 
+    # ------------------------------------------------------------
+    # 3. PROCESAMIENTO: SEPARAR FASES Y ORDENAR
+    # ------------------------------------------------------------
+    
+    # Función de ordenamiento personalizada (Clave del éxito)
+    def sorter_fases(j):
+        # 1. Si es número, valor real
+        if str(j).isdigit(): return int(j)
+        # 2. Si es texto, asignamos peso artificial alto
+        mapa_fases = {
+            'Octavos': 100, 'Cuartos': 101, 'Semifinal': 102, 'Final': 103,
+            'Repechaje': 99 # Por si acaso
+        }
+        return mapa_fases.get(j, 999) # 999 para desconocidos al final
 
-    # --- A. TABLA DE POSICIONES ---
-    if tiene_tabla:
-        with tabs[idx_tab]:
-            df_fin = df_partidos[df_partidos['estado'] == 'Finalizado']
-            if df_fin.empty:
-                st.info("Esperando resultados...")
-            else:
-                equipos_set = set(df_partidos['local']).union(set(df_partidos['visitante']))
-                stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
-                for _, f in df_fin.iterrows():
-                    l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
-                    stats[l]['PJ']+=1; stats[v]['PJ']+=1
-                    stats[l]['GF']+=gl; stats[l]['GC']+=gv
-                    stats[v]['GF']+=gv; stats[v]['GC']+=gl
-                    if gl > gv: stats[l]['PTS']+=3
-                    elif gv > gl: stats[v]['PTS']+=3
-                    else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
+    # Separamos DataFrames
+    # df_regular: Jornadas numéricas (Fase de Grupos / Liga)
+    df_regular = df[df['jornada'].apply(lambda x: str(x).isdigit())]
+    
+    # df_playoff: Jornadas de texto (Fase KO)
+    df_playoff = df[~df['jornada'].apply(lambda x: str(x).isdigit())]
 
-                df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-                df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
-                df_f['DG'] = df_f['GF'] - df_f['GC']
-                df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
-                df_f.insert(0, 'POS', range(1, len(df_f) + 1))
-                
-                mapa_escudos = dict(zip(df_partidos['local'], df_partidos['escudo_l']))
-                mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
+    # ------------------------------------------------------------
+    # 4. RENDERIZADO: PESTAÑAS MAESTRAS
+    # ------------------------------------------------------------
+    # Dos grandes áreas: Situación (Tabla/Bracket) y Partidos (El detalle)
+    main_tabs = st.tabs(["📊 Situación del Torneo", "📅 Calendario de Partidos"])
 
-                # HTML Tabla con Columnas Alineadas
-                html = f'<table class="tabla-pro"><thead><tr><th>#</th><th style="text-align:left; padding-left:20px;">EQUIPO</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
-                for _, r in df_f.iterrows():
-                    esc_url = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
-                    
-                    # El escudo o emoji va dentro de la caja fija .escudo-box
-                    img_html = f'<img src="{esc_url}" class="escudo-img">' if esc_url else '<span style="font-size:16px">🛡️</span>'
-                    
-                    html += f"""<tr>
-                        <td style="color:#888; font-size:11px;">{r['POS']}</td>
-                        <td>
-                            <div class="equipo-wrapper">
-                                <div class="escudo-box">{img_html}</div>
-                                <div class="nombre-txt"><b>{r['EQ']}</b></div>
-                            </div>
-                        </td>
-                        <td style="color:{t_color}; font-weight:bold; font-size:15px;">{r['PTS']}</td>
-                        <td>{r['PJ']}</td>
-                        <td style="color:#777;">{r['GF']}</td>
-                        <td style="color:#777;">{r['GC']}</td>
-                        <td style="background:rgba(255,255,255,0.05); font-weight:bold;">{r['DG']}</td>
-                    </tr>"""
-                st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
-        idx_tab += 1
-
-    # --- B. JORNADAS ---
-    for j_actual in jornadas_unicas:
-        with tabs[idx_tab]:
-            df_j = df_partidos[df_partidos['jornada'] == j_actual]
-            if df_j.empty: st.info("Sin partidos."); continue
+    # ============================================================
+    # TAB A: SITUACIÓN (TABLA DE POSICIONES Y BRACKET)
+    # ============================================================
+    with main_tabs[0]:
+        
+        # 1. TABLA DE POSICIONES (Si existe fase regular)
+        if not df_regular.empty:
+            st.markdown("##### 🏆 Fase de Clasificación")
             
-            for _, row in df_j.iterrows():
-                txt_m = f"{int(row['goles_l'])} - {int(row['goles_v'])}" if row['estado'] == 'Finalizado' else "VS"
-                u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
-                u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
+            # Cálculo de Tabla (Tu lógica optimizada)
+            df_fin = df_regular[df_regular['estado'] == 'Finalizado']
+            equipos_set = set(df_regular['local']).union(set(df_regular['visitante']))
+            stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
+            
+            for _, f in df_fin.iterrows():
+                l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
+                stats[l]['PJ']+=1; stats[v]['PJ']+=1
+                stats[l]['GF']+=gl; stats[l]['GC']+=gv
+                stats[v]['GF']+=gv; stats[v]['GC']+=gl
+                if gl > gv: stats[l]['PTS']+=3
+                elif gv > gl: stats[v]['PTS']+=3
+                else: stats[l]['PTS']+=1; stats[v]['PTS']+=1
 
-                img_partido = generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_m, t_color)
-                st.image(img_partido, use_container_width=True)
-        idx_tab += 1
+            df_f = pd.DataFrame.from_dict(stats, orient='index').reset_index()
+            df_f.columns = ['EQ', 'PJ', 'PTS', 'GF', 'GC']
+            df_f['DG'] = df_f['GF'] - df_f['GC']
+            df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
+            df_f.insert(0, 'POS', range(1, len(df_f) + 1))
+            
+            # Mapa de Escudos
+            mapa_escudos = dict(zip(df_regular['local'], df_regular['escudo_l']))
+            mapa_escudos.update(dict(zip(df_regular['visitante'], df_regular['escudo_v'])))
+
+            # Render HTML
+            html = f'<table class="tabla-pro"><thead><tr><th>#</th><th style="text-align:left; padding-left:20px;">EQUIPO</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
+            for _, r in df_f.iterrows():
+                esc_url = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
+                img_html = f'<img src="{esc_url}" class="escudo-img">' if esc_url else '🛡️'
+                html += f"""<tr>
+                    <td style="color:#888;">{r['POS']}</td>
+                    <td><div class="equipo-wrapper"><div class="escudo-box">{img_html}</div><div class="nombre-txt"><b>{r['EQ']}</b></div></div></td>
+                    <td style="color:{t_color}; font-weight:bold;">{r['PTS']}</td>
+                    <td>{r['PJ']}</td><td style="color:#777;">{r['GF']}</td><td style="color:#777;">{r['GC']}</td>
+                    <td style="background:rgba(255,255,255,0.05); font-weight:bold;">{r['DG']}</td>
+                </tr>"""
+            st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+
+        # 2. BRACKET / LLAVES (Si existe fase KO)
+        if not df_playoff.empty:
+            st.markdown("##### ⚔️ Fase Eliminatoria")
+            
+            # Identificar fases únicas y ordenarlas (Octavos -> Cuartos -> Semi...)
+            fases_ko = sorted(df_playoff['jornada'].unique(), key=sorter_fases)
+            
+            # Renderizado en Columnas (Layout tipo Bracket simple por ahora)
+            cols = st.columns(len(fases_ko))
+            
+            for idx, fase in enumerate(fases_ko):
+                with cols[idx]:
+                    st.markdown(f"<div class='bracket-header'>{fase}</div>", unsafe_allow_html=True)
+                    
+                    matches_fase = df_playoff[df_playoff['jornada'] == fase]
+                    for _, row in matches_fase.iterrows():
+                        # Lógica visual simple para cruces
+                        txt_score = "VS"
+                        if row['estado'] == 'Finalizado':
+                            # Incluir penales si existen
+                            txt_score = f"{int(row['goles_l'])}-{int(row['goles_v'])}"
+                            if row['penales_l'] is not None:
+                                txt_score += f" ({int(row['penales_l'])}-{int(row['penales_v'])})"
+                        
+                        u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
+                        u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
+                        
+                        # Reusamos tu generador de tarjetas pero más pequeño si es necesario
+                        st.image(generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_score, t_color), use_container_width=True)
+
+    # ============================================================
+    # TAB B: CALENDARIO (DETALLE POR JORNADAS)
+    # ============================================================
+    with main_tabs[1]:
+        # 1. Obtener lista completa de jornadas únicas ordenadas
+        jornadas_todas = sorted(df['jornada'].unique(), key=sorter_fases)
+        
+        # 2. Crear las sub-pestañas navegables (Scroll horizontal nativo)
+        tabs_jornadas = st.tabs([str(j) for j in jornadas_todas])
+        
+        # 3. Llenar cada pestaña
+        for i, j_actual in enumerate(jornadas_todas):
+            with tabs_jornadas[i]:
+                df_j = df[df['jornada'] == j_actual]
+                
+                if df_j.empty: 
+                    st.info("Sin partidos programados.")
+                else:
+                    for _, row in df_j.iterrows():
+                        # Marcador inteligente con penales
+                        txt_m = "VS"
+                        if row['estado'] == 'Finalizado':
+                            txt_m = f"{int(row['goles_l'])} - {int(row['goles_v'])}"
+                            if row['penales_l'] is not None:
+                                # Agregamos indicador de penales pequeño
+                                txt_m += f" ({int(row['penales_l'])}-{int(row['penales_v'])})"
+                        
+                        u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
+                        u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
+
+                        img_partido = generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_m, t_color)
+                        st.image(img_partido, use_container_width=True)
+
 
 
 
@@ -2522,6 +2625,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
