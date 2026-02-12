@@ -2018,14 +2018,80 @@ def render_torneo(id_torneo):
 
                     
 
-        # 3. MI EQUIPO
-        with tabs[2]:
-            sub_tabs = st.tabs(["📊 Estadísticas", "✏️ Editar Equipo"])
-            
+        # ------------------------------------------------------------------
+            # PESTAÑA 1: ESTADÍSTICAS (HISTORIA DEL CLUB)
+            # ------------------------------------------------------------------
             with sub_tabs[0]:
                 st.subheader("📊 Historia del Club")
-                mostrar_bot("Estoy recopilando los datos. Pronto verás aquí tu rendimiento.")
-                st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=100)
+                
+                # 1. Identificamos al equipo actual
+                # Necesitamos saber quiénes somos (Nombre y PIN) para buscar nuestra historia
+                try:
+                    with conn.connect() as db:
+                        # Buscamos datos del equipo actual en este torneo
+                        me_row = db.execute(text("SELECT nombre, pin_equipo, escudo FROM equipos_globales WHERE id=:id"), {"id": id_equipo}).fetchone()
+                        
+                        if me_row:
+                            mi_nombre = me_row.nombre
+                            mi_pin = me_row.pin_equipo
+                            mi_escudo = me_row.escudo
+                            
+                            # 2. Consultamos la Tabla Histórica
+                            historia = db.execute(text("""
+                                SELECT torneos_jugados, pj, titulos 
+                                FROM historia_equipos_res 
+                                WHERE nombre=:n AND pin=:p
+                            """), {"n": mi_nombre, "p": mi_pin}).fetchone()
+
+                            # --- ESCENARIO A: EL EQUIPO TIENE HISTORIA ---
+                            if historia:
+                                mostrar_bot(f"¡Qué gusto verte de nuevo, <b>{mi_nombre}</b>! <br>Aquí reposa la gloria de tus campañas anteriores.")
+                                
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                
+                                # Tarjeta de Resumen (Estilo FIFA)
+                                with st.container(border=True):
+                                    c_h1, c_h2 = st.columns([1, 3], vertical_alignment="center")
+                                    
+                                    with c_h1:
+                                        # Mostramos su escudo o uno genérico de "Veterano"
+                                        img_show = mi_escudo if mi_escudo else "https://cdn-icons-png.flaticon.com/512/1165/1165187.png"
+                                        st.image(img_show, use_container_width=True)
+                                    
+                                    with c_h2:
+                                        st.markdown(f"### 🏛️ Legado: {historia.torneos_jugados} Torneos")
+                                        if historia.titulos > 0:
+                                            st.caption(f"🏆 {historia.titulos} Títulos en sus vitrinas")
+                                        else:
+                                            st.caption("En busca de la primera estrella.")
+
+                                # Aquí iremos agregando más métricas visuales en el futuro
+                                st.info("Sigue compitiendo. Al finalizar este torneo, actualizaré tus números históricos aquí.")
+
+                            # --- ESCENARIO B: PRIMERA VEZ (NUEVO EQUIPO) ---
+                            else:
+                                st.markdown("""
+                                <div style='text-align: center; padding: 20px;'>
+                                    <h3 style='color: #888;'>🌑 Página en Blanco</h3>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                mostrar_bot(f"""
+                                Veo que esta es la primera vez de <b>{mi_nombre}</b> en nuestros registros.
+                                <br><br>
+                                📜 <b>La historia no se compra, se escribe en la cancha.</b>
+                                <br>
+                                Juega este torneo, deja todo en el campo, y cuando termine, 
+                                empezaré a escribir tu leyenda en esta sección.
+                                """)
+                                
+                                st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=80, caption="Tu historia comienza hoy.")
+
+                        else:
+                            st.error("No pude identificar tu equipo.")
+
+                except Exception as e:
+                    st.error(f"Error cargando historia: {e}")
             
         # --- LÓGICA DE EDICIÓN CON VALIDACIÓN DE NEGOCIO ---
         with sub_tabs[1]:
@@ -2473,6 +2539,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
