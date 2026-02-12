@@ -2027,7 +2027,7 @@ def render_torneo(id_torneo):
             # SUB-PESTAÑA 1: ESTADÍSTICAS (HISTORIA DEL CLUB)
             # --------------------------------------------------------
             with sub_tabs[0]:
-                st.subheader("📊 El Museo del Club")
+                st.subheader("📊 Historia del Club")
                 
                 # CORRECCIÓN: Usamos directamente la sesión porque YA estamos logueados
                 id_equipo = st.session_state.id_equipo
@@ -2081,9 +2081,9 @@ def render_torneo(id_torneo):
                                 📜 <b>La historia no se compra, se escribe en la cancha.</b>
                                 <br>
                                 Juega este torneo, deja todo en el campo, y cuando termine, 
-                                empezaré a escribir tu leyenda en esta sección.
+                                empezaremos a escribir la historia del club.
                                 """)
-                                st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=80)
+                                
                         else:
                             st.error("No pude identificar los datos de tu equipo.")
 
@@ -2522,6 +2522,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
