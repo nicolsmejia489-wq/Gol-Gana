@@ -2029,66 +2029,66 @@ def render_torneo(id_torneo):
             with sub_tabs[0]:
                 st.subheader("📊 El Museo del Club")
                 
-               
+                # CORRECCIÓN: Usamos directamente la sesión porque YA estamos logueados
+                id_equipo = st.session_state.id_equipo
 
-                if id_equipo:
-                    try:
-                        with conn.connect() as db:
-                            # 1. Buscamos datos actuales
-                            me_row = db.execute(text("SELECT nombre, pin_equipo, escudo FROM equipos_globales WHERE id=:id"), {"id": id_equipo}).fetchone()
+                try:
+                    with conn.connect() as db:
+                        # 1. Buscamos datos del equipo actual en este torneo
+                        me_row = db.execute(text("SELECT nombre, pin_equipo, escudo FROM equipos_globales WHERE id=:id"), {"id": id_equipo}).fetchone()
+                        
+                        if me_row:
+                            mi_nombre = me_row.nombre
+                            mi_pin = me_row.pin_equipo
+                            mi_escudo = me_row.escudo
                             
-                            if me_row:
-                                mi_nombre = me_row.nombre
-                                mi_pin = me_row.pin_equipo
-                                mi_escudo = me_row.escudo
+                            # 2. Consultamos la Tabla Histórica
+                            historia = db.execute(text("""
+                                SELECT torneos_jugados, partidos_jugados, titulos, goles_favor 
+                                FROM historia_equipos_res 
+                                WHERE nombre=:n AND pin=:p
+                            """), {"n": mi_nombre, "p": mi_pin}).fetchone()
+
+                            # A. CON HISTORIA
+                            if historia:
+                                mostrar_bot(f"¡Qué gusto verte de nuevo, <b>{mi_nombre}</b>! <br>Aquí reposa la gloria de tus campañas anteriores.")
+                                st.markdown("<br>", unsafe_allow_html=True)
                                 
-                                # 2. Consultamos Historia
-                                historia = db.execute(text("""
-                                    SELECT torneos_jugados, partidos_jugados, titulos, goles_favor 
-                                    FROM historia_equipos_res 
-                                    WHERE nombre=:n AND pin=:p
-                                """), {"n": mi_nombre, "p": mi_pin}).fetchone()
+                                with st.container(border=True):
+                                    c_h1, c_h2 = st.columns([1, 3], vertical_alignment="center")
+                                    with c_h1:
+                                        img_show = mi_escudo if mi_escudo else "https://cdn-icons-png.flaticon.com/512/1165/1165187.png"
+                                        st.image(img_show, use_container_width=True)
+                                    with c_h2:
+                                        st.markdown(f"### 🏛️ Legado: {historia.torneos_jugados} Torneos")
+                                        st.markdown(f"**Partidos Históricos:** {historia.partidos_jugados} | **Goles:** {historia.goles_favor}")
+                                        if historia.titulos > 0:
+                                            st.caption(f"🏆 {historia.titulos} Títulos")
+                                        else:
+                                            st.caption("En busca de la primera estrella.")
+                                st.info("Sigue compitiendo. Al finalizar este torneo, actualizaré tus números históricos aquí.")
 
-                                # A. CON HISTORIA
-                                if historia:
-                                    mostrar_bot(f"¡Qué gusto verte de nuevo, <b>{mi_nombre}</b>! <br>Aquí reposa la gloria de tus campañas anteriores.")
-                                    st.markdown("<br>", unsafe_allow_html=True)
-                                    
-                                    with st.container(border=True):
-                                        c_h1, c_h2 = st.columns([1, 3], vertical_alignment="center")
-                                        with c_h1:
-                                            img_show = mi_escudo if mi_escudo else "https://cdn-icons-png.flaticon.com/512/1165/1165187.png"
-                                            st.image(img_show, use_container_width=True)
-                                        with c_h2:
-                                            st.markdown(f"### 🏛️ Legado: {historia.torneos_jugados} Torneos")
-                                            st.markdown(f"**Partidos Históricos:** {historia.partidos_jugados} | **Goles:** {historia.goles_favor}")
-                                            if historia.titulos > 0:
-                                                st.caption(f"🏆 {historia.titulos} Títulos")
-                                            else:
-                                                st.caption("En busca de la primera estrella.")
-                                    st.info("Sigue compitiendo. Al finalizar, actualizaré tus números.")
-
-                                # B. SIN HISTORIA
-                                else:
-                                    st.markdown("""
-                                    <div style='text-align: center; padding: 20px;'>
-                                        <h3 style='color: #888;'>🌑 Página en Blanco</h3>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    mostrar_bot(f"""
-                                    Veo que esta es la primera vez de <b>{mi_nombre}</b> en nuestros registros.
-                                    <br><br>
-                                    📜 <b>La historia no se compra, se escribe en la cancha.</b>
-                                    <br>
-                                    Juega este torneo, deja todo en el campo, y cuando termine, 
-                                    empezaré a escribir tu leyenda en esta sección.
-                                    """)
-                                    st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=80)
+                            # B. SIN HISTORIA
                             else:
-                                st.error("No se encontraron datos del equipo.")
-                    except Exception as e:
-                        st.error(f"Error cargando historia: {e}")
-                
+                                st.markdown("""
+                                <div style='text-align: center; padding: 20px;'>
+                                    <h3 style='color: #888;'>🌑 Página en Blanco</h3>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                mostrar_bot(f"""
+                                Veo que esta es la primera vez de <b>{mi_nombre}</b> en nuestros registros.
+                                <br><br>
+                                📜 <b>La historia no se compra, se escribe en la cancha.</b>
+                                <br>
+                                Juega este torneo, deja todo en el campo, y cuando termine, 
+                                empezaré a escribir tu leyenda en esta sección.
+                                """)
+                                st.image("https://cdn-icons-png.flaticon.com/512/3094/3094845.png", width=80)
+                        else:
+                            st.error("No pude identificar los datos de tu equipo.")
+
+                except Exception as e:
+                    st.error(f"Error cargando historia: {e}")
 
             # --------------------------------------------------------
             # SUB-PESTAÑA 2: EDITAR EQUIPO
@@ -2522,6 +2522,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
