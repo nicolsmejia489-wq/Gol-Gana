@@ -1103,7 +1103,7 @@ def generar_poster_fase(df_fase, nombre_fase, t_color):
     # =========================================================================
     
     # 1. URL DE TU PLANTILLA (Pega aquí el link de Cloudinary)
-    URL_PLANTILLA = "https://res.cloudinary.com/TU_USUARIO/image/upload/v12345/plantilla_16vos.jpg"
+    URL_PLANTILLA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1771018977/Gemini_Generated_Image_g39ldqg39ldqg39l_cvm9ya.png"
     
     # 2. COORDENADAS (Prueba y error la primera vez)
     Y_INICIAL = 280      # Píxeles desde arriba donde empieza el PRIMER partido
@@ -2814,6 +2814,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
