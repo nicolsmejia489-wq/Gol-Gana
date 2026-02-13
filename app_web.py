@@ -1243,15 +1243,16 @@ def contenido_pestana_torneo(id_torneo, t_color):
                     """, unsafe_allow_html=True)
                 else:
                     # CASO: Hay partidos (Renderizado HTML Deportivo)
-                    col_izq, col_der = st.columns(2) # Dos columnas para que parezca más un cuadro
+                    col_izq, col_der = st.columns(2)
                     
                     for idx, row in df_fase.iterrows():
-                        # Alternar columnas para distribuir visualmente
+                        # Alternar columnas
                         target_col = col_izq if idx % 2 == 0 else col_der
                         
                         u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
                         u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
                         
+                        # Generamos el string HTML
                         html_card = generar_tarjeta_cruce_html(
                             row['local'], row['visitante'], 
                             u_l, u_v, 
@@ -1261,6 +1262,8 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         )
                         
                         with target_col:
+                            # AQUÍ ESTÁ LA CLAVE: unsafe_allow_html=True
+                            # Si html_card es una tupla, usa html_card[0], pero si corregiste la función, html_card ya es string.
                             st.markdown(html_card, unsafe_allow_html=True)
     # ============================================================
     # TAB B: PARTIDOS (CALENDARIO COMPLETO)
@@ -2685,6 +2688,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
