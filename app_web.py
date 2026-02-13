@@ -1524,7 +1524,6 @@ def render_torneo(id_torneo):
     # 1. DATOS MAESTROS Y CONFIGURACIÓN VISUAL
     # ---------------------------------------------------------
     try:
-        # CORRECCIÓN: Consulta limpia (Solo 5 campos, sin 'estado')
         query = text("SELECT nombre, organizador, color_primario, url_portada, fase FROM torneos WHERE id = :id")
         with conn.connect() as db:
             t = db.execute(query, {"id": id_torneo}).fetchone()
@@ -1539,100 +1538,89 @@ def render_torneo(id_torneo):
     except Exception as e:
         st.error(f"Error DB: {e}"); return
 
-    # --- CSS Personalizado (Oswald Impact) ---
+    # --- CSS Personalizado (Estética Impactante) ---
     st.markdown(f"""
         <style>
             button[kind="primary"] {{ background-color: {t_color} !important; color: black !important; font-weight: 700 !important; }}
             .stTabs [aria-selected="true"] p {{ color: {t_color} !important; font-weight: 700 !important; }}
             [data-baseweb="tab-highlight-renderer"] {{ background-color: {t_color} !important; }}
             
-            /* Título Compacto */
             .tournament-title {{ 
-                color: white; font-size: 24px; font-weight: 700; text-transform: uppercase; 
-                margin: 0; line-height: 1.1; 
+                color: white; font-size: 32px; font-weight: 700; text-transform: uppercase; 
+                margin-top: 5px; margin-bottom: 0px; letter-spacing: -0.02em; line-height: 1.2;
             }}
             .tournament-subtitle {{ 
-                color: {t_color}; font-size: 13px; opacity: 0.9; margin-bottom: 2px; font-weight: 400; 
+                color: {t_color}; font-size: 16px; opacity: 0.9; margin-bottom: 20px; font-weight: 400; 
             }}
             
-            /* Ajuste botones cabecera */
-            .stButton button {{ padding: 0px 5px !important; min-height: 35px; }}
+            /* Ajuste para que los botones de la barra queden alineados */
+            div[data-testid="column"] {{ display: flex; align-items: center; }}
         </style>
     """, unsafe_allow_html=True)
 
     # ------------------------------------------------------------
-    # 2. DEFINIR ROL (Cálculo Seguro)
+    # 2. LÓGICA DE ROL (Calculada antes de pintar)
     # ------------------------------------------------------------
     rol_actual = "Espectador"
-    
     if "usuario_rol" in st.session_state:
-        # Convertimos a string para asegurar comparación segura
         if st.session_state.usuario_rol == "admin" and str(st.session_state.get("id_torneo_admin")) == str(id_torneo):
             rol_actual = "Admin"
         elif st.session_state.usuario_rol == "dt" and str(st.session_state.get("id_torneo_dt")) == str(id_torneo):
             rol_actual = "DT"
 
     # ------------------------------------------------------------
-    # 3. HEADER COMPACTO (BARRA SUPERIOR)
+    # 3. CABECERA VISUAL (PORTADA + BARRA DE BOTONES)
     # ------------------------------------------------------------
     
-    # Columnas: [Información del Torneo (Ancho)] [Herramientas (Estrecho)]
-    c_info, c_tools = st.columns([3, 1], vertical_alignment="center")
-    
-    with c_info:
-        st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
-        label_modo = f"DT: {st.session_state.get('nombre_equipo')}" if rol_actual == "DT" else rol_actual
-        st.markdown(f'<p class="tournament-subtitle">{t_org} | {label_modo}</p>', unsafe_allow_html=True)
-        
-    with c_tools:
-        # Sub-columnas para los botones pequeños
-        btn_lob, btn_log = st.columns(2)
-        
-        with btn_lob:
-            if st.button("🏠", help="Volver al Lobby", use_container_width=True):
-                st.query_params.clear()
-                st.rerun()
-        
-        with btn_log:
-            if rol_actual == "Espectador":
-                # Botón Toggle: Activa/Desactiva la caja de login
-                if st.button("🔐", help="Acceso Admin/DT", use_container_width=True):
-                    st.session_state.show_login_box = not st.session_state.get("show_login_box", False)
-            else:
-                # Botón Salir
-                if st.button("🚪", help="Cerrar Sesión", type="primary", use_container_width=True):
-                    st.session_state.clear()
-                    st.rerun()
+    # A. PORTADA (Grande y visual)
+    st.image(t_portada if t_portada else URL_PORTADA, use_container_width=True)
 
-    # ------------------------------------------------------------
-    # 4. CAJA DE LOGIN (SOLO APARECE SI SE ACTIVÓ EL CANDADO)
-    # ------------------------------------------------------------
+    # B. BARRA DE HERRAMIENTAS (Botones en la misma línea)
+    # Usamos 3 columnas: [Lobby (izq)] -- [Espacio vacío] -- [Login/Candado (der)]
+    c_lobby, c_espacio, c_login = st.columns([2, 4, 1])
+    
+    with c_lobby:
+        # Botón para volver
+        if st.button("⬅ LOBBY", use_container_width=True):
+            st.query_params.clear()
+            st.rerun()
+
+    with c_login:
+        # Botón de Acceso (Candado) o Salida (Puerta)
+        if rol_actual == "Espectador":
+            if st.button("🔐", help="Acceso Admin/DT", use_container_width=True):
+                # Toggle: Activar/Desactivar caja de login
+                st.session_state.show_login_box = not st.session_state.get("show_login_box", False)
+        else:
+            if st.button("🚪", help="Cerrar Sesión", type="primary", use_container_width=True):
+                st.session_state.clear()
+                st.rerun()
+
+    # C. CAJA DE LOGIN (Aparece debajo de los botones si se activa)
     if st.session_state.get("show_login_box") and rol_actual == "Espectador":
-        st.markdown(f"<div style='border-top: 2px solid {t_color}; margin-top: 5px; margin-bottom: 10px;'></div>", unsafe_allow_html=True)
-        
-        with st.container():
+        with st.container(border=True):
             c_in, c_go = st.columns([3, 1], vertical_alignment="bottom")
+            pin_input = c_in.text_input("PIN", type="password", label_visibility="collapsed", placeholder="Ingresa PIN", key="pin_top")
             
-            # Input de PIN
-            pin_input = c_in.text_input("Ingresa tu PIN", type="password", label_visibility="collapsed", placeholder="PIN de Acceso", key="input_pin_header")
-            
-            # Botón Flecha
-            if c_go.button("Entrar ➜", type="primary", use_container_width=True):
+            if c_go.button("Entrar", type="primary", use_container_width=True):
                 acc = validar_acceso(id_torneo, pin_input)
-                
                 if isinstance(acc, dict):
                     st.session_state.update(acc)
-                    st.session_state.show_login_box = False # Ocultamos la caja al entrar
+                    st.session_state.show_login_box = False
                     st.rerun()
                 elif acc == "PENDIENTE":
-                    st.toast("⏳ Solicitud pendiente de aprobación.")
+                    st.toast("⏳ Pendiente de aprobación.")
                 else:
                     st.toast("🚫 PIN incorrecto", icon="❌")
 
-    st.divider()
+    # D. TÍTULOS E INFO DEL TORNEO
+    st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
+    
+    label_modo = f"DT: {st.session_state.get('nombre_equipo')}" if rol_actual == "DT" else rol_actual
+    st.markdown(f'<p class="tournament-subtitle">Organiza: {t_org} | Modo: {label_modo}</p>', unsafe_allow_html=True)
 
     # ---------------------------------------------------------
-    # 4. GESTOR DE PESTAÑAS POR ROL (Esqueleto)
+    # 4. GESTOR DE PESTAÑAS POR ROL
     # ---------------------------------------------------------
     
 # --- ESCENARIO A: ADMINISTRADOR ---
@@ -2683,6 +2671,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
