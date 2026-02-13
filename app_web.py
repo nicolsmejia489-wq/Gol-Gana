@@ -1015,19 +1015,17 @@ def ejecutar_avance_fase(id_torneo):
 
 def generar_bloque_llave(match_a, match_b, t_color):
     """
-    Toma dos partidos (diccionarios de datos) y genera UNA imagen vertical
-    que los agrupa como una llave de torneo.
-    Usa 'generar_tarjeta_imagen' para crear las partes individuales.
+    Genera una imagen vertical que agrupa dos partidos (Llave).
+    Estilo: Minimalista (Proximidad visual).
     """
     # 1. GENERAR IMÁGENES INDIVIDUALES
-    # Match A (Arriba)
+    # Usamos tu función existente 'generar_tarjeta_imagen'
     img_a = generar_tarjeta_imagen(
         match_a['local'], match_a['visitante'], 
         match_a['escudo_l'], match_a['escudo_v'], 
         match_a['marcador'], t_color
     )
     
-    # Match B (Abajo) - Puede ser None si es impar
     img_b = None
     if match_b:
         img_b = generar_tarjeta_imagen(
@@ -1036,57 +1034,24 @@ def generar_bloque_llave(match_a, match_b, t_color):
             match_b['marcador'], t_color
         )
     
-    # 2. CREAR LIENZO VERTICAL
-    # Medidas
+    # 2. CONFIGURACIÓN DEL LIENZO COMBINADO
     W, H_CARD = img_a.size
-    ESPACIO_CONECTOR = 40 if img_b else 0
-    H_TOTAL = H_CARD + (H_CARD if img_b else 0) + ESPACIO_CONECTOR
     
-    # Fondo transparente o gris muy oscuro
+    # GAP: Espacio entre partido A y B.
+    # Lo ponemos pequeño (4px) para que parezcan un solo bloque.
+    GAP = 4 
+    
+    H_TOTAL = H_CARD + (H_CARD + GAP if img_b else 0)
+    
+    # Lienzo transparente
     lienzo = Image.new("RGBA", (W, H_TOTAL), (0,0,0,0))
-    draw = ImageDraw.Draw(lienzo)
     
     # 3. PEGAR IMÁGENES
-    # Pegar A
     lienzo.paste(img_a, (0, 0))
     
     if img_b:
-        # Pegar B
-        y_b = H_CARD + ESPACIO_CONECTOR
-        lienzo.paste(img_b, (0, y_b))
-        
-        # 4. DIBUJAR CONECTOR (Líneas y Texto "VS")
-        # Color del torneo
-        try:
-            rgb_color = tuple(int(t_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-        except:
-            rgb_color = (255, 255, 255)
-            
-        # Línea vertical de unión
-        # Desde el centro de A hasta el centro de B
-        # x_linea = 40 # Una línea sutil a la izquierda o derecha? O mejor en el centro?
-        # Vamos a hacer algo simple: Una llave tipo "Bracket" a los lados
-        
-        # Coordenadas
-        y_fin_a = H_CARD
-        y_ini_b = y_b
-        y_mid = y_fin_a + (ESPACIO_CONECTOR // 2)
-        
-        # Dibujar línea pequeña vertical conectora
-        # draw.line([(W//2, y_fin_a), (W//2, y_ini_b)], fill=rgb_color, width=2)
-        
-        # Dibujar cajita "SE CRUZAN"
-        # draw.rectangle([(W//2 - 60, y_mid - 10), (W//2 + 60, y_mid + 10)], fill=(20,20,20), outline=rgb_color)
-        
-        # Texto simple "SE CRUZAN"
-        # Como no tenemos fuentes cargadas aquí fácil, usamos un truco visual simple
-        # Dibujamos un rombo o círculo pequeño en el medio
-        r = 6
-        draw.ellipse([(W//2 - r, y_mid - r), (W//2 + r, y_mid + r)], fill=rgb_color)
-        
-        # Líneas horizontales decorativas hacia el centro
-        draw.line([(W//2 - 50, y_mid), (W//2 - 10, y_mid)], fill=rgb_color, width=1)
-        draw.line([(W//2 + 10, y_mid), (W//2 + 50, y_mid)], fill=rgb_color, width=1)
+        # Pegar B justo debajo de A con el pequeño gap
+        lienzo.paste(img_b, (0, H_CARD + GAP))
 
     return lienzo
 
@@ -1252,26 +1217,18 @@ def contenido_pestana_torneo(id_torneo, t_color):
         for i in range(1, len(titulos_sub)):
             nombre_fase = titulos_sub[i]
             with sub_tabs_class[i]:
-                # Filtramos partidos de esta fase específica
                 df_fase = df_playoff[df_playoff['jornada'] == nombre_fase]
                 
                 if df_fase.empty:
-                    # CASO: Fase Bloqueada (Diseño limpio)
-                    st.markdown(f"""
-                        <div style="text-align:center; padding: 30px; border: 1px dashed #444; border-radius: 10px; background: rgba(0,0,0,0.2); margin-top: 10px;">
-                            <h3 style='color: #666; margin:0;'>🔒</h3>
-                            <h4 style='color: #888; margin: 5px 0;'>Cruces por definir</h4>
-                            <p style='color: #555; font-size: 12px;'>Esta fase se activará cuando finalice la anterior.</p>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.info(f"Los cruces de {nombre_fase} aún no están definidos.")
                 else:
-                    # CASO: Hay partidos -> MOSTRAR LISTA DE LLAVES (IMÁGENES GENERADAS)
+                    # Convertir a lista para agrupar de 2 en 2
                     partidos = list(df_fase.itertuples())
                     
-                    # Iteramos de 2 en 2
+                    # Bucle con paso de 2 (0, 2, 4...)
                     for i in range(0, len(partidos), 2):
                         
-                        # --- PREPARAR DATOS PARTIDO A ---
+                        # --- DATOS PARTIDO A ---
                         row_a = partidos[i]
                         score_a = "VS"
                         if row_a.estado == 'Finalizado':
@@ -1280,11 +1237,12 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         
                         dict_a = {
                             'local': row_a.local, 'visitante': row_a.visitante,
-                            'escudo_l': row_a.escudo_l, 'escudo_v': row_a.escudo_v,
+                            'escudo_l': getattr(row_a, 'escudo_l', None), 
+                            'escudo_v': getattr(row_a, 'escudo_v', None),
                             'marcador': score_a
                         }
                         
-                        # --- PREPARAR DATOS PARTIDO B ---
+                        # --- DATOS PARTIDO B (Si existe) ---
                         dict_b = None
                         if i + 1 < len(partidos):
                             row_b = partidos[i+1]
@@ -1295,15 +1253,21 @@ def contenido_pestana_torneo(id_torneo, t_color):
                             
                             dict_b = {
                                 'local': row_b.local, 'visitante': row_b.visitante,
-                                'escudo_l': row_b.escudo_l, 'escudo_v': row_b.escudo_v,
+                                'escudo_l': getattr(row_b, 'escudo_l', None), 
+                                'escudo_v': getattr(row_b, 'escudo_v', None),
                                 'marcador': score_b
                             }
 
-                        # --- GENERAR Y MOSTRAR LA IMAGEN DE LA LLAVE ---
-                        # Esta función usa tu 'generar_tarjeta_imagen' internamente
+                        # --- GENERAR IMAGEN BLOQUE ---
                         img_llave = generar_bloque_llave(dict_a, dict_b, t_color)
                         
+                        # Mostrar Imagen
                         st.image(img_llave, use_container_width=True)
+                        
+                        # Separador visual entre bloques de llaves
+                        # Esto ayuda a distinguir que los dos partidos anteriores eran un grupo
+                        # y los siguientes son otro.
+                        st.write("")
     # ============================================================
     # TAB B: PARTIDOS (CALENDARIO COMPLETO)
     # ============================================================
@@ -2650,6 +2614,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
