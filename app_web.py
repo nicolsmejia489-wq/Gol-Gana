@@ -1006,6 +1006,62 @@ def ejecutar_avance_fase(id_torneo):
 
   # =========================================================
 
+def generar_tarjeta_cruce_html(local, visita, escudo_l, escudo_v, goles_l, goles_v, penales_l, penales_v, estado, t_color):
+    """
+    Genera una tarjeta HTML estilo 'Bracket' para fases eliminatorias.
+    """
+    # Determinar ganador para resaltar (si finalizó)
+    clase_l = ""
+    clase_v = ""
+    score_display = "VS"
+    
+    if estado == 'Finalizado':
+        g_l_total = goles_l + (0.1 * (penales_l or 0))
+        g_v_total = goles_v + (0.1 * (penales_v or 0))
+        
+        if g_l_total > g_v_total: clase_l = "winner"
+        else: clase_v = "winner"
+        
+        score_display = f"{int(goles_l)} - {int(goles_v)}"
+        if penales_l is not None:
+            score_display += f" <span style='font-size:10px; color:#aaa;'>({int(penales_l)}-{int(penales_v)})</span>"
+    
+    html = f"""
+    <div style="
+        background: rgba(255,255,255,0.05); 
+        border-left: 4px solid {t_color}; 
+        margin-bottom: 10px; 
+        padding: 8px; 
+        border-radius: 4px;
+        font-family: 'Oswald', sans-serif;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;" class="{clase_l}">
+            <div style="display: flex; align-items: center;">
+                <img src="{escudo_l}" style="width: 20px; height: 20px; object-fit: contain; margin-right: 8px;">
+                <span style="color: white; font-size: 14px; { 'font-weight:bold; color:'+t_color if clase_l else '' }">{local}</span>
+            </div>
+            <span style="color: white; font-weight: bold;">{int(goles_l) if estado=='Finalizado' else ''}</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center;" class="{clase_v}">
+            <div style="display: flex; align-items: center;">
+                <img src="{escudo_v}" style="width: 20px; height: 20px; object-fit: contain; margin-right: 8px;">
+                <span style="color: white; font-size: 14px; { 'font-weight:bold; color:'+t_color if clase_v else '' }">{visita}</span>
+            </div>
+            <span style="color: white; font-weight: bold;">{int(goles_v) if estado=='Finalizado' else ''}</span>
+        </div>
+        
+        <div style="text-align: right; font-size: 10px; color: #666; margin-top: 4px; border-top: 1px solid #333; padding-top: 2px;">
+            { 'Finalizado' + (f' (Pen: {int(penales_l)}-{int(penales_v)})' if penales_l is not None else '') if estado == 'Finalizado' else 'Programado' }
+        </div>
+    </div>
+    """
+    return html
+
+
+
+
+
 
 
 # ------------------------------------------------------------
@@ -1169,28 +1225,41 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 df_fase = df_playoff[df_playoff['jornada'] == nombre_fase]
                 
                 if df_fase.empty:
-                    # CASO: Pestaña "Octavos" forzada pero sin partidos aún
+                    # CASO: Fase Bloqueada
                     st.markdown(f"""
-                        <div style="text-align:center; padding: 40px; color: #666;">
-                            <h4>🔒 Fase Bloqueada</h4>
-                            <p>Los cruces de <b>{nombre_fase}</b> se definirán al terminar la fase anterior.</p>
+                        <div style="
+                            text-align:center; 
+                            padding: 30px; 
+                            border: 1px dashed #444; 
+                            border-radius: 10px;
+                            background: rgba(0,0,0,0.2);
+                            margin-top: 10px;">
+                            <h3 style='color: #666; margin:0;'>🔒</h3>
+                            <h4 style='color: #888; margin: 5px 0;'>Cruces por definir</h4>
+                            <p style='color: #555; font-size: 12px;'>Esta fase se activará cuando finalice la anterior.</p>
                         </div>
                     """, unsafe_allow_html=True)
-                     # Tag to suggest UI improvement later
                 else:
-                    # CASO: Hay partidos (Bracket visual)
-                    for _, row in df_fase.iterrows():
-                        txt_score = "VS"
-                        if row['estado'] == 'Finalizado':
-                            txt_score = f"{int(row['goles_l'])}-{int(row['goles_v'])}"
-                            if row['penales_l'] is not None:
-                                txt_score += f" ({int(row['penales_l'])}-{int(row['penales_v'])})"
+                    # CASO: Hay partidos (Renderizado HTML Deportivo)
+                    col_izq, col_der = st.columns(2) # Dos columnas para que parezca más un cuadro
+                    
+                    for idx, row in df_fase.iterrows():
+                        # Alternar columnas para distribuir visualmente
+                        target_col = col_izq if idx % 2 == 0 else col_der
                         
                         u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
                         u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
                         
-                        st.image(generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_score, t_color), use_container_width=True)
-
+                        html_card = generar_tarjeta_cruce_html(
+                            row['local'], row['visitante'], 
+                            u_l, u_v, 
+                            row['goles_l'], row['goles_v'], 
+                            row['penales_l'], row['penales_v'], 
+                            row['estado'], t_color
+                        )
+                        
+                        with target_col:
+                            st.markdown(html_card, unsafe_allow_html=True)
     # ============================================================
     # TAB B: PARTIDOS (CALENDARIO COMPLETO)
     # ============================================================
@@ -2614,6 +2683,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
