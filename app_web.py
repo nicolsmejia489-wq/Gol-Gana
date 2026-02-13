@@ -1008,95 +1008,42 @@ def ejecutar_avance_fase(id_torneo):
 
 
 
- # ------------------------------------------------------------
-#FUNCION DE PESTAÑA TORNEO
- # ------------------------------------------------------------
+# ------------------------------------------------------------
+# FUNCIÓN DE PESTAÑA TORNEO (AJUSTADA: NOMBRES Y FASES)
+# ------------------------------------------------------------
 def contenido_pestana_torneo(id_torneo, t_color):
     """
     Renderiza la vista pública del torneo.
-    Versión: Ingeniería de precisión (Alineación milimétrica y celdas fijas).
+    Ajustes: 
+    - Tabs renombrados: Clasificación | Partidos
+    - Fix visual: '99' -> 'Octavos'
+    - Previsualización de fases vacías en Clasificación
     """
     
     # ------------------------------------------------------------
-    # 1. PARÁMETROS DE INGENIERÍA ESTÉTICA (TANTEA AQUÍ)
+    # 1. ESTILOS CSS
     # ------------------------------------------------------------
-    # 👉 ESPACIO ENTRE TARJETAS DE PARTIDOS
-    MT_PARTIDOS = "-15px"      # Más negativo = más pegadas las tarjetas del fixture
-
-    # 👉 ESTRUCTURA DE LA TABLA (Clasificación)
-    T_ALTO_FILA = "32px"       # Altura fija de cada registro (Garantiza regularidad)
-    T_PAD_CELDA = "0px 5px"    # Aire interno de la celda (Arriba/Abajo Izquierda/Derecha)
-    T_FONT_SIZE = "13px"       # Tamaño de la fuente
-    
-    # 👉 ALINEACIÓN DE LA COLUMNA "EQUIPO"
-    T_W_ESCUDO_BOX = "30px"    # Ancho del 'contenedor' del escudo (El nombre empezará tras este ancho)
-    T_W_ESCUDO_IMG = "22px"    # Tamaño real del escudo/emoji dentro de su caja
-    T_OPACIDAD = "0.7"         # Transparencia del fondo
-
+    T_OPACIDAD = "0.7"
     st.markdown(f"""
         <style>
-        /* 📦 FIXTURE: RECORTE DE ESPACIO */
-        [data-testid="stImage"] {{
-            margin-bottom: {MT_PARTIDOS} !important;
-            padding: 0px !important;
-        }}
-
-        /* 📊 TABLA: ALINEACIÓN MILIMÉTRICA */
+        [data-testid="stImage"] {{ margin-bottom: -15px !important; }}
+        
         .tabla-pro {{
-            width: 100%;
-            border-collapse: collapse;
-            font-family: 'Oswald', sans-serif;
-            background: rgba(0,0,0,{T_OPACIDAD});
-            border: 1px solid {t_color};
+            width: 100%; border-collapse: collapse; font-family: 'Oswald', sans-serif;
+            background: rgba(0,0,0,{T_OPACIDAD}); border: 1px solid {t_color};
         }}
         .tabla-pro th {{
-            background: #000;
-            color: #888;
-            font-size: 10px;
-            text-transform: uppercase;
-            padding: 8px 2px;
-            border-bottom: 2px solid {t_color};
-            text-align: center;
+            background: #000; color: #888; font-size: 10px; text-transform: uppercase;
+            padding: 8px 2px; border-bottom: 2px solid {t_color}; text-align: center;
         }}
         .tabla-pro td {{
-            color: #fff;
-            font-size: {T_FONT_SIZE};
-            padding: {T_PAD_CELDA};
-            height: {T_ALTO_FILA}; /* Altura rígida para regularidad vertical */
-            border-bottom: 1px solid #222;
-            text-align: center;
-            vertical-align: middle;
+            color: #fff; font-size: 13px; padding: 0px 5px; height: 32px;
+            border-bottom: 1px solid #222; text-align: center; vertical-align: middle;
         }}
-        
-        /* Contenedor Flex para la columna equipo */
-        .equipo-wrapper {{
-            display: flex;
-            align-items: center; /* Centrado vertical del contenido interno */
-            text-align: left;
-            width: 100%;
-        }}
-        
-        /* Caja fija para el escudo (Invisible pero con ancho) */
-        .escudo-box {{
-            width: {T_W_ESCUDO_BOX};
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-shrink: 0; /* Evita que la caja se encoja */
-        }}
-        
-        .escudo-img {{
-            width: {T_W_ESCUDO_IMG};
-            height: {T_W_ESCUDO_IMG};
-            object-fit: contain;
-        }}
-
-        .nombre-txt {{
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            padding-left: 5px;
-        }}
+        .equipo-wrapper {{ display: flex; align-items: center; width: 100%; }}
+        .escudo-box {{ width: 30px; display: flex; justify-content: center; flex-shrink: 0; }}
+        .escudo-img {{ width: 22px; height: 22px; object-fit: contain; }}
+        .nombre-txt {{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 5px; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -1105,44 +1052,81 @@ def contenido_pestana_torneo(id_torneo, t_color):
     # ------------------------------------------------------------
     try:
         with conn.connect() as db:
-            res_t = db.execute(text("SELECT formato, escudo_defecto FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
-            t_formato = res_t.formato if res_t else "Liga"
-            t_escudo_defecto = res_t.escudo_defecto if res_t and res_t.escudo_defecto else None
+            res_t = db.execute(text("SELECT formato, escudo_defecto, fase FROM torneos WHERE id=:id"), {"id": id_torneo}).fetchone()
+            if not res_t: st.error("Torneo no encontrado"); return
+            
+            t_formato = res_t.formato
+            t_fase_actual = res_t.fase # Para saber qué mostrar
+            t_escudo_defecto = res_t.escudo_defecto
 
             q_master = text("""
-                SELECT p.jornada, p.goles_l, p.goles_v, p.estado, 
+                SELECT p.jornada, p.goles_l, p.goles_v, p.estado, p.penales_l, p.penales_v,
                        el.nombre as local, el.escudo as escudo_l,
                        ev.nombre as visitante, ev.escudo as escudo_v
                 FROM partidos p
                 JOIN equipos_globales el ON p.local_id = el.id
                 JOIN equipos_globales ev ON p.visitante_id = ev.id
-                WHERE p.id_torneo = :id ORDER BY p.jornada ASC, p.id ASC
+                WHERE p.id_torneo = :id 
+                ORDER BY p.id ASC
             """)
-            df_partidos = pd.read_sql_query(q_master, db, params={"id": id_torneo})
+            df = pd.read_sql_query(q_master, db, params={"id": id_torneo})
+
     except Exception as e:
-        st.error(f"Error DB: {e}"); return
+        st.error(f"Error cargando datos: {e}"); return
 
-    # 3. PESTAÑAS
-    titulos_tabs = []
-    tiene_tabla = t_formato in ["Liga", "Clasificatoria y Cruces", "Liga y Playoff"]
-    if tiene_tabla: titulos_tabs.append("📊 Clasificación")
-    if not df_partidos.empty:
-        jornadas_unicas = sorted(df_partidos['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
-        for j in jornadas_unicas: titulos_tabs.append(f"Jornada {j}" if str(j).isdigit() else str(j))
-    else: return
+    # --- FIX CRÍTICO: REEMPLAZAR '99' POR 'Octavos' ---
+    # Esto arregla visualmente los datos antiguos sin tocar la BD si no quieres
+    if not df.empty:
+        df['jornada'] = df['jornada'].astype(str).replace({'99': 'Octavos', '100': 'Cuartos', '101': 'Semifinal', '102': 'Final'})
 
-    tabs = st.tabs(titulos_tabs)
-    idx_tab = 0 
+    # ------------------------------------------------------------
+    # 3. PROCESAMIENTO
+    # ------------------------------------------------------------
+    
+    def sorter_fases(j):
+        if str(j).isdigit(): return int(j)
+        mapa_fases = {'Octavos': 100, 'Cuartos': 101, 'Semifinal': 102, 'Final': 103}
+        return mapa_fases.get(j, 999)
 
-    # --- A. TABLA DE POSICIONES ---
-    if tiene_tabla:
-        with tabs[idx_tab]:
-            df_fin = df_partidos[df_partidos['estado'] == 'Finalizado']
-            if df_fin.empty:
-                st.info("Esperando resultados...")
+    # Separar DataFrames
+    df_regular = df[df['jornada'].apply(lambda x: str(x).isdigit())]
+    df_playoff = df[~df['jornada'].apply(lambda x: str(x).isdigit())]
+
+    # ------------------------------------------------------------
+    # 4. RENDERIZADO: PESTAÑAS PRINCIPALES
+    # ------------------------------------------------------------
+    main_tabs = st.tabs(["📊 Clasificación", "⚽ Partidos"])
+
+    # ============================================================
+    # TAB A: CLASIFICACIÓN (TABLA + BRACKET)
+    # ============================================================
+    with main_tabs[0]:
+        
+        # Definir qué sub-pestañas mostrar según el formato
+        titulos_sub = ["Tabla General"]
+        
+        # Si es formato de cruces, siempre queremos ver "Octavos" (o la fase KO)
+        if "Cruces" in t_formato or "Eliminación" in t_formato:
+            # Agregamos las fases KO detectadas O las forzamos si estamos en esa fase
+            fases_ko_existentes = sorted(df_playoff['jornada'].unique(), key=sorter_fases)
+            
+            # Si no hay fases KO aún pero el torneo es de cruces, mostramos "Octavos" vacío
+            if not fases_ko_existentes:
+                titulos_sub.append("Octavos")
             else:
-                equipos_set = set(df_partidos['local']).union(set(df_partidos['visitante']))
+                titulos_sub.extend(fases_ko_existentes)
+        
+        # Crear Sub-Pestañas
+        sub_tabs_class = st.tabs(titulos_sub)
+        
+        # --- 1. TABLA GENERAL (Siempre en index 0) ---
+        with sub_tabs_class[0]:
+            if not df_regular.empty:
+                # Cálculo de Tabla
+                df_fin = df_regular[df_regular['estado'] == 'Finalizado']
+                equipos_set = set(df_regular['local']).union(set(df_regular['visitante']))
                 stats = {e: {'PJ':0, 'PTS':0, 'GF':0, 'GC':0} for e in equipos_set}
+                
                 for _, f in df_fin.iterrows():
                     l, v, gl, gv = f['local'], f['visitante'], int(f['goles_l']), int(f['goles_v'])
                     stats[l]['PJ']+=1; stats[v]['PJ']+=1
@@ -1158,49 +1142,79 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 df_f = df_f.sort_values(by=['PTS', 'DG', 'GF'], ascending=False).reset_index(drop=True)
                 df_f.insert(0, 'POS', range(1, len(df_f) + 1))
                 
-                mapa_escudos = dict(zip(df_partidos['local'], df_partidos['escudo_l']))
-                mapa_escudos.update(dict(zip(df_partidos['visitante'], df_partidos['escudo_v'])))
+                mapa_escudos = dict(zip(df_regular['local'], df_regular['escudo_l']))
+                mapa_escudos.update(dict(zip(df_regular['visitante'], df_regular['escudo_v'])))
 
-                # HTML Tabla con Columnas Alineadas
                 html = f'<table class="tabla-pro"><thead><tr><th>#</th><th style="text-align:left; padding-left:20px;">EQUIPO</th><th>PTS</th><th>PJ</th><th>GF</th><th>GC</th><th>DG</th></tr></thead><tbody>'
                 for _, r in df_f.iterrows():
                     esc_url = mapa_escudos.get(r['EQ']) if mapa_escudos.get(r['EQ']) else t_escudo_defecto
-                    
-                    # El escudo o emoji va dentro de la caja fija .escudo-box
-                    img_html = f'<img src="{esc_url}" class="escudo-img">' if esc_url else '<span style="font-size:16px">🛡️</span>'
-                    
+                    img_html = f'<img src="{esc_url}" class="escudo-img">' if esc_url else '🛡️'
                     html += f"""<tr>
-                        <td style="color:#888; font-size:11px;">{r['POS']}</td>
-                        <td>
-                            <div class="equipo-wrapper">
-                                <div class="escudo-box">{img_html}</div>
-                                <div class="nombre-txt"><b>{r['EQ']}</b></div>
-                            </div>
-                        </td>
-                        <td style="color:{t_color}; font-weight:bold; font-size:15px;">{r['PTS']}</td>
-                        <td>{r['PJ']}</td>
-                        <td style="color:#777;">{r['GF']}</td>
-                        <td style="color:#777;">{r['GC']}</td>
+                        <td style="color:#888;">{r['POS']}</td>
+                        <td><div class="equipo-wrapper"><div class="escudo-box">{img_html}</div><div class="nombre-txt"><b>{r['EQ']}</b></div></div></td>
+                        <td style="color:{t_color}; font-weight:bold;">{r['PTS']}</td>
+                        <td>{r['PJ']}</td><td style="color:#777;">{r['GF']}</td><td style="color:#777;">{r['GC']}</td>
                         <td style="background:rgba(255,255,255,0.05); font-weight:bold;">{r['DG']}</td>
                     </tr>"""
                 st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
-        idx_tab += 1
+            else:
+                st.info("La tabla se generará cuando inicie la fase de grupos.")
 
-    # --- B. JORNADAS ---
-    for j_actual in jornadas_unicas:
-        with tabs[idx_tab]:
-            df_j = df_partidos[df_partidos['jornada'] == j_actual]
-            if df_j.empty: st.info("Sin partidos."); continue
+        # --- 2. FASES KO (Octavos, Cuartos...) ---
+        # Iteramos sobre el resto de pestañas creadas
+        for i in range(1, len(titulos_sub)):
+            nombre_fase = titulos_sub[i]
+            with sub_tabs_class[i]:
+                # Filtramos partidos de esta fase específica
+                df_fase = df_playoff[df_playoff['jornada'] == nombre_fase]
+                
+                if df_fase.empty:
+                    # CASO: Pestaña "Octavos" forzada pero sin partidos aún
+                    st.markdown(f"""
+                        <div style="text-align:center; padding: 40px; color: #666;">
+                            <h4>🔒 Fase Bloqueada</h4>
+                            <p>Los cruces de <b>{nombre_fase}</b> se definirán al terminar la fase anterior.</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                     # Tag to suggest UI improvement later
+                else:
+                    # CASO: Hay partidos (Bracket visual)
+                    for _, row in df_fase.iterrows():
+                        txt_score = "VS"
+                        if row['estado'] == 'Finalizado':
+                            txt_score = f"{int(row['goles_l'])}-{int(row['goles_v'])}"
+                            if row['penales_l'] is not None:
+                                txt_score += f" ({int(row['penales_l'])}-{int(row['penales_v'])})"
+                        
+                        u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
+                        u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
+                        
+                        st.image(generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_score, t_color), use_container_width=True)
+
+    # ============================================================
+    # TAB B: PARTIDOS (CALENDARIO COMPLETO)
+    # ============================================================
+    with main_tabs[1]:
+        if df.empty:
+            st.info("Sin partidos programados.")
+        else:
+            jornadas_todas = sorted(df['jornada'].unique(), key=sorter_fases)
+            tabs_jornadas = st.tabs([str(j) for j in jornadas_todas])
             
-            for _, row in df_j.iterrows():
-                txt_m = f"{int(row['goles_l'])} - {int(row['goles_v'])}" if row['estado'] == 'Finalizado' else "VS"
-                u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
-                u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
+            for i, j_actual in enumerate(jornadas_todas):
+                with tabs_jornadas[i]:
+                    df_j = df[df['jornada'] == j_actual]
+                    for _, row in df_j.iterrows():
+                        txt_m = "VS"
+                        if row['estado'] == 'Finalizado':
+                            txt_m = f"{int(row['goles_l'])}-{int(row['goles_v'])}"
+                            if row['penales_l'] is not None:
+                                txt_m += f" ({int(row['penales_l'])}-{int(row['penales_v'])})"
+                        
+                        u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
+                        u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
 
-                img_partido = generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_m, t_color)
-                st.image(img_partido, use_container_width=True)
-        idx_tab += 1
-
+                        st.image(generar_tarjeta_imagen(row['local'], row['visitante'], u_l, u_v, txt_m, t_color), use_container_width=True)
 
 
 
@@ -2600,6 +2614,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
