@@ -1069,10 +1069,24 @@ def generar_tarjeta_cruce_html(local, visita, escudo_l, escudo_v, goles_l, goles
  # ==============================================================================
 
 
-# Cache para no descargar el mismo escudo 100 veces
+# --- 1. CONFIGURACIÓN DE FUENTES (ESTÉTICA PRO) ---
+# Intentamos cargar una fuente Google (Oswald) para que se vea deportivo. 
+# Si falla, usa la por defecto.
+@st.cache_resource
+def cargar_fuente(size):
+    try:
+        # URL directa a una fuente .ttf (Ej: Oswald Bold)
+        url_font = "https://github.com/google/fonts/raw/main/ofl/oswald/Oswald-Bold.ttf"
+        r = requests.get(url_font, timeout=2)
+        return ImageFont.truetype(BytesIO(r.content), size)
+    except:
+        return ImageFont.load_default()
+
+# Cache para escudos
 @st.cache_data(show_spinner=False)
 def cargar_imagen_desde_url(url):
     try:
+        if not url: return None
         response = requests.get(url, timeout=3)
         img = Image.open(BytesIO(response.content)).convert("RGBA")
         return img
@@ -1081,98 +1095,112 @@ def cargar_imagen_desde_url(url):
 
 def generar_poster_fase(df_fase, nombre_fase, t_color):
     """
-    Genera una IMAGEN vertical única con todos los cruces de esa fase.
-    Estilo: Dark Sports UI.
+    Genera el bracket usando TU PLANTILLA de fondo.
     """
-    # 1. CONFIGURACIÓN DE MEDIDAS
-    ANCHO_CANVAS = 800
-    ALTO_HEADER = 100
-    ALTO_PARTIDO = 140
-    ESPACIO = 20
     
-    num_partidos = len(df_fase)
-    ALTO_TOTAL = ALTO_HEADER + (num_partidos * (ALTO_PARTIDO + ESPACIO)) + ESPACIO
+    # =========================================================================
+    # 📍 ZONA DE CALIBRACIÓN (AJUSTA ESTOS NÚMEROS A TU IMAGEN)
+    # =========================================================================
     
-    # Colores
-    COLOR_FONDO = (18, 18, 18)      # Negro casi puro
-    COLOR_CAJA = (30, 30, 30)       # Gris oscuro
-    COLOR_TEXTO = (255, 255, 255)   # Blanco
-    COLOR_ACCENTO = t_color if t_color else "#00FF00" # Color del torneo
+    # 1. URL DE TU PLANTILLA (Pega aquí el link de Cloudinary)
+    URL_PLANTILLA = "https://res.cloudinary.com/TU_USUARIO/image/upload/v12345/plantilla_16vos.jpg"
     
-    # Crear Lienzo
-    lienzo = Image.new('RGB', (ANCHO_CANVAS, ALTO_TOTAL), COLOR_FONDO)
+    # 2. COORDENADAS (Prueba y error la primera vez)
+    Y_INICIAL = 280      # Píxeles desde arriba donde empieza el PRIMER partido
+    Y_STEP = 160         # Píxeles de distancia entre el centro de un partido y el siguiente
+    
+    # 3. MÁRGENES LATERALES
+    X_ESCUDO_L = 50      # Margen izquierdo para el escudo Local
+    X_NOMBRE_L = 140     # Margen izquierdo para el nombre Local
+    
+    # =========================================================================
+
+    # 1. Cargar el Lienzo (Tu Plantilla)
+    lienzo = cargar_imagen_desde_url(URL_PLANTILLA)
+    if not lienzo:
+        return None # O retorna una imagen negra de error
+    
+    ancho_total, alto_total = lienzo.size
     draw = ImageDraw.Draw(lienzo)
     
-    # 2. DIBUJAR HEADER
-    draw.rectangle([(0, 0), (ANCHO_CANVAS, ALTO_HEADER)], fill=COLOR_CAJA)
-    # Borde inferior del header
-    draw.line([(0, ALTO_HEADER), (ANCHO_CANVAS, ALTO_HEADER)], fill=COLOR_ACCENTO, width=4)
-    
-    # Texto Header (Simulado centrado)
-    # Nota: Sin fuentes externas, PIL usa una fuente default pequeña. 
-    # Para producción idealmente cargarías una .ttf, pero esto funciona nativo.
-    draw.text((30, 30), f"FASE: {nombre_fase.upper()}", fill=COLOR_ACCENTO, font_size=40)
+    # Cargar Fuentes
+    font_equipos = cargar_fuente(24)  # Tamaño nombre equipos
+    font_score = cargar_fuente(36)    # Tamaño marcador
+    font_header = cargar_fuente(50)   # Tamaño título fase (opcional si la imagen ya lo tiene)
 
-    # 3. DIBUJAR PARTIDOS
-    y_actual = ALTO_HEADER + ESPACIO
-    
-    for _, row in df_fase.iterrows():
-        # Coordenadas de la caja del partido
-        caja_coords = [(ESPACIO, y_actual), (ANCHO_CANVAS - ESPACIO, y_actual + ALTO_PARTIDO)]
-        draw.rounded_rectangle(caja_coords, radius=10, fill=COLOR_CAJA, outline="#333333", width=2)
+    # (Opcional) Si tu plantilla NO tiene el título "16VOS" escrito, descomenta esto:
+    # draw.text((ancho_total//2 - 100, 50), nombre_fase.upper(), fill="white", font=font_header)
+
+    # 2. Iterar Partidos y Pegar Datos
+    # Usamos enumerate para saber en qué renglón vamos (0, 1, 2...)
+    for i, row in enumerate(df_fase.itertuples()):
+        
+        # Calcular la altura Y para ESTE partido específico
+        y_centro = Y_INICIAL + (i * Y_STEP)
         
         # Datos
-        local = row['local']
-        visita = row['visitante']
-        estado = row['estado']
+        local = row.local
+        visita = row.visitante
+        estado = row.estado
+        escudo_l_url = row.escudo_l
+        escudo_v_url = row.escudo_v
         
-        # Escudos (Descargar y Redimensionar)
-        size_escudo = (80, 80)
-        y_escudo = y_actual + (ALTO_PARTIDO - 80) // 2
+        # --- A. ESCUDOS ---
+        size_escudo = (60, 60) # Tamaño al que redimensionamos los escudos
+        offset_escudo_y = y_centro - (size_escudo[1] // 2) # Centrado verticalmente
         
-        # Escudo Local
-        img_l = cargar_imagen_desde_url(row['escudo_l'])
+        # Local (Izquierda)
+        img_l = cargar_imagen_desde_url(escudo_l_url)
         if img_l:
             img_l = img_l.resize(size_escudo)
-            lienzo.paste(img_l, (ESPACIO + 20, y_escudo), img_l)
+            lienzo.paste(img_l, (X_ESCUDO_L, offset_escudo_y), img_l)
             
-        # Escudo Visita
-        img_v = cargar_imagen_desde_url(row['escudo_v'])
+        # Visitante (Derecha - Espejo)
+        # Calculamos la X restando desde el ancho total
+        img_v = cargar_imagen_desde_url(escudo_v_url)
         if img_v:
             img_v = img_v.resize(size_escudo)
-            lienzo.paste(img_v, (ANCHO_CANVAS - ESPACIO - 20 - 80, y_escudo), img_v)
-            
-        # Nombres de Equipos
-        # Local
-        draw.text((ESPACIO + 120, y_actual + 55), local[:15], fill=COLOR_TEXTO, font_size=25)
-        # Visita (Alineado a derecha aprox)
-        text_w_v = len(visita[:15]) * 15 # Calculo aproximado px
-        draw.text((ANCHO_CANVAS - ESPACIO - 120 - text_w_v, y_actual + 55), visita[:15], fill=COLOR_TEXTO, font_size=25)
+            x_escudo_v = ancho_total - X_ESCUDO_L - size_escudo[0]
+            lienzo.paste(img_v, (x_escudo_v, offset_escudo_y), img_v)
 
-        # MARCADOR CENTRAL
-        if estado == 'Finalizado':
-            gl = int(row['goles_l'])
-            gv = int(row['goles_v'])
-            txt_score = f"{gl}  -  {gv}"
-            
-            # Dibujar fondo del score
-            score_w = 160
-            score_x = (ANCHO_CANVAS - score_w) // 2
-            draw.rectangle([(score_x, y_actual + 40), (score_x + score_w, y_actual + 100)], fill="#000000")
-            draw.text((score_x + 50, y_actual + 50), txt_score, fill=COLOR_ACCENTO, font_size=35)
-            
-            # Indicador de Penales
-            if row['penales_l'] is not None:
-                txt_pen = f"({int(row['penales_l'])} - {int(row['penales_v'])})"
-                draw.text((score_x + 45, y_actual + 105), txt_pen, fill="#888888", font_size=15)
-                
-        else:
-            # VS
-            draw.text(((ANCHO_CANVAS // 2) - 15, y_actual + 55), "VS", fill="#555555", font_size=30)
-
-        # Avanzar Y
-        y_actual += ALTO_PARTIDO + ESPACIO
+        # --- B. NOMBRES ---
+        # Color del texto (Blanco o Dorado si es el t_color)
+        color_txt = (255, 255, 255)
         
+        # Local
+        # Ajustamos un poco la Y para centrar el texto con la fuente
+        draw.text((X_NOMBRE_L, y_centro - 15), local[:15], fill=color_txt, font=font_equipos)
+        
+        # Visitante (Alineado a la derecha)
+        # Hack para calcular ancho del texto y alinear a la derecha
+        bbox = draw.textbbox((0, 0), visita[:15], font=font_equipos)
+        ancho_txt_v = bbox[2] - bbox[0]
+        x_nombre_v = ancho_total - X_NOMBRE_L - ancho_txt_v
+        draw.text((x_nombre_v, y_centro - 15), visita[:15], fill=color_txt, font=font_equipos)
+
+        # --- C. MARCADOR CENTRAL / VS ---
+        texto_centro = "VS"
+        color_centro = (200, 200, 200) # Gris plata
+        
+        if estado == 'Finalizado':
+            texto_centro = f"{int(row.goles_l)} - {int(row.goles_v)}"
+            color_centro = t_color if t_color else "#00FF00" # Resaltado
+            
+            # (Opcional) Penales pequeños debajo
+            if row.penales_l is not None:
+                txt_pen = f"({int(row.penales_l)}-{int(row.penales_v)})"
+                font_pen = cargar_fuente(14)
+                bbox_pen = draw.textbbox((0, 0), txt_pen, font=font_pen)
+                x_pen = (ancho_total - (bbox_pen[2] - bbox_pen[0])) // 2
+                draw.text((x_pen, y_centro + 20), txt_pen, fill="#AAAAAA", font=font_pen)
+
+        # Centrar el VS o el Score
+        bbox_cen = draw.textbbox((0, 0), texto_centro, font=font_score)
+        ancho_cen = bbox_cen[2] - bbox_cen[0]
+        x_cen = (ancho_total - ancho_cen) // 2
+        
+        draw.text((x_cen, y_centro - 20), texto_centro, fill=color_centro, font=font_score)
+
     return lienzo
 
 
@@ -2786,6 +2814,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
