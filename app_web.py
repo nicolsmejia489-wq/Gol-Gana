@@ -1557,6 +1557,67 @@ def render_torneo(id_torneo):
             if k in st.session_state: del st.session_state[k]
         st.query_params.clear(); st.rerun()
 
+
+    # =========================================================================
+    # 🧱 BARRA LATERAL (SIDEBAR): NAVEGACIÓN Y ACCESO
+    # =========================================================================
+    with st.sidebar:
+        st.image("https://cdn-icons-png.flaticon.com/512/2643/2643483.png", width=50) # Un icono de copa o tu logo
+        st.write(f"**{t_nombre}**")
+        st.divider()
+
+        # 1. BOTÓN VOLVER AL LOBBY
+        if st.button("🏠 Volver al Lobby", use_container_width=True, type="secondary"):
+            st.query_params.clear()
+            st.rerun()
+        
+        # 2. ZONA DE LOGIN (Solo visible si soy Espectador)
+        if rol_actual == "Espectador":
+            st.divider()
+            st.markdown("##### 🔐 Acceso")
+            st.caption("Admin o DT, ingresa tu PIN aquí:")
+            
+            # Input del PIN
+            pin_sidebar = st.text_input("PIN", type="password", label_visibility="collapsed", placeholder="****", key="pin_login_sidebar")
+            
+            # Botón de Entrar
+            if st.button("Entrar", key="btn_login_sidebar", type="primary", use_container_width=True):
+                if pin_sidebar:
+                    # Usamos la misma función validar_acceso que ya tienes
+                    acc = validar_acceso(id_torneo, pin_sidebar)
+                    
+                    # CASO 1: Login Exitoso
+                    if isinstance(acc, dict):
+                        st.session_state.update(acc)
+                        st.toast(f"¡Bienvenido, {acc.get('nombre_usuario', 'Crack')}!", icon="✅")
+                        time.sleep(1)
+                        st.rerun()
+                    
+                    # CASO 2: Pendiente
+                    elif acc == "PENDIENTE":
+                        st.warning("⏳ Tu equipo espera aprobación del Admin.")
+                    
+                    # CASO 3: Error
+                    else:
+                        st.error("🚫 PIN incorrecto.")
+                else:
+                    st.warning("Escribe el PIN primero.")
+
+        # 3. ZONA DE USUARIO LOGUEADO (Opcional: Para salir)
+        else:
+            st.divider()
+            st.info(f"👤 Rol: **{rol_actual}**")
+            if st.button("Cerrar Sesión", key="btn_logout_sidebar", use_container_width=True):
+                st.session_state.clear()
+                st.rerun()
+
+
+
+
+    
+
+
+    
     # Títulos
     st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
     
@@ -2616,6 +2677,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
