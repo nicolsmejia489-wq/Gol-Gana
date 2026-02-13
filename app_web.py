@@ -1033,12 +1033,13 @@ def generar_tarjeta_cruce_html(local, visita, escudo_l, escudo_v, goles_l, goles
         margin-bottom: 10px; 
         padding: 8px; 
         border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         font-family: 'Oswald', sans-serif;">
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;" class="{clase_l}">
             <div style="display: flex; align-items: center;">
                 <img src="{escudo_l}" style="width: 20px; height: 20px; object-fit: contain; margin-right: 8px;">
-                <span style="color: white; font-size: 14px; { 'font-weight:bold; color:'+t_color if clase_l else '' }">{local}</span>
+                <span style="color: white; font-size: 14px; { 'font-weight:bold; color:'+t_color if clase_l == 'winner' else '' }">{local}</span>
             </div>
             <span style="color: white; font-weight: bold;">{int(goles_l) if estado=='Finalizado' else ''}</span>
         </div>
@@ -1046,17 +1047,18 @@ def generar_tarjeta_cruce_html(local, visita, escudo_l, escudo_v, goles_l, goles
         <div style="display: flex; justify-content: space-between; align-items: center;" class="{clase_v}">
             <div style="display: flex; align-items: center;">
                 <img src="{escudo_v}" style="width: 20px; height: 20px; object-fit: contain; margin-right: 8px;">
-                <span style="color: white; font-size: 14px; { 'font-weight:bold; color:'+t_color if clase_v else '' }">{visita}</span>
+                <span style="color: white; font-size: 14px; { 'font-weight:bold; color:'+t_color if clase_v == 'winner' else '' }">{visita}</span>
             </div>
             <span style="color: white; font-weight: bold;">{int(goles_v) if estado=='Finalizado' else ''}</span>
         </div>
         
-        <div style="text-align: right; font-size: 10px; color: #666; margin-top: 4px; border-top: 1px solid #333; padding-top: 2px;">
-            { 'Finalizado' + (f' (Pen: {int(penales_l)}-{int(penales_v)})' if penales_l is not None else '') if estado == 'Finalizado' else 'Programado' }
+        <div style="text-align: right; font-size: 10px; color: #888; margin-top: 4px; border-top: 1px solid #444; padding-top: 2px;">
+            {score_display if estado == 'Finalizado' else 'Programado'}
         </div>
     </div>
     """
-    return html
+    
+    return html  # <--- ¡OJO! SIN COMA AQUÍ. Solo 'return html'
 
 
 
@@ -2683,6 +2685,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
