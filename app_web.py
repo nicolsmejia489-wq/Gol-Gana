@@ -1094,112 +1094,114 @@ def cargar_imagen_desde_url(url):
         return None
 
 def generar_poster_fase(df_fase, nombre_fase, t_color):
-    """
-    Genera el bracket usando TU PLANTILLA de fondo.
-    """
-    
     # =========================================================================
-    # 📍 ZONA DE CALIBRACIÓN (AJUSTA ESTOS NÚMEROS A TU IMAGEN)
+    # 📍 ZONA DE CALIBRACIÓN (AJUSTE FINO)
     # =========================================================================
     
-    # 1. URL DE TU PLANTILLA (Pega aquí el link de Cloudinary)
+    # URL DE TU PLANTILLA LIMPIA (La azul con dorado sin textos)
     URL_PLANTILLA = "https://res.cloudinary.com/dlvczeqlp/image/upload/v1771018977/Gemini_Generated_Image_g39ldqg39ldqg39l_cvm9ya.png"
     
-    # 2. COORDENADAS (Prueba y error la primera vez)
-    Y_INICIAL = 280      # Píxeles desde arriba donde empieza el PRIMER partido
-    Y_STEP = 160         # Píxeles de distancia entre el centro de un partido y el siguiente
+    # 1. COORDENADAS VERTICALES (Eje Y)
+    # ¿A qué altura (px) empieza la PRIMERA cajita de arriba del todo?
+    Y_INICIO_PRIMER_MATCH = 220  
     
-    # 3. MÁRGENES LATERALES
-    X_ESCUDO_L = 50      # Margen izquierdo para el escudo Local
-    X_NOMBRE_L = 140     # Margen izquierdo para el nombre Local
+    # ¿Cuántos píxeles hay de distancia entre el inicio de un partido y el siguiente?
+    # Mide desde la cajita superior del partido 1 a la cajita superior del partido 2
+    Y_STEP_ENTRE_MATCHES = 135   
+    
+    # ¿Cuántos píxeles separan al Local (arriba) del Visitante (abajo) en la misma llave?
+    Y_OFFSET_VISITANTE = 50      
+    
+    # 2. COORDENADAS HORIZONTALES (Eje X)
+    # LADO IZQUIERDO
+    X_L_ESCUDO = 60      # Donde va el escudo (cerca del borde izq)
+    X_L_TEXTO = 130      # Donde empieza el nombre del equipo
+    
+    # LADO DERECHO (Espejo)
+    # ¿A qué distancia del borde DERECHO empieza el escudo?
+    X_R_MARGIN_ESCUDO = 60 
+    X_R_MARGIN_TEXTO = 130 
     
     # =========================================================================
 
-    # 1. Cargar el Lienzo (Tu Plantilla)
     lienzo = cargar_imagen_desde_url(URL_PLANTILLA)
-    if not lienzo:
-        return None # O retorna una imagen negra de error
+    if not lienzo: return None 
     
-    ancho_total, alto_total = lienzo.size
+    W, H = lienzo.size
     draw = ImageDraw.Draw(lienzo)
+    font_equipos = cargar_fuente(22) # Ajusta tamaño fuente aquí
+    font_vs = cargar_fuente(18)
     
-    # Cargar Fuentes
-    font_equipos = cargar_fuente(24)  # Tamaño nombre equipos
-    font_score = cargar_fuente(36)    # Tamaño marcador
-    font_header = cargar_fuente(50)   # Tamaño título fase (opcional si la imagen ya lo tiene)
+    # Tamaño de los escudos (pequeños para que quepan en las barras)
+    SIZE = (35, 35)
 
-    # (Opcional) Si tu plantilla NO tiene el título "16VOS" escrito, descomenta esto:
-    # draw.text((ancho_total//2 - 100, 50), nombre_fase.upper(), fill="white", font=font_header)
-
-    # 2. Iterar Partidos y Pegar Datos
-    # Usamos enumerate para saber en qué renglón vamos (0, 1, 2...)
-    for i, row in enumerate(df_fase.itertuples()):
+    # Convertimos el DataFrame a lista para manejarlo por índices
+    partidos = list(df_fase.itertuples())
+    
+    # Dividimos: 8 partidos a la Izquierda, 8 a la Derecha
+    mitad = 8
+    
+    # --- BUCLE PRINCIPAL ---
+    for i in range(len(partidos)):
+        row = partidos[i]
         
-        # Calcular la altura Y para ESTE partido específico
-        y_centro = Y_INICIAL + (i * Y_STEP)
+        # Determinar si va a la Izquierda o Derecha
+        es_derecha = i >= mitad
+        
+        # Índice relativo (0 a 7) para calcular la altura Y
+        idx_relativo = i - mitad if es_derecha else i
+        
+        # CALCULO DE LA POSICIÓN Y (Vertical)
+        # Base del partido
+        y_base = Y_INICIO_PRIMER_MATCH + (idx_relativo * Y_STEP_ENTRE_MATCHES)
+        y_local = y_base
+        y_visita = y_base + Y_OFFSET_VISITANTE
         
         # Datos
-        local = row.local
-        visita = row.visitante
-        estado = row.estado
-        escudo_l_url = row.escudo_l
-        escudo_v_url = row.escudo_v
+        n_local = str(row.local)[:14] # Recortar nombres largos
+        n_visita = str(row.visitante)[:14]
+        img_l = cargar_imagen_desde_url(row.escudo_l)
+        img_v = cargar_imagen_desde_url(row.escudo_v)
         
-        # --- A. ESCUDOS ---
-        size_escudo = (60, 60) # Tamaño al que redimensionamos los escudos
-        offset_escudo_y = y_centro - (size_escudo[1] // 2) # Centrado verticalmente
-        
-        # Local (Izquierda)
-        img_l = cargar_imagen_desde_url(escudo_l_url)
-        if img_l:
-            img_l = img_l.resize(size_escudo)
-            lienzo.paste(img_l, (X_ESCUDO_L, offset_escudo_y), img_l)
+        # --- DIBUJAR LADO IZQUIERDO ---
+        if not es_derecha:
+            # 1. LOCAL (Arriba en la llave)
+            if img_l:
+                img_l = img_l.resize(SIZE)
+                lienzo.paste(img_l, (X_L_ESCUDO, y_local), img_l)
+            draw.text((X_L_TEXTO, y_local), n_local, fill="white", font=font_equipos, anchor="lm")
             
-        # Visitante (Derecha - Espejo)
-        # Calculamos la X restando desde el ancho total
-        img_v = cargar_imagen_desde_url(escudo_v_url)
-        if img_v:
-            img_v = img_v.resize(size_escudo)
-            x_escudo_v = ancho_total - X_ESCUDO_L - size_escudo[0]
-            lienzo.paste(img_v, (x_escudo_v, offset_escudo_y), img_v)
-
-        # --- B. NOMBRES ---
-        # Color del texto (Blanco o Dorado si es el t_color)
-        color_txt = (255, 255, 255)
-        
-        # Local
-        # Ajustamos un poco la Y para centrar el texto con la fuente
-        draw.text((X_NOMBRE_L, y_centro - 15), local[:15], fill=color_txt, font=font_equipos)
-        
-        # Visitante (Alineado a la derecha)
-        # Hack para calcular ancho del texto y alinear a la derecha
-        bbox = draw.textbbox((0, 0), visita[:15], font=font_equipos)
-        ancho_txt_v = bbox[2] - bbox[0]
-        x_nombre_v = ancho_total - X_NOMBRE_L - ancho_txt_v
-        draw.text((x_nombre_v, y_centro - 15), visita[:15], fill=color_txt, font=font_equipos)
-
-        # --- C. MARCADOR CENTRAL / VS ---
-        texto_centro = "VS"
-        color_centro = (200, 200, 200) # Gris plata
-        
-        if estado == 'Finalizado':
-            texto_centro = f"{int(row.goles_l)} - {int(row.goles_v)}"
-            color_centro = t_color if t_color else "#00FF00" # Resaltado
+            # 2. VISITANTE (Abajo en la llave)
+            if img_v:
+                img_v = img_v.resize(SIZE)
+                lienzo.paste(img_v, (X_L_ESCUDO, y_visita), img_v)
+            draw.text((X_L_TEXTO, y_visita), n_visita, fill="white", font=font_equipos, anchor="lm")
             
-            # (Opcional) Penales pequeños debajo
-            if row.penales_l is not None:
-                txt_pen = f"({int(row.penales_l)}-{int(row.penales_v)})"
-                font_pen = cargar_fuente(14)
-                bbox_pen = draw.textbbox((0, 0), txt_pen, font=font_pen)
-                x_pen = (ancho_total - (bbox_pen[2] - bbox_pen[0])) // 2
-                draw.text((x_pen, y_centro + 20), txt_pen, fill="#AAAAAA", font=font_pen)
+        # --- DIBUJAR LADO DERECHO (Espejo) ---
+        else:
+            # En la derecha, el texto se alinea a la derecha (anchor="rm")
+            # Y el escudo va pegado al borde derecho
+            
+            x_escudo_r = W - X_R_MARGIN_ESCUDO - SIZE[0]
+            x_texto_r = W - X_R_MARGIN_TEXTO
+            
+            # 1. LOCAL
+            if img_l:
+                img_l = img_l.resize(SIZE)
+                lienzo.paste(img_l, (x_escudo_r, y_local), img_l)
+            draw.text((x_texto_r, y_local), n_local, fill="white", font=font_equipos, anchor="rm") # Alineado derecha
+            
+            # 2. VISITANTE
+            if img_v:
+                img_v = img_v.resize(SIZE)
+                lienzo.paste(img_v, (x_escudo_r, y_visita), img_v)
+            draw.text((x_texto_r, y_visita), n_visita, fill="white", font=font_equipos, anchor="rm") # Alineado derecha
 
-        # Centrar el VS o el Score
-        bbox_cen = draw.textbbox((0, 0), texto_centro, font=font_score)
-        ancho_cen = bbox_cen[2] - bbox_cen[0]
-        x_cen = (ancho_total - ancho_cen) // 2
-        
-        draw.text((x_cen, y_centro - 20), texto_centro, fill=color_centro, font=font_score)
+        # (Opcional) Dibujar VS o Resultado pequeño en medio de las dos líneas
+        # y_medio = y_base + (Y_OFFSET_VISITANTE // 2)
+        # x_vs = 280 if not es_derecha else W - 280
+        # txt = "VS" if row.estado != 'Finalizado' else f"{int(row.goles_l)}-{int(row.goles_v)}"
+        # draw.text((x_vs, y_medio), txt, fill=t_color, font=font_vs, anchor="mm")
 
     return lienzo
 
@@ -2814,6 +2816,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
