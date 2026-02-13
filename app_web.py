@@ -1013,127 +1013,82 @@ def ejecutar_avance_fase(id_torneo):
 
 
 
-def renderizar_bloque_cruces(match_a, match_b, t_color):
+def generar_bloque_llave(match_a, match_b, t_color):
     """
-    Genera un bloque HTML que agrupa DOS partidos (Llave) con estilo Gamer.
-    match_a y match_b son diccionarios o tuplas con: 
-    (local, visita, esc_l, esc_v, marcador, estado)
+    Toma dos partidos (diccionarios de datos) y genera UNA imagen vertical
+    que los agrupa como una llave de torneo.
+    Usa 'generar_tarjeta_imagen' para crear las partes individuales.
     """
+    # 1. GENERAR IMÁGENES INDIVIDUALES
+    # Match A (Arriba)
+    img_a = generar_tarjeta_imagen(
+        match_a['local'], match_a['visitante'], 
+        match_a['escudo_l'], match_a['escudo_v'], 
+        match_a['marcador'], t_color
+    )
     
-    # ---------------------------------------------------------
-    # 1. FUNCIÓN INTERNA PARA RENDERIZAR UNA FILA (PARTIDO)
-    # ---------------------------------------------------------
-    def render_row(m):
-        if not m: return "" # Por si viene vacío
-        
-        # Desempaquetar datos
-        # Asumimos que 'm' viene con: [local, visita, esc_l, esc_v, score_txt, estado]
-        loc, vis, el, ev, score, estado = m
-        
-        # Lógica de Ganador (Color del texto)
-        color_l = "#FFF"
-        color_v = "#FFF"
-        
-        # Pequeño análisis de marcador para resaltar ganador
-        if estado == 'Finalizado' and '-' in score:
-            try:
-                puntos = score.split('-') # ej "3 - 1" o "3(5) - 3(4)"
-                # Limpieza básica para comparar números
-                sl = float(puntos[0].split('(')[0])
-                sv = float(puntos[1].split('(')[0])
-                # Ajuste por penales si existen en el string (lógica simple visual)
-                if '(' in score:
-                    # Si hay penales, asumimos que el texto ya dice quién ganó o lo dejamos neutro
-                    pass 
-                else:
-                    if sl > sv: color_l = t_color; color_v = "#888"
-                    elif sv > sl: color_v = t_color; color_l = "#888"
-            except: pass
-
-        # Escudos
-        def img_tag(url):
-            if url and len(str(url)) > 5:
-                return f'<img src="{url}" style="width: 35px; height: 35px; object-fit: contain;">'
-            return '<span style="font-size:25px;">🛡️</span>'
-
-        # HTML de la Fila (Más compacto que la tarjeta original)
-        return f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 5px;">
-            <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-                <span style="font-weight: 700; font-size: 14px; color: {color_l}; text-align: right; line-height: 1.1;">{loc}</span>
-                {img_tag(el)}
-            </div>
-
-            <div style="width: 80px; text-align: center;">
-                <div style="
-                    font-size: 18px; font-weight: 700; color: #fff;
-                    background: rgba(0,0,0,0.4); border-radius: 4px; padding: 2px 0; margin: 0 5px;
-                    border: 1px solid #333;
-                ">
-                    {score}
-                </div>
-            </div>
-
-            <div style="flex: 1; display: flex; align-items: center; justify-content: flex-start; gap: 8px;">
-                {img_tag(ev)}
-                <span style="font-weight: 700; font-size: 14px; color: {color_v}; text-align: left; line-height: 1.1;">{vis}</span>
-            </div>
-        </div>
-        """
-
-    # ---------------------------------------------------------
-    # 2. CONSTRUCCIÓN DEL BLOQUE MAESTRO
-    # ---------------------------------------------------------
-    row_a_html = render_row(match_a)
-    row_b_html = render_row(match_b) if match_b else "" # Puede no haber 2do partido si es impar
-    
-    # El conector solo aparece si hay dos partidos
-    conector_html = ""
+    # Match B (Abajo) - Puede ser None si es impar
+    img_b = None
     if match_b:
-        conector_html = f"""
-        <div style="
-            display: flex; align-items: center; justify-content: center;
-            margin: -5px 0; position: relative; z-index: 2;
-        ">
-            <div style="
-                background: {t_color}; color: #000; font-size: 10px; font-weight: 900;
-                padding: 2px 8px; border-radius: 10px; border: 1px solid #fff;
-                box-shadow: 0 0 5px {t_color}; letter-spacing: 1px;
-            ">
-                CRUCE
-            </div>
-        </div>
-        <div style="border-top: 1px dashed rgba(255,255,255,0.1); margin-top: -10px; margin-bottom: 5px;"></div>
-        """
-
-    # HTML FINAL DEL CONTENEDOR
-    html_block = f"""
-    <div style="
-        background: linear-gradient(180deg, rgba(35,35,40,0.95) 0%, rgba(20,20,25,0.98) 100%);
-        border: 1px solid {t_color}60; /* Color torneo con transparencia */
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        margin-bottom: 15px;
-        overflow: hidden;
-        font-family: 'Oswald', sans-serif;
-    ">
-        <div style="background: rgba(255,255,255,0.02);">{row_a_html}</div>
-        
-        {conector_html}
-        
-        <div>{row_b_html}</div>
-        
-        <div style="
-            background: {t_color}20; 
-            font-size: 9px; text-align: center; color: #aaa; padding: 2px;
-            border-top: 1px solid rgba(255,255,255,0.05);
-        ">
-            GANADORES SE ENFRENTAN EN LA SIGUIENTE RONDA
-        </div>
-    </div>
-    """
+        img_b = generar_tarjeta_imagen(
+            match_b['local'], match_b['visitante'], 
+            match_b['escudo_l'], match_b['escudo_v'], 
+            match_b['marcador'], t_color
+        )
     
-    return html_block
+    # 2. CREAR LIENZO VERTICAL
+    # Medidas
+    W, H_CARD = img_a.size
+    ESPACIO_CONECTOR = 40 if img_b else 0
+    H_TOTAL = H_CARD + (H_CARD if img_b else 0) + ESPACIO_CONECTOR
+    
+    # Fondo transparente o gris muy oscuro
+    lienzo = Image.new("RGBA", (W, H_TOTAL), (0,0,0,0))
+    draw = ImageDraw.Draw(lienzo)
+    
+    # 3. PEGAR IMÁGENES
+    # Pegar A
+    lienzo.paste(img_a, (0, 0))
+    
+    if img_b:
+        # Pegar B
+        y_b = H_CARD + ESPACIO_CONECTOR
+        lienzo.paste(img_b, (0, y_b))
+        
+        # 4. DIBUJAR CONECTOR (Líneas y Texto "VS")
+        # Color del torneo
+        try:
+            rgb_color = tuple(int(t_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+        except:
+            rgb_color = (255, 255, 255)
+            
+        # Línea vertical de unión
+        # Desde el centro de A hasta el centro de B
+        # x_linea = 40 # Una línea sutil a la izquierda o derecha? O mejor en el centro?
+        # Vamos a hacer algo simple: Una llave tipo "Bracket" a los lados
+        
+        # Coordenadas
+        y_fin_a = H_CARD
+        y_ini_b = y_b
+        y_mid = y_fin_a + (ESPACIO_CONECTOR // 2)
+        
+        # Dibujar línea pequeña vertical conectora
+        # draw.line([(W//2, y_fin_a), (W//2, y_ini_b)], fill=rgb_color, width=2)
+        
+        # Dibujar cajita "SE CRUZAN"
+        # draw.rectangle([(W//2 - 60, y_mid - 10), (W//2 + 60, y_mid + 10)], fill=(20,20,20), outline=rgb_color)
+        
+        # Texto simple "SE CRUZAN"
+        # Como no tenemos fuentes cargadas aquí fácil, usamos un truco visual simple
+        # Dibujamos un rombo o círculo pequeño en el medio
+        r = 6
+        draw.ellipse([(W//2 - r, y_mid - r), (W//2 + r, y_mid + r)], fill=rgb_color)
+        
+        # Líneas horizontales decorativas hacia el centro
+        draw.line([(W//2 - 50, y_mid), (W//2 - 10, y_mid)], fill=rgb_color, width=1)
+        draw.line([(W//2 + 10, y_mid), (W//2 + 50, y_mid)], fill=rgb_color, width=1)
+
+    return lienzo
 
 
 
@@ -1310,46 +1265,45 @@ def contenido_pestana_torneo(id_torneo, t_color):
                         </div>
                     """, unsafe_allow_html=True)
                 else:
-                    # CASO: Hay partidos -> MOSTRAR LISTA DE LLAVES (Bloques HTML)
-                    # Convertimos a lista para iterar fácilmente
+                    # CASO: Hay partidos -> MOSTRAR LISTA DE LLAVES (IMÁGENES GENERADAS)
                     partidos = list(df_fase.itertuples())
                     
-                    # Iteramos de 2 en 2 para agrupar en llaves (Partido A vs Partido B)
+                    # Iteramos de 2 en 2
                     for i in range(0, len(partidos), 2):
                         
-                        # --- PREPARAR PARTIDO A (Superior) ---
+                        # --- PREPARAR DATOS PARTIDO A ---
                         row_a = partidos[i]
                         score_a = "VS"
                         if row_a.estado == 'Finalizado':
                             score_a = f"{int(row_a.goles_l)} - {int(row_a.goles_v)}"
-                            # Añadir penales si existen
-                            if row_a.penales_l is not None:
-                                score_a += f" ({int(row_a.penales_l)}-{int(row_a.penales_v)})"
+                            if row_a.penales_l is not None: score_a += f"({int(row_a.penales_l)})"
                         
-                        # Empaquetamos datos para la función [local, visita, esc_l, esc_v, marcador, estado]
-                        # Usamos getattr por seguridad si algún campo es nulo
-                        u_l_a = getattr(row_a, 'escudo_l', None)
-                        u_v_a = getattr(row_a, 'escudo_v', None)
-                        data_a = [row_a.local, row_a.visitante, u_l_a, u_v_a, score_a, row_a.estado]
+                        dict_a = {
+                            'local': row_a.local, 'visitante': row_a.visitante,
+                            'escudo_l': row_a.escudo_l, 'escudo_v': row_a.escudo_v,
+                            'marcador': score_a
+                        }
                         
-                        # --- PREPARAR PARTIDO B (Inferior - Si existe par) ---
-                        data_b = None
+                        # --- PREPARAR DATOS PARTIDO B ---
+                        dict_b = None
                         if i + 1 < len(partidos):
                             row_b = partidos[i+1]
                             score_b = "VS"
                             if row_b.estado == 'Finalizado':
                                 score_b = f"{int(row_b.goles_l)} - {int(row_b.goles_v)}"
-                                if row_b.penales_l is not None:
-                                    score_b += f" ({int(row_b.penales_l)}-{int(row_b.penales_v)})"
+                                if row_b.penales_l is not None: score_b += f"({int(row_b.penales_l)})"
                             
-                            u_l_b = getattr(row_b, 'escudo_l', None)
-                            u_v_b = getattr(row_b, 'escudo_v', None)
-                            data_b = [row_b.local, row_b.visitante, u_l_b, u_v_b, score_b, row_b.estado]
+                            dict_b = {
+                                'local': row_b.local, 'visitante': row_b.visitante,
+                                'escudo_l': row_b.escudo_l, 'escudo_v': row_b.escudo_v,
+                                'marcador': score_b
+                            }
 
-                        # --- RENDERIZAR EL BLOQUE COMPLETO ---
-                        # Llamamos a tu nueva función renderizar_bloque_cruces
-                        html_cruce = renderizar_bloque_cruces(data_a, data_b, t_color)
-                        st.markdown(html_cruce, unsafe_allow_html=True)
+                        # --- GENERAR Y MOSTRAR LA IMAGEN DE LA LLAVE ---
+                        # Esta función usa tu 'generar_tarjeta_imagen' internamente
+                        img_llave = generar_bloque_llave(dict_a, dict_b, t_color)
+                        
+                        st.image(img_llave, use_container_width=True)
     # ============================================================
     # TAB B: PARTIDOS (CALENDARIO COMPLETO)
     # ============================================================
@@ -1379,89 +1333,12 @@ def contenido_pestana_torneo(id_torneo, t_color):
 
 
 
-       ##  ESTETICA DE PARTIDOS - RENDERIZAR 
- # =========================================================
 
-def renderizar_tarjeta_partido(local, visita, escudo_l, escudo_v, marcador_texto, color_tema, url_fondo):
-    """
-    Genera el HTML de la tarjeta con estilo Gamer/Elegante y Fondo Texturizado.
-    """
-    # 1. Configuración de Bordes y Brillo (Lógica de Ganador)
-    border_style = f"1px solid rgba(255,255,255,0.1)"
-    box_shadow = "none"
-    
-    # Detectar ganador para iluminar borde
-    try:
-        if "-" in marcador_texto and marcador_texto != "VS":
-            parts = marcador_texto.split('-')
-            g_l = int(parts[0])
-            g_v = int(parts[1])
-            if g_l != g_v or (g_l == g_v and g_l > -1): 
-                border_style = f"1px solid {color_tema}"
-                box_shadow = f"0 0 10px {color_tema}40" # Glow
-    except:
-        pass
-
-    # 2. Manejo de Escudos (Imagen vs Emoji)
-    def render_img(url):
-        if url and len(str(url)) > 5: # Si hay URL válida
-            return f'<img src="{url}" style="width: 45px; height: 45px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));">'
-        else: # Si es None o vacío -> Emoji
-            return '<span style="font-size:30px; line-height:1;">🛡️</span>'
-
-    html_l = render_img(escudo_l)
-    html_v = render_img(escudo_v)
-
-    # 3. HTML (Estructura idéntica a la que funcionaba)
-    html_code = f"""
-    <div style="
-        position: relative;
-        background: linear-gradient(180deg, rgba(30,30,35,0.95) 0%, rgba(15,15,20,0.98) 100%);
-        border-radius: 12px;
-        border: {border_style};
-        box-shadow: {box_shadow};
-        padding: 15px;
-        margin-bottom: 12px;
-        overflow: hidden;
-        font-family: 'Oswald', sans-serif;
-    ">
-        <div style="
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background-image: url('{url_fondo}'); 
-            background-size: cover; opacity: 0.05; pointer-events: none; z-index: 0;
-        "></div>
-
-        <div style="display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1;">
-            
-            <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
-                <span style="font-weight: 600; font-size: 15px; color: #fff; text-align: right; line-height: 1.1; text-shadow: 1px 1px 2px black;">{local}</span>
-                {html_l}
-            </div>
-
-            <div style="width: 90px; text-align: center;">
-                <div style="
-                    font-size: 24px; font-weight: 700; color: #fff; letter-spacing: 1px;
-                    background: rgba(0,0,0,0.3); border-radius: 6px; padding: 2px 0; margin: 0 5px;
-                ">
-                    {marcador_texto}
-                </div>
-            </div>
-
-            <div style="flex: 1; display: flex; align-items: center; justify-content: flex-start; gap: 10px;">
-                {html_v}
-                <span style="font-weight: 600; font-size: 15px; color: #fff; text-align: left; line-height: 1.1; text-shadow: 1px 1px 2px black;">{visita}</span>
-            </div>
-            
-        </div>
-    </div>
-    """
-    return html_code
-    
 
 
 
 # ---------------------------------------------------------
- #FUNCION DE TARJETAS DE PARTIDOS
+ #FUNCION DE TARJETAS DE PARTIDOS --------- OFICIAL
 # ---------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def generar_tarjeta_imagen(local, visita, url_escudo_l, url_escudo_v, marcador, color_tema):
@@ -2773,6 +2650,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
