@@ -1524,7 +1524,8 @@ def render_torneo(id_torneo):
     # 1. DATOS MAESTROS Y CONFIGURACIÓN VISUAL
     # ---------------------------------------------------------
     try:
-        query = text("SELECT nombre, organizador, color_primario, url_portada, fase, estado FROM torneos WHERE id = :id")
+        # CORRECCIÓN: SOLO PEDIMOS FASE. (Borré 'estado')
+        query = text("SELECT nombre, organizador, color_primario, url_portada, fase FROM torneos WHERE id = :id")
         with conn.connect() as db:
             t = db.execute(query, {"id": id_torneo}).fetchone()
         
@@ -1533,7 +1534,8 @@ def render_torneo(id_torneo):
             if st.button("Volver"): st.rerun()
             return
         
-        t_nombre, t_org, t_color, t_portada, t_fase, t_estado = t
+        # Desempaquetamos exactamente 5 variables
+        t_nombre, t_org, t_color, t_portada, t_fase = t
     
     except Exception as e:
         st.error(f"Error DB: {e}"); return
@@ -2664,6 +2666,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
