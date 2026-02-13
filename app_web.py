@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 import easyocr
 from difflib import SequenceMatcher
-
+from io import BytesIO
 
 
 
@@ -1064,7 +1064,121 @@ def generar_tarjeta_cruce_html(local, visita, escudo_l, escudo_v, goles_l, goles
 
 
 
+  # ==============================================================================
+     ####FUNCION PARA IMAGEN DE CRUCES - EN DESARROLLO
+ # ==============================================================================
 
+
+# Cache para no descargar el mismo escudo 100 veces
+@st.cache_data(show_spinner=False)
+def cargar_imagen_desde_url(url):
+    try:
+        response = requests.get(url, timeout=3)
+        img = Image.open(BytesIO(response.content)).convert("RGBA")
+        return img
+    except:
+        return None
+
+def generar_poster_fase(df_fase, nombre_fase, t_color):
+    """
+    Genera una IMAGEN vertical única con todos los cruces de esa fase.
+    Estilo: Dark Sports UI.
+    """
+    # 1. CONFIGURACIÓN DE MEDIDAS
+    ANCHO_CANVAS = 800
+    ALTO_HEADER = 100
+    ALTO_PARTIDO = 140
+    ESPACIO = 20
+    
+    num_partidos = len(df_fase)
+    ALTO_TOTAL = ALTO_HEADER + (num_partidos * (ALTO_PARTIDO + ESPACIO)) + ESPACIO
+    
+    # Colores
+    COLOR_FONDO = (18, 18, 18)      # Negro casi puro
+    COLOR_CAJA = (30, 30, 30)       # Gris oscuro
+    COLOR_TEXTO = (255, 255, 255)   # Blanco
+    COLOR_ACCENTO = t_color if t_color else "#00FF00" # Color del torneo
+    
+    # Crear Lienzo
+    lienzo = Image.new('RGB', (ANCHO_CANVAS, ALTO_TOTAL), COLOR_FONDO)
+    draw = ImageDraw.Draw(lienzo)
+    
+    # 2. DIBUJAR HEADER
+    draw.rectangle([(0, 0), (ANCHO_CANVAS, ALTO_HEADER)], fill=COLOR_CAJA)
+    # Borde inferior del header
+    draw.line([(0, ALTO_HEADER), (ANCHO_CANVAS, ALTO_HEADER)], fill=COLOR_ACCENTO, width=4)
+    
+    # Texto Header (Simulado centrado)
+    # Nota: Sin fuentes externas, PIL usa una fuente default pequeña. 
+    # Para producción idealmente cargarías una .ttf, pero esto funciona nativo.
+    draw.text((30, 30), f"FASE: {nombre_fase.upper()}", fill=COLOR_ACCENTO, font_size=40)
+
+    # 3. DIBUJAR PARTIDOS
+    y_actual = ALTO_HEADER + ESPACIO
+    
+    for _, row in df_fase.iterrows():
+        # Coordenadas de la caja del partido
+        caja_coords = [(ESPACIO, y_actual), (ANCHO_CANVAS - ESPACIO, y_actual + ALTO_PARTIDO)]
+        draw.rounded_rectangle(caja_coords, radius=10, fill=COLOR_CAJA, outline="#333333", width=2)
+        
+        # Datos
+        local = row['local']
+        visita = row['visitante']
+        estado = row['estado']
+        
+        # Escudos (Descargar y Redimensionar)
+        size_escudo = (80, 80)
+        y_escudo = y_actual + (ALTO_PARTIDO - 80) // 2
+        
+        # Escudo Local
+        img_l = cargar_imagen_desde_url(row['escudo_l'])
+        if img_l:
+            img_l = img_l.resize(size_escudo)
+            lienzo.paste(img_l, (ESPACIO + 20, y_escudo), img_l)
+            
+        # Escudo Visita
+        img_v = cargar_imagen_desde_url(row['escudo_v'])
+        if img_v:
+            img_v = img_v.resize(size_escudo)
+            lienzo.paste(img_v, (ANCHO_CANVAS - ESPACIO - 20 - 80, y_escudo), img_v)
+            
+        # Nombres de Equipos
+        # Local
+        draw.text((ESPACIO + 120, y_actual + 55), local[:15], fill=COLOR_TEXTO, font_size=25)
+        # Visita (Alineado a derecha aprox)
+        text_w_v = len(visita[:15]) * 15 # Calculo aproximado px
+        draw.text((ANCHO_CANVAS - ESPACIO - 120 - text_w_v, y_actual + 55), visita[:15], fill=COLOR_TEXTO, font_size=25)
+
+        # MARCADOR CENTRAL
+        if estado == 'Finalizado':
+            gl = int(row['goles_l'])
+            gv = int(row['goles_v'])
+            txt_score = f"{gl}  -  {gv}"
+            
+            # Dibujar fondo del score
+            score_w = 160
+            score_x = (ANCHO_CANVAS - score_w) // 2
+            draw.rectangle([(score_x, y_actual + 40), (score_x + score_w, y_actual + 100)], fill="#000000")
+            draw.text((score_x + 50, y_actual + 50), txt_score, fill=COLOR_ACCENTO, font_size=35)
+            
+            # Indicador de Penales
+            if row['penales_l'] is not None:
+                txt_pen = f"({int(row['penales_l'])} - {int(row['penales_v'])})"
+                draw.text((score_x + 45, y_actual + 105), txt_pen, fill="#888888", font_size=15)
+                
+        else:
+            # VS
+            draw.text(((ANCHO_CANVAS // 2) - 15, y_actual + 55), "VS", fill="#555555", font_size=30)
+
+        # Avanzar Y
+        y_actual += ALTO_PARTIDO + ESPACIO
+        
+    return lienzo
+
+
+  # ==============================================================================
+     ####FUNCION PARA IMAGEN DE CRUCES - EN DESARROLLO
+ # ==============================================================================
 
 # ------------------------------------------------------------
 # FUNCIÓN DE PESTAÑA TORNEO (AJUSTADA: NOMBRES Y FASES)
@@ -1219,52 +1333,36 @@ def contenido_pestana_torneo(id_torneo, t_color):
                 st.info("La tabla se generará cuando inicie la fase de grupos.")
 
         # --- 2. FASES KO (Octavos, Cuartos...) ---
-        # Iteramos sobre el resto de pestañas creadas
         for i in range(1, len(titulos_sub)):
             nombre_fase = titulos_sub[i]
             with sub_tabs_class[i]:
-                # Filtramos partidos de esta fase específica
                 df_fase = df_playoff[df_playoff['jornada'] == nombre_fase]
                 
                 if df_fase.empty:
-                    # CASO: Fase Bloqueada
-                    st.markdown(f"""
-                        <div style="
-                            text-align:center; 
-                            padding: 30px; 
-                            border: 1px dashed #444; 
-                            border-radius: 10px;
-                            background: rgba(0,0,0,0.2);
-                            margin-top: 10px;">
-                            <h3 style='color: #666; margin:0;'>🔒</h3>
-                            <h4 style='color: #888; margin: 5px 0;'>Cruces por definir</h4>
-                            <p style='color: #555; font-size: 12px;'>Esta fase se activará cuando finalice la anterior.</p>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.info(f"Los cruces de {nombre_fase} aún no están definidos.")
                 else:
-                    # CASO: Hay partidos (Renderizado HTML Deportivo)
-                    col_izq, col_der = st.columns(2)
-                    
-                    for idx, row in df_fase.iterrows():
-                        # Alternar columnas
-                        target_col = col_izq if idx % 2 == 0 else col_der
+                    # AQUÍ ESTÁ LA MAGIA: Generamos UNA imagen para toda la fase
+                    with st.spinner(f"Diseñando cruces de {nombre_fase}..."):
                         
-                        u_l = row['escudo_l'] if row['escudo_l'] else t_escudo_defecto
-                        u_v = row['escudo_v'] if row['escudo_v'] else t_escudo_defecto
+                        # Llamamos a la función generadora
+                        poster = generar_poster_fase(df_fase, nombre_fase, t_color)
                         
-                        # Generamos el string HTML
-                        html_card = generar_tarjeta_cruce_html(
-                            row['local'], row['visitante'], 
-                            u_l, u_v, 
-                            row['goles_l'], row['goles_v'], 
-                            row['penales_l'], row['penales_v'], 
-                            row['estado'], t_color
+                        # Mostramos la imagen ocupando el ancho disponible
+                        st.image(poster, use_container_width=True, caption=f"Bracket Oficial - {nombre_fase}")
+                        
+                        # Opcional: Botón de descarga para que la compartan en WhatsApp
+                        # Convertir a bytes para descarga
+                        buf = BytesIO()
+                        poster.save(buf, format="PNG")
+                        byte_im = buf.getvalue()
+                        
+                        st.download_button(
+                            label="📥 Descargar Imagen",
+                            data=byte_im,
+                            file_name=f"cruces_{nombre_fase}.png",
+                            mime="image/png",
+                            use_container_width=True
                         )
-                        
-                        with target_col:
-                            # AQUÍ ESTÁ LA CLAVE: unsafe_allow_html=True
-                            # Si html_card es una tupla, usa html_card[0], pero si corregiste la función, html_card ya es string.
-                            st.markdown(html_card, unsafe_allow_html=True)
     # ============================================================
     # TAB B: PARTIDOS (CALENDARIO COMPLETO)
     # ============================================================
@@ -2688,6 +2786,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
