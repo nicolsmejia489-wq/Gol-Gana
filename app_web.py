@@ -1524,14 +1524,16 @@ def render_torneo(id_torneo):
     # 1. DATOS MAESTROS Y CONFIGURACIÓN VISUAL
     # ---------------------------------------------------------
     try:
-        query = text("SELECT nombre, organizador, color_primario, url_portada, fase FROM torneos WHERE id = :id")
+        query = text("SELECT nombre, organizador, color_primario, url_portada, fase, estado FROM torneos WHERE id = :id")
         with conn.connect() as db:
             t = db.execute(query, {"id": id_torneo}).fetchone()
         
         if not t:
-            st.error("Torneo no encontrado."); return
+            st.error("Torneo no encontrado.")
+            if st.button("Volver"): st.rerun()
+            return
         
-        t_nombre, t_org, t_color, t_portada, t_fase = t
+        t_nombre, t_org, t_color, t_portada, t_fase, t_estado = t
     
     except Exception as e:
         st.error(f"Error DB: {e}"); return
@@ -1542,91 +1544,76 @@ def render_torneo(id_torneo):
             button[kind="primary"] {{ background-color: {t_color} !important; color: black !important; font-weight: 700 !important; }}
             .stTabs [aria-selected="true"] p {{ color: {t_color} !important; font-weight: 700 !important; }}
             [data-baseweb="tab-highlight-renderer"] {{ background-color: {t_color} !important; }}
-            .tournament-title {{ color: white; font-size: 32px; font-weight: 700; text-transform: uppercase; margin-top: 10px; margin-bottom: 0px; letter-spacing: -0.02em; }}
-            .tournament-subtitle {{ color: {t_color}; font-size: 16px; opacity: 0.9; margin-bottom: 25px; font-weight: 400; }}
+            .tournament-title {{ color: white; font-size: 28px; font-weight: 700; text-transform: uppercase; margin: 0; line-height: 1.2; }}
+            .tournament-subtitle {{ color: {t_color}; font-size: 14px; opacity: 0.9; margin-bottom: 5px; font-weight: 400; }}
             div[data-testid="stExpander"] {{ border: 1px solid {t_color}; }}
         </style>
     """, unsafe_allow_html=True)
 
-    # --- Cabecera y Navegación ---
-    st.image(t_portada if t_portada else URL_PORTADA, use_container_width=True)
+    # ------------------------------------------------------------
+    # 2. DEFINIR ROL (Cálculo Seguro)
+    # ------------------------------------------------------------
+    rol_actual = "Espectador"
     
-    # Botón Salir al Lobby (Limpia sesión)
-    if st.button("⬅ LOBBY", use_container_width=False):
-        for k in ["rol", "id_equipo", "nombre_equipo", "login_error", "datos_temp", "reg_estado", "msg_bot_ins"]:
-            if k in st.session_state: del st.session_state[k]
-        st.query_params.clear(); st.rerun()
+    # Verificamos si hay sesión activa Y si corresponde a este torneo
+    if "usuario_rol" in st.session_state:
+        if st.session_state.usuario_rol == "admin" and str(st.session_state.get("id_torneo_admin")) == str(id_torneo):
+            rol_actual = "Admin"
+        elif st.session_state.usuario_rol == "dt" and str(st.session_state.get("id_torneo_dt")) == str(id_torneo):
+            rol_actual = "DT"
 
+    # ------------------------------------------------------------
+    # 3. HEADER COMPACTO (BARRA SUPERIOR)
+    # ------------------------------------------------------------
+    
+    # A. Portada (Opcional, si quieres mantener la imagen grande arriba)
+    # st.image(t_portada if t_portada else URL_PORTADA, use_container_width=True)
 
-    # =========================================================================
-    # 🧱 BARRA LATERAL (SIDEBAR): NAVEGACIÓN Y ACCESO
-    # =========================================================================
-    with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/2643/2643483.png", width=50) # Un icono de copa o tu logo
-        st.write(f"**{t_nombre}**")
-        st.divider()
-
-        # 1. BOTÓN VOLVER AL LOBBY
-        if st.button("🏠 Volver al Lobby", use_container_width=True, type="secondary"):
-            st.query_params.clear()
-            st.rerun()
+    # B. Barra de Navegación (Título + Herramientas)
+    c_info, c_tools = st.columns([3, 1], vertical_alignment="center")
+    
+    with c_info:
+        st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
+        label_modo = f"DT: {st.session_state.get('nombre_equipo')}" if rol_actual == "DT" else rol_actual
+        st.markdown(f'<p class="tournament-subtitle">{t_org} | {label_modo}</p>', unsafe_allow_html=True)
         
-        # 2. ZONA DE LOGIN (Solo visible si soy Espectador)
-        if rol_actual == "Espectador":
+    with c_tools:
+        # Botón de Menú/Login (Desplegable)
+        popover = st.popover("⚙️", use_container_width=True)
+        
+        # CONTENIDO DEL MENÚ DESPLEGABLE
+        with popover:
+            # Opción 1: Volver al Lobby
+            if st.button("🏠 Lobby", use_container_width=True):
+                st.query_params.clear()
+                st.rerun()
+            
             st.divider()
-            st.markdown("##### 🔐 Acceso")
-            st.caption("Admin o DT, ingresa tu PIN aquí:")
             
-            # Input del PIN
-            pin_sidebar = st.text_input("PIN", type="password", label_visibility="collapsed", placeholder="****", key="pin_login_sidebar")
-            
-            # Botón de Entrar
-            if st.button("Entrar", key="btn_login_sidebar", type="primary", use_container_width=True):
-                if pin_sidebar:
-                    # Usamos la misma función validar_acceso que ya tienes
-                    acc = validar_acceso(id_torneo, pin_sidebar)
-                    
-                    # CASO 1: Login Exitoso
+            # Opción 2: Login / Logout
+            if rol_actual == "Espectador":
+                st.caption("Acceso Admin/DT")
+                pin_input = st.text_input("PIN", type="password", placeholder="****", label_visibility="collapsed", key="pin_popover")
+                
+                if st.button("Entrar", type="primary", use_container_width=True):
+                    acc = validar_acceso(id_torneo, pin_input)
                     if isinstance(acc, dict):
                         st.session_state.update(acc)
-                        st.toast(f"¡Bienvenido, {acc.get('nombre_usuario', 'Crack')}!", icon="✅")
-                        time.sleep(1)
                         st.rerun()
-                    
-                    # CASO 2: Pendiente
                     elif acc == "PENDIENTE":
-                        st.warning("⏳ Tu equipo espera aprobación del Admin.")
-                    
-                    # CASO 3: Error
+                        st.toast("⏳ Pendiente de aprobación.")
                     else:
-                        st.error("🚫 PIN incorrecto.")
-                else:
-                    st.warning("Escribe el PIN primero.")
+                        st.error("PIN incorrecto")
+            else:
+                st.caption(f"Sesión: {rol_actual}")
+                if st.button("🔴 Salir", type="primary", use_container_width=True):
+                    st.session_state.clear()
+                    st.rerun()
 
-        # 3. ZONA DE USUARIO LOGUEADO (Opcional: Para salir)
-        else:
-            st.divider()
-            st.info(f"👤 Rol: **{rol_actual}**")
-            if st.button("Cerrar Sesión", key="btn_logout_sidebar", use_container_width=True):
-                st.session_state.clear()
-                st.rerun()
-
-
-
-
-    
-
-
-    
-    # Títulos
-    st.markdown(f'<p class="tournament-title">{t_nombre}</p>', unsafe_allow_html=True)
-    
-    rol_actual = st.session_state.get("rol", "Espectador")
-    label_modo = f"DT: {st.session_state.get('nombre_equipo')}" if rol_actual == "DT" else rol_actual
-    st.markdown(f'<p class="tournament-subtitle">Organiza: {t_org} | Modo: {label_modo}</p>', unsafe_allow_html=True)
+    st.divider()
 
     # ---------------------------------------------------------
-    # 2. GESTOR DE PESTAÑAS POR ROL (Esqueleto)
+    # 4. GESTOR DE PESTAÑAS POR ROL (Esqueleto)
     # ---------------------------------------------------------
     
 # --- ESCENARIO A: ADMINISTRADOR ---
@@ -2677,6 +2664,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
