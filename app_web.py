@@ -2015,8 +2015,25 @@ def render_torneo(id_torneo):
                 
                 try:
                     with conn.connect() as db:
-                        # TRAEMOS AMBOS CAMPOS DE FOTO Y DATOS
-                        q_mis = text("""
+                        # -------------------------------------------------------------
+                        # 1. LÓGICA DE FILTRADO SEGÚN FASE ACTUAL
+                        # -------------------------------------------------------------
+                        # Si estamos en grupos, queremos ver jornadas numéricas ('1', '2', '3')
+                        if t_fase in ['regular', 'clasificacion']:
+                            filtro_jornada = "AND p.jornada ~ '^[0-9]+$'" # Regex: Solo números
+                        
+                        # Si estamos en Playoff, queremos ver SOLO esa fase (ej: 'Octavos')
+                        # Mapeamos los códigos internos a los textos de jornada que usaste
+                        elif t_fase == 'octavos': filtro_jornada = "AND p.jornada = 'Octavos'"
+                        elif t_fase == 'cuartos': filtro_jornada = "AND p.jornada = 'Cuartos'"
+                        elif t_fase == 'semis':   filtro_jornada = "AND p.jornada = 'Semifinal'"
+                        elif t_fase == 'final':   filtro_jornada = "AND p.jornada = 'Final'"
+                        else: filtro_jornada = "" # Fallback (muestra todo si hay error)
+
+                        # -------------------------------------------------------------
+                        # 2. CONSULTA SQL FILTRADA
+                        # -------------------------------------------------------------
+                        q_mis = text(f"""
                             SELECT 
                                 p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.metodo_registro,
                                 p.local_id, p.visitante_id,
@@ -2028,12 +2045,16 @@ def render_torneo(id_torneo):
                             JOIN equipos_globales ev ON p.visitante_id = ev.id
                             WHERE p.id_torneo = :idt 
                             AND (p.local_id = :my_id OR p.visitante_id = :my_id)
-                            ORDER BY p.jornada ASC, p.id ASC
+                            {filtro_jornada}  -- AQUI SE INYECTA EL FILTRO
+                            ORDER BY p.id ASC
                         """)
                         mis = pd.read_sql_query(q_mis, db, params={"idt": id_torneo, "my_id": st.session_state.id_equipo})
                     
                     if mis.empty:
-                        st.info("No tienes partidos asignados aún.")
+                        if t_fase in ['regular', 'clasificacion']:
+                             st.info("No tienes partidos programados en esta fase.")
+                        else:
+                             st.info(f"No tienes partido programado para {fase_titulo}. (¿Descanso o Eliminado?)")
                     
                     ultima_jornada_vista = -1
 
@@ -2708,6 +2729,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
