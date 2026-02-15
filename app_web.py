@@ -2190,7 +2190,7 @@ def render_torneo(id_torneo):
                                                     query_update = text(f"""
                                                         UPDATE partidos 
                                                         SET goles_l=:gl, goles_v=:gv, estado='Finalizado', 
-                                                            metodo_registro='IA', fecha_registro=CURRENT_TIMESTAMP,
+                                                            metodo_registro='IA', 
                                                             {columna_foto_target}=:url
                                                         WHERE id=:id
                                                     """)
@@ -2779,6 +2779,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
