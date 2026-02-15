@@ -856,7 +856,7 @@ def analizar_estado_torneo(id_torneo):
 def ejecutar_avance_fase(id_torneo):
     """
     Ejecuta la transición de fase: Calcula tablas, genera cruces y actualiza el torneo.
-    ACTUALIZADO: Marca como 'eliminado' en equipos_globales a los que no avanzan.
+    ACTUALIZADO: Actualiza estados en equipos_globales (eliminado, tercer puesto, subcampeon, campeon).
     """
     import math
     
@@ -922,7 +922,7 @@ def ejecutar_avance_fase(id_torneo):
                     else:
                         clasificados = tabla[:2]; next_phase_name = 'final'; jornada_txt = 'Final'
                     
-                    # --- NUEVO: ACTUALIZAR ELIMINADOS EN FASE DE GRUPOS ---
+                    # --- ACTUALIZAR ELIMINADOS EN FASE DE GRUPOS ---
                     ids_clasificados = [c['id'] for c in clasificados]
                     ids_totales = [e[0] for e in eqs]
                     
@@ -963,7 +963,7 @@ def ejecutar_avance_fase(id_torneo):
                     matches = sorted(matches, key=lambda x: x[0])
                     
                     ganadores = []
-                    perdedores = [] # Lista para marcar eliminados
+                    perdedores = [] # Lista para marcar eliminados/tercer puesto
                     
                     for m in matches:
                         pl = m.penales_l if m.penales_l is not None else 0
@@ -980,9 +980,13 @@ def ejecutar_avance_fase(id_torneo):
                     
                     if len(ganadores) < 2: return False, "Error crítico: No hay suficientes ganadores."
                     
-                    # --- NUEVO: ACTUALIZAR ELIMINADOS KO ---
+                    # --- ACTUALIZAR ESTADOS DE ELIMINADOS ---
+                    nuevo_estado_perdedor = 'eliminado'
+                    if fase_act == 'semis':
+                         nuevo_estado_perdedor = 'tercer puesto' # Los que pierden semis quedan 3ro (o juegan por 3ro, aqui asumimos directo)
+                    
                     for p_id in perdedores:
-                        db.execute(text("UPDATE equipos_globales SET estado='eliminado' WHERE id=:pid"), {"pid": p_id})
+                        db.execute(text("UPDATE equipos_globales SET estado=:est WHERE id=:pid"), {"est": nuevo_estado_perdedor, "pid": p_id})
                     
                     # Definir siguiente fase
                     next_ph = ""; j_txt = ""
@@ -999,7 +1003,7 @@ def ejecutar_avance_fase(id_torneo):
                     
                     db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_ph, "id": id_torneo})
                     db.commit()
-                    return True, f"Ronda finalizada. {len(perdedores)} equipos eliminados. Bienvenidos a: {j_txt}."
+                    return True, f"Ronda finalizada. {len(perdedores)} equipos actualizaron su estado. Bienvenidos a: {j_txt}."
 
                 # ==============================================================================
                 # 3. GRAN FINAL -> GUARDADO DE HISTORIA
@@ -1023,9 +1027,11 @@ def ejecutar_avance_fase(id_torneo):
                             campeon_id = final_match.visitante_id
                             subcampeon_id = final_match.local_id
 
-                    # --- NUEVO: ELIMINAR AL SUBCAMPEÓN (Opcional, para consistencia) ---
+                    # --- ACTUALIZAR CAMPEÓN Y SUBCAMPEÓN ---
+                    if campeon_id:
+                        db.execute(text("UPDATE equipos_globales SET estado='campeon' WHERE id=:cid"), {"cid": campeon_id})
                     if subcampeon_id:
-                        db.execute(text("UPDATE equipos_globales SET estado='eliminado' WHERE id=:sid"), {"sid": subcampeon_id})
+                        db.execute(text("UPDATE equipos_globales SET estado='sub campeon' WHERE id=:sid"), {"sid": subcampeon_id})
 
                     # B. Recopilar Estadísticas Históricas
                     all_matches = db.execute(text("""
@@ -2805,6 +2811,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
