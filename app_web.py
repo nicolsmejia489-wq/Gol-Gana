@@ -2646,9 +2646,9 @@ def render_torneo(id_torneo):
             st.subheader("🔐 Acceso DT / Admin")
             with st.container(border=True):
                 c_in, c_btn = st.columns([3, 1])
-                pin_log = c_in.text_input("Credenciales", type="password", label_visibility="collapsed", placeholder="Ingresa tu PIN de equipo")
+                pin_log = c_in.text_input("Credenciales", type="password", label_visibility="collapsed", placeholder="Ingresa la contraseña de tu equipo")
             
-            if c_btn.button("Saltar a la Cancha", type="primary", use_container_width=True):
+            if c_btn.button("Ingresar", type="primary", use_container_width=True):
                 
                 if not pin_log:
                     st.toast("⚠️ Gol Bot: '¡Ey! No puedes entrar sin el carnet (PIN).'", icon="🟨")
@@ -2666,20 +2666,20 @@ def render_torneo(id_torneo):
                     # --- CASO 2: CALENTANDO (Pendiente) ---
                     elif acc == "PENDIENTE":
                         st.info("""
-                        **🤖 Gol Bot dice:**
+                        **🤖 :**
                         
                         *"¡Tranquilo, crack! Tu fichaje está en el escritorio del Presidente.*
-                        *Aún no tienes el 'OK' para gestionar la plantilla. Espera a que el Admin te habilite."*
+                        *Aún no tienes el 'OK' para participar. Espera a que el Admin te admita."*
                         """, icon="⏳")
                     
                     # --- CASO 3: FINAL DEL PARTIDO (Eliminado) ---
                     elif acc == "ELIMINADO":
                         st.warning("""
-                        **🤖 Gol Bot dice:**
+                        **🤖 :**
                         
-                        *"¡Cabeza arriba, profe! El fútbol siempre da revanchas.* *Tu participación en este torneo terminó, pero la experiencia queda para la próxima temporada.*
-                        *¡A preparar la pretemporada con toda!"* 🦁🔥
-                        """, icon="💔")
+                        *"¡Cabeza arriba, profe! El fútbol siempre da revanchas.* *Tu participación en este torneo terminó, pero la experiencia queda para la próxima competencia.*
+                        *¡A preparar tu equipo para el proximo partido!"* 🦁🔥
+                        """)
                     
                     # --- CASO 4: RETIRADO (Baja) ---
                     elif acc == "BAJA":
@@ -2692,9 +2692,9 @@ def render_torneo(id_torneo):
                     # --- CASO 5: FUERA DE LUGAR (PIN Incorrecto) ---
                     else:
                         st.error("""
-                        **🤖 Gol Bot dice:**
+                        **🤖:**
                         
-                        *"¡Poste y fuera! 🥅 Ese PIN no juega en este torneo.*
+                        *"Ese PIN no esta registrado en este torneo.*
                         *Revisa tus credenciales o habla con el organizador si crees que es un error del árbitro."*
                         """, icon="🚫")
 
@@ -2708,6 +2708,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
