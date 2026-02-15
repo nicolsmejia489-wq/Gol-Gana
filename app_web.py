@@ -262,7 +262,7 @@ def similitud(a, b):
 # (Asegúrate de tener esto fuera de la función si es posible, o usa st.cache_resource)
 reader = easyocr.Reader(['es', 'en'], gpu=False) 
 
-ddef leer_marcador_ia(imagen_bytes, local_real, visitante_real):
+def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     """
     Algoritmo "Centinela": Prioriza números centrales < 20.
     Usa los nombres solo para confirmar orden, no para bloquear la lectura.
@@ -2782,6 +2782,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
