@@ -659,43 +659,59 @@ def render_lobby():
 # ==============================================================================
 def validar_acceso(id_torneo, pin_ingresado):
     """
-    Valida el PIN ingresado y retorna el rol o el estado del equipo.
-    Maneja estados: aprobado (entra), pendiente (aviso), eliminado (mensaje), baja/null (error).
+    Valida el acceso comparando los PINs estrictamente como TEXTO en Python.
+    Soluciona el error de que '1234' (str) no encontraba a 1234 (int) en la BD.
     """
+    # 1. Limpieza del Input (Forzamos texto y quitamos espacios)
+    pin_target = str(pin_ingresado).strip()
+    
+    # Validación básica para no hacer consultas vacías
+    if not pin_target: return None
+
     try:
         with conn.connect() as db:
-            # 1. VERIFICAR ADMIN (Prioridad absoluta)
-            q_admin = text("SELECT nombre FROM torneos WHERE id = :id AND pin_admin = :pin")
-            res_admin = db.execute(q_admin, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
-            if res_admin:
+            # ---------------------------------------------------------
+            # A. VERIFICAR ADMIN (Prioridad)
+            # ---------------------------------------------------------
+            # Aquí también forzamos la conversión a texto en Python por si acaso
+            t_admin = db.execute(text("SELECT pin_admin FROM torneos WHERE id = :id"), {"id": id_torneo}).fetchone()
+            if t_admin and str(t_admin.pin_admin).strip() == pin_target:
                 return {"rol": "Admin", "id_equipo": None, "nombre_equipo": "Organizador"}
             
-            # 2. VERIFICAR EQUIPO (Cualquier estado)
-            # Traemos el estado para saber qué decirle al usuario
-            q_team = text("""
-                SELECT id, nombre, estado 
-                FROM equipos_globales 
-                WHERE id_torneo = :id AND pin_equipo = :pin
-            """)
-            res_team = db.execute(q_team, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
+            # ---------------------------------------------------------
+            # B. VERIFICAR EQUIPOS (Búsqueda Robusta)
+            # ---------------------------------------------------------
+            # Traemos TODOS los equipos del torneo para filtrar en Python.
+            # Esto es muy rápido y evita errores de tipos SQL (INT vs VARCHAR).
+            q_teams = text("SELECT id, nombre, estado, pin_equipo FROM equipos_globales WHERE id_torneo = :id")
+            equipos = db.execute(q_teams, {"id": id_torneo}).fetchall()
             
-            if res_team:
-                est = res_team.estado
+            for eq in equipos:
+                # LA MAGIA: Convertimos el PIN de la BD a string y comparamos
+                pin_bd = str(eq.pin_equipo).strip()
                 
-                if est == 'aprobado':
-                    # Login Exitoso
-                    return {"rol": "DT", "id_equipo": res_team.id, "nombre_equipo": res_team.nombre}
-                
-                elif est == 'pendiente':
-                    return "PENDIENTE"
-                
-                elif est == 'eliminado':
-                    return "ELIMINADO"
-                
-                elif est == 'baja':
-                    return "BAJA"
-            
-            # Si no es admin y no encontró equipo con ese PIN
+                if pin_bd == pin_target:
+                    # ¡ENCONTRADO! Ahora analizamos el estado
+                    est_raw = eq.estado if eq.estado else ""
+                    est = str(est_raw).lower().strip()
+                    
+                    if est == 'aprobado':
+                        return {"rol": "DT", "id_equipo": eq.id, "nombre_equipo": eq.nombre}
+                    
+                    elif est == 'pendiente':
+                        return "PENDIENTE"
+                    
+                    elif est == 'eliminado':
+                        return "ELIMINADO"
+                    
+                    elif est == 'baja':
+                        return "BAJA"
+                    
+                    else:
+                        # Estado desconocido -> Tratamos como pendiente
+                        return "PENDIENTE"
+
+            # Si terminó el bucle y no retornó nada, es que el PIN no existe
             return None
 
     except Exception as e:
@@ -2683,6 +2699,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
