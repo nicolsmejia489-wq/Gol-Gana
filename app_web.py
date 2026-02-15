@@ -2011,7 +2011,9 @@ def render_torneo(id_torneo):
             if t_fase == "inscripcion":
                 mostrar_bot("El balón aún no rueda, Profe.")
             else:
-                st.subheader(f"📅 Mi Calendario")
+                # Mapeo visual de la fase para el título
+                fase_titulo = t_fase.capitalize() if t_fase not in ['regular', 'clasificacion'] else "Fase de Grupos"
+                st.subheader(f"📅 Calendario - {fase_titulo}")
                 
                 try:
                     with conn.connect() as db:
@@ -2065,7 +2067,9 @@ def render_torneo(id_torneo):
 
                         # --- RENDERIZADO VISUAL ---
                         if p['jornada'] != ultima_jornada_vista:
-                            st.markdown(f"##### 📍 Jornada {p['jornada']}")
+                            # Si es número mostramos "Jornada X", si es texto mostramos el texto directo
+                            txt_jornada = f"Jornada {p['jornada']}" if str(p['jornada']).isdigit() else p['jornada']
+                            st.markdown(f"##### 📍 {txt_jornada}")
                             ultima_jornada_vista = p['jornada']
 
                         rival_pref = p['pref_v'] if soy_local else p['pref_l']
@@ -2729,6 +2733,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
