@@ -753,7 +753,7 @@ def analizar_estado_torneo(id_torneo):
 def ejecutar_avance_fase(id_torneo):
     """
     Ejecuta la transición de fase: Calcula tablas, genera cruces y actualiza el torneo.
-    AHORA INCLUYE: Guardado de historial y jornadas en texto (Varchar).
+    ACTUALIZADO: Marca como 'eliminado' en equipos_globales a los que no avanzan.
     """
     import math
     
@@ -774,8 +774,6 @@ def ejecutar_avance_fase(id_torneo):
             # 1. DE INSCRIPCIÓN A JUEGO (Generar Calendario)
             # ==============================================================================
             if fase_act == 'inscripcion':
-                # Llamamos a tu función externa generar_calendario. 
-                # Asumimos que esa función ya inserta '1', '2', '3' como strings en jornada.
                 if generar_calendario(id_torneo):
                     nueva_fase = 'clasificacion' if formato == 'Clasificatoria y Cruces' else 'regular'
                     db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": nueva_fase, "id": id_torneo})
@@ -793,6 +791,8 @@ def ejecutar_avance_fase(id_torneo):
                 if fase_act == 'clasificacion':
                     # 1. Calcular Tabla General
                     partidos = db.execute(text("SELECT local_id, visitante_id, goles_l, goles_v FROM partidos WHERE id_torneo=:id AND estado='Finalizado'"), {"id": id_torneo}).fetchall()
+                    
+                    # Traemos TODOS los equipos aprobados actualmente
                     eqs = db.execute(text("SELECT id FROM equipos_globales WHERE id_torneo=:id AND estado='aprobado'"), {"id": id_torneo}).fetchall()
                     
                     stats = {e[0]: {'pts':0, 'gf':0, 'dg':0, 'id': e[0]} for e in eqs}
@@ -809,7 +809,7 @@ def ejecutar_avance_fase(id_torneo):
                     tabla = sorted(stats.values(), key=lambda x: (x['pts'], x['dg'], x['gf']), reverse=True)
                     N = len(tabla)
                     
-                    # Definir corte y nombre de fase (TEXTO)
+                    # Definir corte y nombre de fase
                     if 8 <= N <= 12:
                         clasificados = tabla[:4]; next_phase_name = 'semis'; jornada_txt = 'Semifinal'
                     elif 13 <= N <= 19:
@@ -819,13 +819,24 @@ def ejecutar_avance_fase(id_torneo):
                     else:
                         clasificados = tabla[:2]; next_phase_name = 'final'; jornada_txt = 'Final'
                     
+                    # --- NUEVO: ACTUALIZAR ELIMINADOS EN FASE DE GRUPOS ---
+                    ids_clasificados = [c['id'] for c in clasificados]
+                    ids_totales = [e[0] for e in eqs]
+                    
+                    # Identificar quienes NO están en la lista de clasificados
+                    ids_eliminados = list(set(ids_totales) - set(ids_clasificados))
+                    
+                    if ids_eliminados:
+                        # Actualizamos estado a 'eliminado'
+                        for elim_id in ids_eliminados:
+                            db.execute(text("UPDATE equipos_globales SET estado='eliminado' WHERE id=:eid"), {"eid": elim_id})
+
                     # Generar Cruces (1 vs Último)
                     num_clas = len(clasificados)
                     for i in range(num_clas // 2):
                         loc = clasificados[i]['id']
                         vis = clasificados[num_clas - 1 - i]['id']
                         
-                        # INSERTAMOS LA JORNADA COMO TEXTO
                         db.execute(text("""
                             INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado)
                             VALUES (:id, :l, :v, :jtxt, 'Programado') 
@@ -833,13 +844,12 @@ def ejecutar_avance_fase(id_torneo):
 
                     db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_phase_name, "id": id_torneo})
                     db.commit()
-                    return True, f"¡Clasificación terminada! Se generaron los partidos de: {jornada_txt}."
+                    return True, f"¡Clasificación terminada! {len(ids_eliminados)} equipos eliminados. Se generaron los partidos de: {jornada_txt}."
 
                 # B. AVANCE DE ELIMINATORIAS (Octavos->Cuartos->Semis->Final)
                 elif fase_act in ['octavos', 'cuartos', 'semis']:
                     limit = 8 if fase_act == 'octavos' else 4 if fase_act == 'cuartos' else 2
                     
-                    # Traer partidos recientes
                     matches = db.execute(text("""
                         SELECT id, local_id, visitante_id, goles_l, goles_v, penales_l, penales_v 
                         FROM partidos 
@@ -847,29 +857,37 @@ def ejecutar_avance_fase(id_torneo):
                         ORDER BY id DESC LIMIT :lim
                     """), {"id": id_torneo, "lim": limit}).fetchall()
                     
-                    # Ordenar por ID para mantener llaves
                     matches = sorted(matches, key=lambda x: x[0])
                     
                     ganadores = []
+                    perdedores = [] # Lista para marcar eliminados
+                    
                     for m in matches:
-                        # Desempate con penales
                         pl = m.penales_l if m.penales_l is not None else 0
                         pv = m.penales_v if m.penales_v is not None else 0
                         gl = m.goles_l + (0.1 if pl > pv else 0)
                         gv = m.goles_v + (0.1 if pv > pl else 0)
                         
-                        if gl > gv: ganadores.append(m.local_id)
-                        else: ganadores.append(m.visitante_id)
+                        if gl > gv: 
+                            ganadores.append(m.local_id)
+                            perdedores.append(m.visitante_id)
+                        else: 
+                            ganadores.append(m.visitante_id)
+                            perdedores.append(m.local_id)
                     
                     if len(ganadores) < 2: return False, "Error crítico: No hay suficientes ganadores."
                     
-                    # Definir siguiente fase y etiqueta de jornada
+                    # --- NUEVO: ACTUALIZAR ELIMINADOS KO ---
+                    for p_id in perdedores:
+                        db.execute(text("UPDATE equipos_globales SET estado='eliminado' WHERE id=:pid"), {"pid": p_id})
+                    
+                    # Definir siguiente fase
                     next_ph = ""; j_txt = ""
                     if fase_act == 'octavos': next_ph = 'cuartos'; j_txt = 'Cuartos'
                     elif fase_act == 'cuartos': next_ph = 'semis'; j_txt = 'Semifinal'
                     elif fase_act == 'semis': next_ph = 'final'; j_txt = 'Final'
                     
-                    # Emparejar
+                    # Emparejar Siguiente Ronda
                     for i in range(0, len(ganadores), 2):
                         db.execute(text("""
                             INSERT INTO partidos (id_torneo, local_id, visitante_id, jornada, estado)
@@ -878,67 +896,65 @@ def ejecutar_avance_fase(id_torneo):
                     
                     db.execute(text("UPDATE torneos SET fase=:f WHERE id=:id"), {"f": next_ph, "id": id_torneo})
                     db.commit()
-                    return True, f"Ronda finalizada. Bienvenidos a: {j_txt}."
+                    return True, f"Ronda finalizada. {len(perdedores)} equipos eliminados. Bienvenidos a: {j_txt}."
 
                 # ==============================================================================
                 # 3. GRAN FINAL -> GUARDADO DE HISTORIA
                 # ==============================================================================
                 elif fase_act == 'final':
-                    # A. Determinar al Campeón (Ganador del último partido)
                     final_match = db.execute(text("""
                         SELECT local_id, visitante_id, goles_l, goles_v, penales_l, penales_v 
                         FROM partidos WHERE id_torneo=:id AND estado='Finalizado' ORDER BY id DESC LIMIT 1
                     """), {"id": id_torneo}).fetchone()
                     
                     campeon_id = None
+                    subcampeon_id = None
+                    
                     if final_match:
                         pl = final_match.penales_l if final_match.penales_l is not None else 0
                         pv = final_match.penales_v if final_match.penales_v is not None else 0
                         if (final_match.goles_l + (0.1*pl)) > (final_match.goles_v + (0.1*pv)):
                             campeon_id = final_match.local_id
+                            subcampeon_id = final_match.visitante_id
                         else:
                             campeon_id = final_match.visitante_id
+                            subcampeon_id = final_match.local_id
 
-                    # B. Recopilar Estadísticas de TODO el torneo para TODOS los equipos
+                    # --- NUEVO: ELIMINAR AL SUBCAMPEÓN (Opcional, para consistencia) ---
+                    if subcampeon_id:
+                        db.execute(text("UPDATE equipos_globales SET estado='eliminado' WHERE id=:sid"), {"sid": subcampeon_id})
+
+                    # B. Recopilar Estadísticas Históricas
                     all_matches = db.execute(text("""
                         SELECT local_id, visitante_id, goles_l, goles_v, penales_l, penales_v 
                         FROM partidos WHERE id_torneo=:id AND estado='Finalizado'
                     """), {"id": id_torneo}).fetchall()
 
-                    # Diccionario acumulador {id_equipo: {stats...}}
                     team_stats = {} 
 
                     for m in all_matches:
                         lid, vid = m.local_id, m.visitante_id
                         gl, gv = m.goles_l, m.goles_v
-                        # Ganador del partido (incluyendo penales para saber quien ganó)
                         pl = m.penales_l if m.penales_l is not None else 0
                         pv = m.penales_v if m.penales_v is not None else 0
                         
-                        # Inicializar si no existen
                         if lid not in team_stats: team_stats[lid] = {'pj':0, 'pg':0, 'pe':0, 'pp':0, 'gf':0, 'gc':0}
                         if vid not in team_stats: team_stats[vid] = {'pj':0, 'pg':0, 'pe':0, 'pp':0, 'gf':0, 'gc':0}
 
-                        # Sumar PJ, GF, GC
                         team_stats[lid]['pj'] += 1; team_stats[lid]['gf'] += gl; team_stats[lid]['gc'] += gv
                         team_stats[vid]['pj'] += 1; team_stats[vid]['gf'] += gv; team_stats[vid]['gc'] += gl
 
-                        # Definir G/E/P (Consideramos penales como decisivos para PG/PP en historial)
                         score_l = gl + (0.1 * pl)
                         score_v = gv + (0.1 * pv)
 
                         if score_l > score_v:
-                            team_stats[lid]['pg'] += 1
-                            team_stats[vid]['pp'] += 1
+                            team_stats[lid]['pg'] += 1; team_stats[vid]['pp'] += 1
                         elif score_v > score_l:
-                            team_stats[vid]['pg'] += 1
-                            team_stats[lid]['pp'] += 1
+                            team_stats[vid]['pg'] += 1; team_stats[lid]['pp'] += 1
                         else:
-                            team_stats[lid]['pe'] += 1
-                            team_stats[vid]['pe'] += 1
+                            team_stats[lid]['pe'] += 1; team_stats[vid]['pe'] += 1
                     
-                    # C. Escribir en la Tabla Histórica (Upsert Manual)
-                    # Obtenemos identidades (Nombre y PIN)
+                    # C. Escribir en Tabla Histórica
                     equipos_participantes = db.execute(text("SELECT id, nombre, pin_equipo FROM equipos_globales WHERE id_torneo=:id"), 
                                                        {"id": id_torneo}).fetchall()
                     
@@ -951,12 +967,10 @@ def ejecutar_avance_fase(id_torneo):
                             s = team_stats[eid]
                             es_campeon = 1 if eid == campeon_id else 0
                             
-                            # 1. Verificar si ya existe en historial
                             existe = db.execute(text("SELECT id FROM historia_equipos_res WHERE nombre=:n AND pin=:p"), 
                                                 {"n": enombre, "p": epin}).fetchone()
                             
                             if existe:
-                                # UPDATE
                                 db.execute(text("""
                                     UPDATE historia_equipos_res 
                                     SET torneos_jugados = torneos_jugados + 1,
@@ -974,7 +988,6 @@ def ejecutar_avance_fase(id_torneo):
                                     "pp": s['pp'], "gf": s['gf'], "gc": s['gc'], "hid": existe.id
                                 })
                             else:
-                                # INSERT
                                 db.execute(text("""
                                     INSERT INTO historia_equipos_res 
                                     (nombre, pin, torneos_jugados, titulos, partidos_jugados, partidos_ganados, partidos_empatados, partidos_perdidos, goles_favor, goles_contra)
@@ -989,9 +1002,7 @@ def ejecutar_avance_fase(id_torneo):
                     db.commit()
                     return True, "🏆 ¡Torneo Finalizado! Historia actualizada y Campeón coronado."
 
-            # ==============================================================================
-            # 4. OTROS FORMATOS (LIGA, ETC) - Lógica simple por ahora
-            # ==============================================================================
+            # 4. OTROS FORMATOS
             return False, "Formato o fase no reconocida."
 
     except Exception as e:
@@ -2613,6 +2624,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
