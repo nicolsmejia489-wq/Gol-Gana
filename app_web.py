@@ -262,11 +262,13 @@ def similitud(a, b):
 # (Asegúrate de tener esto fuera de la función si es posible, o usa st.cache_resource)
 reader = easyocr.Reader(['es', 'en'], gpu=False) 
 
-def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
+ddef leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     """
-    Algoritmo "Cazador de Patrones" con INVERSIÓN AUTOMÁTICA.
-    Detecta qué equipo está a la izquierda y asigna los goles correctamente.
+    Algoritmo "Centinela": Prioriza números centrales < 20.
+    Usa los nombres solo para confirmar orden, no para bloquear la lectura.
     """
+    error_msg = "🤖 : No pude confirmar el marcador. ¿Puedes darme una mejor foto? O puedes dejarla para que el Admin la vea personalmente."
+    
     try:
         # ---------------------------------------------------------
         # 1. PRE-PROCESAMIENTO
@@ -274,127 +276,144 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         imagen_bytes.seek(0)
         file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        if img is None: return None, "Error: Imagen no válida."
+        if img is None: return None, "Error: Imagen corrupta."
 
-        # Redimensionar
+        # Resize a 800px width
         alto, ancho = img.shape[:2]
         if ancho > 800:
             escala = 800 / ancho
             img = cv2.resize(img, (800, int(alto * escala)))
+            alto, ancho = img.shape[:2] # Actualizamos dimensiones
         
         # Grises + Contraste
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         gray = clahe.apply(gray)
+        
+        # Recorte Táctico: Nos enfocamos en el tercio superior central
+        # (La mayoría de marcadores están ahí)
+        # Pero leemos toda la franja superior por si los nombres están lejos
+        zona_lectura = gray[0:int(alto*0.45), :] 
 
         # ---------------------------------------------------------
         # 2. LECTURA OCR
         # ---------------------------------------------------------
-        resultados = reader.readtext(gray, detail=1, paragraph=False)
+        resultados = reader.readtext(zona_lectura, detail=1, paragraph=False)
 
         # ---------------------------------------------------------
-        # 3. BÚSQUEDA DE ANCLAS (EQUIPOS)
+        # 3. CLASIFICACIÓN DE HALLAZGOS
         # ---------------------------------------------------------
-        bbox_local = None
-        bbox_visita = None
+        posibles_goles = []
+        pos_local_x = -1
+        pos_visita_x = -1
         
+        centro_img_x = ancho / 2
+
+        # Limpieza de texto para comparar nombres
         def limpiar(txt): return re.sub(r'[^A-Z0-9]', '', str(txt).upper())
-        
         target_l = limpiar(local_real)
         target_v = limpiar(visitante_real)
 
-        # Buscar ambos equipos en toda la lista de resultados
         for (bbox, texto, prob) in resultados:
-            if prob < 0.3: continue
-            txt_clean = limpiar(texto)
+            if prob < 0.25: continue # Filtro basura
             
-            # Usamos similitud difusa (ratio > 0.55)
-            if not bbox_local and SequenceMatcher(None, target_l, txt_clean).ratio() > 0.55:
-                bbox_local = bbox
-            elif not bbox_visita and SequenceMatcher(None, target_v, txt_clean).ratio() > 0.55:
-                bbox_visita = bbox
-
-        # ---------------------------------------------------------
-        # 4. TRIANGULACIÓN Y DETECCIÓN DE INVERSIÓN
-        # ---------------------------------------------------------
-        
-        min_x, max_x = 0, img.shape[1] # Rango de búsqueda por defecto
-        invertido = False # Asumimos orden normal por defecto
-        
-        # Si encontramos a AMBOS equipos, ajustamos la zona y detectamos el orden
-        if bbox_local and bbox_visita:
-            cx_l = (bbox_local[0][0] + bbox_local[1][0]) / 2
-            cx_v = (bbox_visita[0][0] + bbox_visita[1][0]) / 2
-            
-            # Definir zona de gol (entre los dos equipos)
-            min_x = min(cx_l, cx_v)
-            max_x = max(cx_l, cx_v)
-            
-            # CRUCIAL: ¿Quién está a la izquierda visualmente?
-            # Si la coordenada X del Visitante es MENOR que la del Local, están al revés.
-            if cx_v < cx_l:
-                invertido = True
-                # print("ALERTA: Equipos invertidos en la foto (Visita - Local)")
-
-        # ---------------------------------------------------------
-        # 5. EXTRACCIÓN DE GOLES
-        # ---------------------------------------------------------
-        posibles_goles = []
-        patron_marcador = re.compile(r'(\d{1,2})\s*[-:–\s]\s*(\d{1,2})')
-
-        for (bbox, texto, prob) in resultados:
+            # Geometría
             cx = (bbox[0][0] + bbox[1][0]) / 2
-            cy = (bbox[0][1] + bbox[2][1]) / 2
-            txt_limpio = texto.strip()
+            txt_clean = limpiar(texto)
+            txt_raw = texto.strip()
 
-            # Filtro Geométrico: ¿Está el texto en medio de los equipos?
-            if bbox_local and bbox_visita:
-                if not (min_x < cx < max_x): continue # Fuera de rango horizontal
-                
-                # Filtro vertical (misma altura que los equipos +/- 100px)
-                cy_ref = (bbox_local[0][1] + bbox_local[2][1]) / 2
-                if abs(cy - cy_ref) > 100: continue
-
-            # Análisis de Patrón "N - M"
-            match = patron_marcador.search(txt_limpio)
+            # A. ¿ES UN NOMBRE DE EQUIPO?
+            # Si encontramos algo parecido al Local, guardamos su X
+            if SequenceMatcher(None, target_l, txt_clean).ratio() > 0.5:
+                pos_local_x = cx
+            # Si encontramos algo parecido al Visita, guardamos su X
+            elif SequenceMatcher(None, target_v, txt_clean).ratio() > 0.5:
+                pos_visita_x = cx
+            
+            # B. ¿ES UN NÚMERO DE GOL?
+            # Caso 1: Dígito suelto (0, 1, 2...)
+            if txt_raw.isdigit():
+                val = int(txt_raw)
+                if val < 20: # Filtro anti-minutos
+                    posibles_goles.append({'val': val, 'x': cx, 'tipo': 'single'})
+            
+            # Caso 2: Marcador completo (2-1, 3:0)
+            # Regex que busca N-N
+            match = re.search(r'(\d{1,2})\s*[-:–]\s*(\d{1,2})', txt_raw)
             if match:
-                g_izq, g_der = map(int, match.groups()) # Gol Izquierda, Gol Derecha
-                
-                # Filtros anti-reloj
-                if g_izq > 20 or g_der > 20: continue
-                if ":" in txt_limpio and (g_izq > 10 or g_der > 10): continue
-
-                posibles_goles.append({
-                    'g_izq': g_izq, 
-                    'g_der': g_der,
-                    'y': cy,
-                    'confianza': prob
-                })
+                g1, g2 = map(int, match.groups())
+                if g1 < 20 and g2 < 20:
+                    # Si hallamos "2-1", lo desglosamos en dos números
+                    # Asumimos que g1 está un poco a la izq y g2 a la der del centro del texto
+                    posibles_goles.append({'val': g1, 'x': cx - 20, 'tipo': 'combo_L'})
+                    posibles_goles.append({'val': g2, 'x': cx + 20, 'tipo': 'combo_R'})
 
         # ---------------------------------------------------------
-        # 6. DECISIÓN FINAL
+        # 4. LÓGICA DE SELECCIÓN (EL CEREBRO)
         # ---------------------------------------------------------
-        if not posibles_goles:
-            return None, "🤖 : No detecté un marcador claro entre los nombres de los equipos."
+        
+        if len(posibles_goles) < 2:
+            return None, error_msg
 
-        # Tomamos el mejor candidato (generalmente el más centrado/arriba)
-        posibles_goles.sort(key=lambda k: k['y'])
-        mejor = posibles_goles[0]
+        # Paso 1: Filtrar solo los números más "Centrales"
+        # Los goles suelen estar en el centro de la pantalla.
+        # Descartamos números que estén muy en las esquinas (como la hora o temperatura)
+        goles_centrales = []
+        for g in posibles_goles:
+            distancia_centro = abs(g['x'] - centro_img_x)
+            if distancia_centro < (ancho * 0.35): # Solo el 35% central
+                goles_centrales.append(g)
         
-        val_izq = mejor['g_izq']
-        val_der = mejor['g_der']
+        if len(goles_centrales) < 2:
+            # Si fuimos muy estrictos, volvemos a usar todos
+            goles_centrales = posibles_goles
+
+        # Paso 2: Ordenar de Izquierda a Derecha
+        goles_centrales.sort(key=lambda k: k['x'])
         
-        # APLICAR INVERSIÓN SI ES NECESARIO
-        if invertido:
-            # En la foto: [Visita (val_izq)] - [Local (val_der)]
-            # En BD queremos: (Local, Visita)
-            return (val_der, val_izq), f"✅ Marcador Invertido Detectado: {val_der}-{val_izq}"
-        else:
-            # En la foto: [Local (val_izq)] - [Visita (val_der)]
-            return (val_izq, val_der), f"✅ Marcador Detectado: {val_izq}-{val_der}"
+        # Tomamos los dos números que estén más cerca entre sí en el centro
+        # (Esto evita agarrar un número del reloj y otro del marcador)
+        mejor_par = None
+        min_dist = float('inf')
+
+        for i in range(len(goles_centrales) - 1):
+            g_izq = goles_centrales[i]
+            g_der = goles_centrales[i+1]
+            dist = abs(g_izq['x'] - g_der['x'])
+            
+            # Los goles suelen estar juntos (distancia < 150px)
+            if dist < 150:
+                # Si encontramos un par cercano, ese es el candidato
+                mejor_par = (g_izq, g_der)
+                break # Nos quedamos con el primer par central (izquierda a derecha)
+        
+        if not mejor_par:
+            # Si no hay par cercano, tomamos los dos más centrales absolutos
+            goles_centrales.sort(key=lambda k: abs(k['x'] - centro_img_x))
+            g_a = goles_centrales[0]
+            g_b = goles_centrales[1]
+            # Reordenamos por X para saber cual es izq y cual der
+            if g_a['x'] < g_b['x']: mejor_par = (g_a, g_b)
+            else: mejor_par = (g_b, g_a)
+
+        # ---------------------------------------------------------
+        # 5. ASIGNACIÓN FINAL (CON O SIN NOMBRES)
+        # ---------------------------------------------------------
+        gol_izq = mejor_par[0]['val']
+        gol_der = mejor_par[1]['val']
+        
+        # Lógica de Inversión:
+        # Si detectamos que "Visita" está a la izquierda de "Local" visualmente...
+        if pos_visita_x != -1 and pos_local_x != -1:
+            if pos_visita_x < pos_local_x:
+                # Marcador Invertido en TV: [Visita - Local]
+                return (gol_der, gol_izq), f"✅ Marcador Invertido: {gol_der}-{gol_izq}"
+        
+        # Si no detectamos inversión, asumimos orden estándar [Local - Visita]
+        return (gol_izq, gol_der), f"✅ Marcador Detectado: {gol_izq}-{gol_der}"
 
     except Exception as e:
-        return None, f"⚠️ Error técnico: {str(e)}"
+        return None, error_msg
 
 
 
@@ -2763,6 +2782,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
