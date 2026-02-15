@@ -1753,10 +1753,19 @@ def render_torneo(id_torneo):
                     # Filtros
                     filtro_partidos = st.radio("Filtrar:", ["Todos", "Pendientes", "En Revisión"], horizontal=True, label_visibility="collapsed")
                     
-                    # Query
+                    # Query CON FILTRO DE FASE (Igual que DT)
                     try:
                         with conn.connect() as db:
-                            q_gest = text("""
+                            # --- LÓGICA DE FILTRADO SEGÚN FASE ACTUAL ---
+                            if t_fase in ['regular', 'clasificacion']:
+                                filtro_jornada = "AND p.jornada ~ '^[0-9]+$'" # Solo jornadas numéricas
+                            elif t_fase == 'octavos': filtro_jornada = "AND p.jornada = 'Octavos'"
+                            elif t_fase == 'cuartos': filtro_jornada = "AND p.jornada = 'Cuartos'"
+                            elif t_fase == 'semis':   filtro_jornada = "AND p.jornada = 'Semifinal'"
+                            elif t_fase == 'final':   filtro_jornada = "AND p.jornada = 'Final'"
+                            else: filtro_jornada = "" # Mostrar todo si es otra fase o error
+
+                            q_gest = text(f"""
                                 SELECT 
                                     p.id, p.jornada, p.goles_l, p.goles_v, p.estado, p.conflicto, 
                                     p.url_foto_l, p.url_foto_v,
@@ -1765,7 +1774,8 @@ def render_torneo(id_torneo):
                                 FROM partidos p
                                 JOIN equipos_globales el ON p.local_id = el.id
                                 JOIN equipos_globales ev ON p.visitante_id = ev.id
-                                WHERE p.id_torneo = :id
+                                WHERE p.id_torneo = :id 
+                                {filtro_jornada}  -- AQUI SE INYECTA EL FILTRO
                                 ORDER BY p.jornada ASC, p.id ASC
                             """)
                             df_p = pd.read_sql_query(q_gest, db, params={"id": id_torneo})
@@ -1780,10 +1790,20 @@ def render_torneo(id_torneo):
                             df_p = df_p[df_p['goles_l'].isna() | df_p['goles_v'].isna()]
 
                     if df_p.empty:
-                        st.info("No hay partidos mpor revisar.")
+                        if filtro_partidos == "Todos":
+                            st.info(f"No hay partidos programados en la fase actual ({t_fase}).")
+                        else:
+                            st.info("No hay partidos que coincidan con el filtro.")
                     else:
-                        jornadas = sorted(df_p['jornada'].unique())
-                        tabs_j = st.tabs([f"J{j}" for j in jornadas])
+                        # Si es fase KO, usamos tabs con el nombre de la fase (aunque solo sea una)
+                        # Si es fase regular, ordenamos numéricamente
+                        try:
+                            # Intento de orden numérico para grupos
+                            jornadas = sorted(df_p['jornada'].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
+                        except:
+                            jornadas = sorted(df_p['jornada'].unique())
+
+                        tabs_j = st.tabs([f"J{j}" if str(j).isdigit() else str(j) for j in jornadas])
                         
                         for i, tab in enumerate(tabs_j):
                             with tab:
@@ -2785,6 +2805,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
