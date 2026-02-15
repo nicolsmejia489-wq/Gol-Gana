@@ -264,8 +264,8 @@ reader = easyocr.Reader(['es', 'en'], gpu=False)
 
 def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     """
-    Algoritmo "Centinela": Prioriza números centrales < 20.
-    Usa los nombres solo para confirmar orden, no para bloquear la lectura.
+    Algoritmo "Full Scan": Lee la imagen completa sin recortes.
+    Usa filtros geométricos para distinguir el marcador de las camisetas.
     """
     error_msg = "🤖 : No pude confirmar el marcador. ¿Puedes darme una mejor foto? O puedes dejarla para que el Admin la vea personalmente."
     
@@ -278,22 +278,21 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         if img is None: return None, "Error: Imagen corrupta."
 
-        # Resize a 800px width
+        # Resize a 800px width (Vital para mantener velocidad al escanear todo)
         alto, ancho = img.shape[:2]
         if ancho > 800:
             escala = 800 / ancho
             img = cv2.resize(img, (800, int(alto * escala)))
-            alto, ancho = img.shape[:2] # Actualizamos dimensiones
+            alto, ancho = img.shape[:2]
         
         # Grises + Contraste
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         gray = clahe.apply(gray)
         
-        # Recorte Táctico: Nos enfocamos en el tercio superior central
-        # (La mayoría de marcadores están ahí)
-        # Pero leemos toda la franja superior por si los nombres están lejos
-        zona_lectura = gray[0:int(alto*0.45), :] 
+        # --- CAMBIO: NO HAY RECORTE ---
+        # Leemos toda la imagen. Puede tardar 0.5s más, pero es más seguro.
+        zona_lectura = gray 
 
         # ---------------------------------------------------------
         # 2. LECTURA OCR
@@ -306,115 +305,119 @@ def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
         posibles_goles = []
         pos_local_x = -1
         pos_visita_x = -1
-        
         centro_img_x = ancho / 2
 
-        # Limpieza de texto para comparar nombres
         def limpiar(txt): return re.sub(r'[^A-Z0-9]', '', str(txt).upper())
         target_l = limpiar(local_real)
         target_v = limpiar(visitante_real)
 
         for (bbox, texto, prob) in resultados:
-            if prob < 0.25: continue # Filtro basura
+            if prob < 0.25: continue
             
             # Geometría
             cx = (bbox[0][0] + bbox[1][0]) / 2
+            cy = (bbox[0][1] + bbox[2][1]) / 2 # Necesitamos Y para filtrar camisetas
             txt_clean = limpiar(texto)
             txt_raw = texto.strip()
 
-            # A. ¿ES UN NOMBRE DE EQUIPO?
-            # Si encontramos algo parecido al Local, guardamos su X
+            # A. Nombres de Equipo (Para detectar inversión)
             if SequenceMatcher(None, target_l, txt_clean).ratio() > 0.5:
                 pos_local_x = cx
-            # Si encontramos algo parecido al Visita, guardamos su X
             elif SequenceMatcher(None, target_v, txt_clean).ratio() > 0.5:
                 pos_visita_x = cx
             
-            # B. ¿ES UN NÚMERO DE GOL?
-            # Caso 1: Dígito suelto (0, 1, 2...)
+            # B. Números de Gol
+            # Caso 1: Dígito suelto
             if txt_raw.isdigit():
                 val = int(txt_raw)
-                if val < 20: # Filtro anti-minutos
-                    posibles_goles.append({'val': val, 'x': cx, 'tipo': 'single'})
+                if val < 20:
+                    posibles_goles.append({'val': val, 'x': cx, 'y': cy, 'tipo': 'single'})
             
-            # Caso 2: Marcador completo (2-1, 3:0)
-            # Regex que busca N-N
+            # Caso 2: Marcador completo (N-N)
             match = re.search(r'(\d{1,2})\s*[-:–]\s*(\d{1,2})', txt_raw)
             if match:
                 g1, g2 = map(int, match.groups())
                 if g1 < 20 and g2 < 20:
-                    # Si hallamos "2-1", lo desglosamos en dos números
-                    # Asumimos que g1 está un poco a la izq y g2 a la der del centro del texto
-                    posibles_goles.append({'val': g1, 'x': cx - 20, 'tipo': 'combo_L'})
-                    posibles_goles.append({'val': g2, 'x': cx + 20, 'tipo': 'combo_R'})
+                    posibles_goles.append({'val': g1, 'x': cx - 20, 'y': cy, 'tipo': 'combo_L'})
+                    posibles_goles.append({'val': g2, 'x': cx + 20, 'y': cy, 'tipo': 'combo_R'})
 
         # ---------------------------------------------------------
-        # 4. LÓGICA DE SELECCIÓN (EL CEREBRO)
+        # 4. LÓGICA DE SELECCIÓN (FILTROS DE RUIDO)
         # ---------------------------------------------------------
+        if len(posibles_goles) < 2: return None, error_msg
+
+        # Paso 1: Filtro de Centralidad Horizontal (X)
+        # Descartamos cosas muy a los bordes (reloj, logos de canal)
+        goles_filtrados_x = []
+        for g in posibles_goles:
+            if abs(g['x'] - centro_img_x) < (ancho * 0.40): # 40% central
+                goles_filtrados_x.append(g)
         
-        if len(posibles_goles) < 2:
+        # Si filtramos demasiado, relajamos
+        candidatos = goles_filtrados_x if len(goles_filtrados_x) >= 2 else posibles_goles
+
+        # Paso 2: Agrupar por "Líneas" (Coordenada Y)
+        # Esto es vital para no mezclar un gol de arriba con un dorsal de abajo
+        lineas = {} # Diccionario {y_promedio: [goles]}
+        for g in candidatos:
+            encontrado = False
+            for y_key in lineas:
+                # Si está a menos de 40px de altura de otra línea, pertenece a ella
+                if abs(g['y'] - y_key) < 40:
+                    lineas[y_key].append(g)
+                    encontrado = True
+                    break
+            if not encontrado:
+                lineas[g['y']] = [g]
+
+        # Paso 3: Evaluar cada línea para encontrar PARES
+        pares_validos = []
+        
+        for y, grupo in lineas.items():
+            if len(grupo) < 2: continue # Líneas con un solo número no sirven
+            
+            # Ordenamos la línea de izq a derecha
+            grupo.sort(key=lambda k: k['x'])
+            
+            # Buscamos dos números cercanos en esta línea
+            for i in range(len(grupo) - 1):
+                g_izq = grupo[i]
+                g_der = grupo[i+1]
+                dist = abs(g_izq['x'] - g_der['x'])
+                
+                # Si están cerca horizontalmente (parecen un marcador)
+                if dist < 150: 
+                    pares_validos.append({
+                        'par': (g_izq, g_der),
+                        'y': y # Guardamos la altura de este par
+                    })
+                    break # Solo un par por línea
+
+        if not pares_validos:
             return None, error_msg
 
-        # Paso 1: Filtrar solo los números más "Centrales"
-        # Los goles suelen estar en el centro de la pantalla.
-        # Descartamos números que estén muy en las esquinas (como la hora o temperatura)
-        goles_centrales = []
-        for g in posibles_goles:
-            distancia_centro = abs(g['x'] - centro_img_x)
-            if distancia_centro < (ancho * 0.35): # Solo el 35% central
-                goles_centrales.append(g)
+        # Paso 4: Elegir el MEJOR par (Prioridad Superior)
+        # Ordenamos los pares encontrados por altura (Y). El menor Y está más arriba.
+        # Generalmente el marcador está arriba.
+        pares_validos.sort(key=lambda k: k['y'])
         
-        if len(goles_centrales) < 2:
-            # Si fuimos muy estrictos, volvemos a usar todos
-            goles_centrales = posibles_goles
-
-        # Paso 2: Ordenar de Izquierda a Derecha
-        goles_centrales.sort(key=lambda k: k['x'])
+        mejor_par_obj = pares_validos[0] # El par más alto
         
-        # Tomamos los dos números que estén más cerca entre sí en el centro
-        # (Esto evita agarrar un número del reloj y otro del marcador)
-        mejor_par = None
-        min_dist = float('inf')
-
-        for i in range(len(goles_centrales) - 1):
-            g_izq = goles_centrales[i]
-            g_der = goles_centrales[i+1]
-            dist = abs(g_izq['x'] - g_der['x'])
-            
-            # Los goles suelen estar juntos (distancia < 150px)
-            if dist < 150:
-                # Si encontramos un par cercano, ese es el candidato
-                mejor_par = (g_izq, g_der)
-                break # Nos quedamos con el primer par central (izquierda a derecha)
-        
-        if not mejor_par:
-            # Si no hay par cercano, tomamos los dos más centrales absolutos
-            goles_centrales.sort(key=lambda k: abs(k['x'] - centro_img_x))
-            g_a = goles_centrales[0]
-            g_b = goles_centrales[1]
-            # Reordenamos por X para saber cual es izq y cual der
-            if g_a['x'] < g_b['x']: mejor_par = (g_a, g_b)
-            else: mejor_par = (g_b, g_a)
-
         # ---------------------------------------------------------
-        # 5. ASIGNACIÓN FINAL (CON O SIN NOMBRES)
+        # 5. ASIGNACIÓN FINAL
         # ---------------------------------------------------------
-        gol_izq = mejor_par[0]['val']
-        gol_der = mejor_par[1]['val']
+        gol_izq = mejor_par_obj['par'][0]['val']
+        gol_der = mejor_par_obj['par'][1]['val']
         
-        # Lógica de Inversión:
-        # Si detectamos que "Visita" está a la izquierda de "Local" visualmente...
+        # Inversión automática
         if pos_visita_x != -1 and pos_local_x != -1:
             if pos_visita_x < pos_local_x:
-                # Marcador Invertido en TV: [Visita - Local]
                 return (gol_der, gol_izq), f"✅ Marcador Invertido: {gol_der}-{gol_izq}"
         
-        # Si no detectamos inversión, asumimos orden estándar [Local - Visita]
         return (gol_izq, gol_der), f"✅ Marcador Detectado: {gol_izq}-{gol_der}"
 
     except Exception as e:
         return None, error_msg
-
 
 
 
@@ -2782,6 +2785,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
