@@ -264,153 +264,137 @@ reader = easyocr.Reader(['es', 'en'], gpu=False)
 
 def leer_marcador_ia(imagen_bytes, local_real, visitante_real):
     """
-    Algoritmo "Cazador de Patrones" con Triangulación.
-    Usa los nombres de los equipos como anclas para encontrar el gol.
+    Algoritmo "Cazador de Patrones" con INVERSIÓN AUTOMÁTICA.
+    Detecta qué equipo está a la izquierda y asigna los goles correctamente.
     """
     try:
         # ---------------------------------------------------------
-        # 1. PRE-PROCESAMIENTO (VISIÓN DE ÁGUILA)
+        # 1. PRE-PROCESAMIENTO
         # ---------------------------------------------------------
         imagen_bytes.seek(0)
         file_bytes = np.asarray(bytearray(imagen_bytes.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         if img is None: return None, "Error: Imagen no válida."
 
-        # Redimensionar a 800px de ancho (Balance perfecto velocidad/calidad)
+        # Redimensionar
         alto, ancho = img.shape[:2]
         if ancho > 800:
             escala = 800 / ancho
             img = cv2.resize(img, (800, int(alto * escala)))
         
-        # Escala de grises y Alto Contraste (CLAHE)
-        # Esto hace que los números blancos sobre fondo de color resalten
+        # Grises + Contraste
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         gray = clahe.apply(gray)
 
         # ---------------------------------------------------------
-        # 2. LECTURA OCR (BARRIDO DE CANCHA)
+        # 2. LECTURA OCR
         # ---------------------------------------------------------
-        # Leemos TODO. No recortamos aún por si el marcador está abajo.
-        # detail=1 nos da las coordenadas (bounding box).
         resultados = reader.readtext(gray, detail=1, paragraph=False)
 
         # ---------------------------------------------------------
-        # 3. ANÁLISIS TÁCTICO (TRIANGULACIÓN)
+        # 3. BÚSQUEDA DE ANCLAS (EQUIPOS)
         # ---------------------------------------------------------
-        
-        # Variables de Anclaje
         bbox_local = None
         bbox_visita = None
         
-        # Limpiamos nombres para comparar (Mayúsculas y sin acentos básicos)
         def limpiar(txt): return re.sub(r'[^A-Z0-9]', '', str(txt).upper())
         
         target_l = limpiar(local_real)
         target_v = limpiar(visitante_real)
 
-        # A. BUSCAR A LOS EQUIPOS (LAS ANCLAS)
+        # Buscar ambos equipos en toda la lista de resultados
         for (bbox, texto, prob) in resultados:
-            if prob < 0.3: continue # Ignorar basura
+            if prob < 0.3: continue
             txt_clean = limpiar(texto)
             
-            # Usamos similitud difusa (por si el OCR lee "ALERIJE" en vez de "ALEBRIJES")
-            # Ratio > 0.6 es bastante permisivo pero seguro
+            # Usamos similitud difusa (ratio > 0.55)
             if not bbox_local and SequenceMatcher(None, target_l, txt_clean).ratio() > 0.55:
                 bbox_local = bbox
-                # print(f"Ancla Local encontrada: {texto}")
-            
             elif not bbox_visita and SequenceMatcher(None, target_v, txt_clean).ratio() > 0.55:
                 bbox_visita = bbox
-                # print(f"Ancla Visita encontrada: {texto}")
 
         # ---------------------------------------------------------
-        # 4. CAZA DE GOLES (DEFINICIÓN)
+        # 4. TRIANGULACIÓN Y DETECCIÓN DE INVERSIÓN
         # ---------------------------------------------------------
         
-        posibles_goles = []
+        min_x, max_x = 0, img.shape[1] # Rango de búsqueda por defecto
+        invertido = False # Asumimos orden normal por defecto
+        
+        # Si encontramos a AMBOS equipos, ajustamos la zona y detectamos el orden
+        if bbox_local and bbox_visita:
+            cx_l = (bbox_local[0][0] + bbox_local[1][0]) / 2
+            cx_v = (bbox_visita[0][0] + bbox_visita[1][0]) / 2
+            
+            # Definir zona de gol (entre los dos equipos)
+            min_x = min(cx_l, cx_v)
+            max_x = max(cx_l, cx_v)
+            
+            # CRUCIAL: ¿Quién está a la izquierda visualmente?
+            # Si la coordenada X del Visitante es MENOR que la del Local, están al revés.
+            if cx_v < cx_l:
+                invertido = True
+                # print("ALERTA: Equipos invertidos en la foto (Visita - Local)")
 
-        # Regex para detectar patrones de marcador:
-        # Captura: "2-1", "2 - 1", "2 : 1", "2 1" (con espacio)
+        # ---------------------------------------------------------
+        # 5. EXTRACCIÓN DE GOLES
+        # ---------------------------------------------------------
+        posibles_goles = []
         patron_marcador = re.compile(r'(\d{1,2})\s*[-:–\s]\s*(\d{1,2})')
 
         for (bbox, texto, prob) in resultados:
-            # Centro X del elemento actual
             cx = (bbox[0][0] + bbox[1][0]) / 2
-            cy = (bbox[0][1] + bbox[2][1]) / 2 # Centro Y
-            
+            cy = (bbox[0][1] + bbox[2][1]) / 2
             txt_limpio = texto.strip()
-            
-            # --- ESTRATEGIA A: TRIANGULACIÓN (Si tenemos anclas) ---
-            if bbox_local and bbox_visita:
-                # Centro X de las anclas
-                cx_l = (bbox_local[0][0] + bbox_local[1][0]) / 2
-                cx_v = (bbox_visita[0][0] + bbox_visita[1][0]) / 2
-                
-                # Definir zona válida: ESTRICTAMENTE entre Local y Visita
-                min_x = min(cx_l, cx_v)
-                max_x = max(cx_l, cx_v)
-                
-                # ¿Está en el medio horizontalmente?
-                if min_x < cx < max_x:
-                    # ¿Está alineado verticalmente? (Tolerancia de 50px arriba/abajo)
-                    cy_l = (bbox_local[0][1] + bbox_local[2][1]) / 2
-                    if abs(cy - cy_l) < 100: 
-                        # Es un candidato fuerte. Verificamos si parece marcador.
-                        match = patron_marcador.search(txt_limpio)
-                        if match:
-                            g1, g2 = map(int, match.groups())
-                            if g1 < 20 and g2 < 20: # Filtro anti-minutos (45, 90)
-                                return (g1, g2), f"✅ Triangulación Exitosa: {g1}-{g2}"
 
-            # --- ESTRATEGIA B: PATRÓN PURO (Si fallan las anclas) ---
-            # Buscamos textos que sean explícitamente "N - N"
+            # Filtro Geométrico: ¿Está el texto en medio de los equipos?
+            if bbox_local and bbox_visita:
+                if not (min_x < cx < max_x): continue # Fuera de rango horizontal
+                
+                # Filtro vertical (misma altura que los equipos +/- 100px)
+                cy_ref = (bbox_local[0][1] + bbox_local[2][1]) / 2
+                if abs(cy - cy_ref) > 100: continue
+
+            # Análisis de Patrón "N - M"
             match = patron_marcador.search(txt_limpio)
             if match:
-                g1, g2 = map(int, match.groups())
+                g_izq, g_der = map(int, match.groups()) # Gol Izquierda, Gol Derecha
                 
-                # Filtros de seguridad para Modo Patrón:
-                # 1. No debe ser el reloj (ej: 90:00, 45:12)
-                if g1 > 20 or g2 > 20: continue 
-                
-                # 2. Si tiene ":" (dos puntos), sospechamos que es reloj.
-                # Pero si es "1:0" o "2:1", es marcador. Si es "12:45", es reloj.
-                if ":" in txt_limpio and (g1 > 10 or g2 > 10): continue
+                # Filtros anti-reloj
+                if g_izq > 20 or g_der > 20: continue
+                if ":" in txt_limpio and (g_izq > 10 or g_der > 10): continue
 
                 posibles_goles.append({
-                    'goles': (g1, g2),
-                    'confianza': prob,
-                    'texto': txt_limpio,
-                    'y': cy, # Guardamos altura para desempatar
-                    'x': cx
+                    'g_izq': g_izq, 
+                    'g_der': g_der,
+                    'y': cy,
+                    'confianza': prob
                 })
 
         # ---------------------------------------------------------
-        # 5. DECISIÓN FINAL (VAR)
+        # 6. DECISIÓN FINAL
         # ---------------------------------------------------------
-        
         if not posibles_goles:
-            return None, "🤖 : No detecté un marcador claro (Ej: 2-1). Intenta acercar la cámara."
+            return None, "🤖 : No detecté un marcador claro entre los nombres de los equipos."
 
-        # Si hay varios, aplicamos heurística:
-        # 1. Preferir los que tienen guion "-" sobre los que tienen ":"
-        # 2. Preferir los que están más arriba en la imagen (Y menor) pero no en el borde borde
-        
-        # Ordenamos por posición Y (asumiendo que el marcador suele estar arriba)
+        # Tomamos el mejor candidato (generalmente el más centrado/arriba)
         posibles_goles.sort(key=lambda k: k['y'])
+        mejor = posibles_goles[0]
         
-        mejor_opcion = posibles_goles[0]
-        g1, g2 = mejor_opcion['goles']
+        val_izq = mejor['g_izq']
+        val_der = mejor['g_der']
         
-        # DETECCIÓN DE INVERSIÓN (Opcional pero pro)
-        # Si detectamos anclas pero no pudimos triangular, podemos usar las anclas 
-        # para saber si el marcador está invertido. (Por ahora lo dejamos directo).
-
-        return (g1, g2), f"✅ Marcador detectado: {g1}-{g2}"
+        # APLICAR INVERSIÓN SI ES NECESARIO
+        if invertido:
+            # En la foto: [Visita (val_izq)] - [Local (val_der)]
+            # En BD queremos: (Local, Visita)
+            return (val_der, val_izq), f"✅ Marcador Invertido Detectado: {val_der}-{val_izq}"
+        else:
+            # En la foto: [Local (val_izq)] - [Visita (val_der)]
+            return (val_izq, val_der), f"✅ Marcador Detectado: {val_izq}-{val_der}"
 
     except Exception as e:
         return None, f"⚠️ Error técnico: {str(e)}"
-
 
 
 
@@ -2779,6 +2763,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
