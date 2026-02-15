@@ -401,29 +401,58 @@ def procesar_y_subir_escudo(archivo_imagen, nombre_equipo, id_torneo):
 
 
 def validar_acceso(id_torneo, pin_ingresado):
+    """
+    Valida el PIN ingresado y retorna el rol o el estado del equipo.
+    CORREGIDO: Manejo de mayúsculas/minúsculas y estados desconocidos.
+    """
     try:
         with conn.connect() as db:
-            # 1. VERIFICAR ADMIN
+            # 1. VERIFICAR ADMIN (Prioridad absoluta)
             q_admin = text("SELECT nombre FROM torneos WHERE id = :id AND pin_admin = :pin")
             res_admin = db.execute(q_admin, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
             if res_admin:
                 return {"rol": "Admin", "id_equipo": None, "nombre_equipo": "Organizador"}
             
-            # 2. VERIFICAR DT (Con Estado)
-            q_dt = text("SELECT id, nombre, estado FROM equipos_globales WHERE id_torneo = :id AND pin_equipo = :pin")
-            res_dt = db.execute(q_dt, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
+            # 2. VERIFICAR EQUIPO
+            q_team = text("""
+                SELECT id, nombre, estado 
+                FROM equipos_globales 
+                WHERE id_torneo = :id AND pin_equipo = :pin
+            """)
+            res_team = db.execute(q_team, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
             
-            if res_dt:
-                # El PIN existe, ahora miramos el estado
-                if res_dt.estado == 'aprobado':
-                    return {"rol": "DT", "id_equipo": res_dt.id, "nombre_equipo": res_dt.nombre}
-                elif res_dt.estado == 'pendiente':
-                    return "PENDIENTE" # Señal especial para la UI
-                else:
-                    return None # Baja u otro estado (No entra)
+            if res_team:
+                # BLINDAJE: Convertir a minúsculas y quitar espacios para evitar errores tontos
+                # Si el estado es None, lo tratamos como cadena vacía
+                est_raw = res_team.estado if res_team.estado else ""
+                est = str(est_raw).lower().strip()
+                
+                # Depuración rápida (solo visible en logs del servidor si algo falla)
+                # print(f"Equipo encontrado: {res_team.nombre}, Estado DB: '{est_raw}', Estado Clean: '{est}'")
 
+                if est == 'aprobado':
+                    return {"rol": "DT", "id_equipo": res_team.id, "nombre_equipo": res_team.nombre}
+                
+                elif est == 'pendiente':
+                    return "PENDIENTE"
+                
+                elif est == 'eliminado':
+                    return "ELIMINADO"
+                
+                elif est == 'baja':
+                    return "BAJA"
+                
+                else:
+                    # SI ENCUENTRA EL EQUIPO PERO EL ESTADO ES RARO (ej: 'inscrito', 'revision')
+                    # Devolvemos esto para que no salga 'PIN incorrecto'
+                    return "PENDIENTE" # Por seguridad, lo tratamos como pendiente
+            
+            # 3. SI LLEGA AQUÍ, ES QUE NO ENCONTRÓ NADA (PIN INCORRECTO)
+            return None
+
+    except Exception as e:
+        print(f"Error login: {e}")
         return None
-    except: return None
 
 
 
@@ -2654,6 +2683,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
