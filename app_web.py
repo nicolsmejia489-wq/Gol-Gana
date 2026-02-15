@@ -629,6 +629,10 @@ def render_lobby():
 # 4.1 LOGICA DE VALIDACIÓN DE ACCESO
 # ==============================================================================
 def validar_acceso(id_torneo, pin_ingresado):
+    """
+    Valida el PIN ingresado y retorna el rol o el estado del equipo.
+    Maneja estados: aprobado (entra), pendiente (aviso), eliminado (mensaje), baja/null (error).
+    """
     try:
         with conn.connect() as db:
             # 1. VERIFICAR ADMIN (Prioridad absoluta)
@@ -637,31 +641,33 @@ def validar_acceso(id_torneo, pin_ingresado):
             if res_admin:
                 return {"rol": "Admin", "id_equipo": None, "nombre_equipo": "Organizador"}
             
-            # 2. VERIFICAR DT APROBADO (Solo entran los 'aprobado')
-            # Nota: Agregamos explícitamente AND estado = 'aprobado' en el SQL
-            q_ok = text("""
-                SELECT id, nombre 
+            # 2. VERIFICAR EQUIPO (Cualquier estado)
+            # Traemos el estado para saber qué decirle al usuario
+            q_team = text("""
+                SELECT id, nombre, estado 
                 FROM equipos_globales 
-                WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'aprobado'
+                WHERE id_torneo = :id AND pin_equipo = :pin
             """)
-            res_ok = db.execute(q_ok, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
+            res_team = db.execute(q_team, {"id": id_torneo, "pin": pin_ingresado}).fetchone()
             
-            if res_ok:
-                return {"rol": "DT", "id_equipo": res_ok.id, "nombre_equipo": res_ok.nombre}
+            if res_team:
+                est = res_team.estado
+                
+                if est == 'aprobado':
+                    # Login Exitoso
+                    return {"rol": "DT", "id_equipo": res_team.id, "nombre_equipo": res_team.nombre}
+                
+                elif est == 'pendiente':
+                    return "PENDIENTE"
+                
+                elif est == 'eliminado':
+                    return "ELIMINADO"
+                
+                elif est == 'baja':
+                    return "BAJA"
             
-            # 3. VERIFICAR SI ESTÁ PENDIENTE (Para dar el aviso correcto)
-            q_pend = text("""
-                SELECT 1 
-                FROM equipos_globales 
-                WHERE id_torneo = :id AND pin_equipo = :pin AND estado = 'pendiente'
-            """)
-            # Si existe un pendiente, devolvemos la señal de alerta
-            if db.execute(q_pend, {"id": id_torneo, "pin": pin_ingresado}).fetchone():
-                return "PENDIENTE"
-
-        # Si llegamos aquí, es porque no es Admin, ni DT aprobado, ni pendiente.
-        # (Puede ser estado NULL, 'baja' o PIN incorrecto)
-        return None
+            # Si no es admin y no encontró equipo con ese PIN
+            return None
 
     except Exception as e:
         print(f"Error login: {e}")
@@ -2595,23 +2601,47 @@ def render_torneo(id_torneo):
             st.subheader("🔐 Acceso DT / Admin")
             with st.container(border=True):
                 c_in, c_btn = st.columns([3, 1])
-                pin_log = c_in.text_input("PIN", type="password", label_visibility="collapsed", placeholder="Ingresa PIN")
+                pin_log = c_in.text_input("Credenciales", type="password", label_visibility="collapsed", placeholder="Ingresa tu PIN de acceso")
+            
+            if c_btn.button("Ingresar", type="primary", use_container_width=True):
                 
-                if c_btn.button("Entrar", type="primary", use_container_width=True):
-                    acc = validar_acceso(id_torneo, pin_log)
+                if not pin_log:
+                    st.toast("⚠️ Por favor escribe un PIN.", icon="⚽")
+                else:
+                    with st.spinner("Verificando fichaje..."):
+                        acc = validar_acceso(id_torneo, pin_log)
                     
-                    # CASO 1: Login Exitoso (Devuelve Diccionario)
+                    # --- CASO 1: LOGIN EXITOSO (Admin o DT Activo) ---
                     if isinstance(acc, dict):
                         st.session_state.update(acc)
+                        st.toast(f"✅ ¡Bienvenido a la cancha, {acc['nombre_equipo']}!", icon="🏟️")
                         st.rerun()
                     
-                    # CASO 2: En Lista de Espera (Devuelve String "PENDIENTE")
+                    # --- CASO 2: PENDIENTE (En Vestuario) ---
                     elif acc == "PENDIENTE":
-                        st.warning("⏳ Tu equipo está en **Lista de Espera**. El Admin debe aprobarte antes de que puedas gestionar tu plantilla.")
+                        st.info("""
+                        **⏳ Tu ficha está en revisión.**
+                        
+                        El organizador aún no ha aprobado tu inscripción. 
+                        Mantente en el vestuario, pronto te avisarán cuando puedas saltar al campo.
+                        """)
                     
-                    # CASO 3: PIN Incorrecto o Baja
+                    # --- CASO 3: ELIMINADO (Mensaje Motivacional) ---
+                    elif acc == "ELIMINADO":
+                        st.warning("""
+                        **💔 El fútbol da revanchas.**
+                        
+                        Tu participación en este torneo ha finalizado, por lo que el acceso a la gestión está cerrado.
+                        ¡Gracias por la garra! A preparar la pretemporada para la próxima copa. ⚽🔥
+                        """)
+                    
+                    # --- CASO 4: BAJA (Se retiró) ---
+                    elif acc == "BAJA":
+                        st.error("Este equipo fue dado de baja del torneo.")
+
+                    # --- CASO 5: PIN INCORRECTO ---
                     else:
-                        st.error("PIN no válido en este torneo.")
+                        st.error("🚫 **Tarjeta Roja al PIN.** No encontramos esas credenciales en este torneo.")
 
 
                         
@@ -2624,6 +2654,7 @@ def render_torneo(id_torneo):
 params = st.query_params
 if "id" in params: render_torneo(params["id"])
 else: render_lobby()
+
 
 
 
